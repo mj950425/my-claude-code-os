@@ -35,7 +35,7 @@ if [ "$active" = "$owner" ]; then
   ok "gh 활성 계정 = $active (fork 소유자와 일치)"
 else
   note "gh 활성 계정이 '${active:-불명}' 입니다. fork 소유자는 '$owner' 입니다."
-  note "해결: export GH_TOKEN=\$(gh auth token --user $owner)   # 또는 gh auth switch --user $owner"
+  note "해결: scripts/with-account.sh $owner -- <명령>   (작업 후 원래 계정으로 자동 복귀)"
 fi
 
 cred=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill 2>/dev/null | sed -n 's/^username=//p')
@@ -71,11 +71,11 @@ if [ -n "$parent" ]; then
 fi
 
 echo "[5] 작업 트리"
-if [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+if [ -z "$(git status --porcelain)" ]; then
   ok "커밋되지 않은 변경 없음"
 else
-  note "커밋되지 않은 변경이 있습니다:"
-  git status --short --untracked-files=no | sed 's/^/         /'
+  note "커밋되지 않은 변경이 있습니다 (untracked 포함):"
+  git status --short | sed 's/^/         /'
 fi
 
 echo "[6] 기존 PR"
