@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """공통 큐 계약·심판 결과·이미지 갤러리를 읽어 속성에 독립적인 정적 HTML 보고서 세 장을 만든다.
 
-- `suspect-gt.html`    의심되는 GT 찾기 — 건 단위. 판단기가 본 이미지를 사람이 다시 보고 GT를 고칠지 정한다.
+- `suspect-gt.html`    의심되는 GT 찾기 — 건 단위. 판독기가 본 이미지를 사람이 다시 보고 GT를 고칠지 정한다.
 - `policy-gaps.html`   빈 정책 찾기 — 군집 단위. 판례 하나가 닫는 사례들을 그 질문 아래 모아 둔다.
 - `catalog-audit.html` 표지. 두 목록의 크기, 분리된 실행 결함, 신호가 어느 목록으로 갔는지.
 
-상품마다 판단기가 실제로 본 대표 이미지와 상세 타일을 밀집해 싣는다(프로필 `gallery`).
+상품마다 판독기가 실제로 본 대표 이미지와 상세 타일을 밀집해 싣는다(프로필 `gallery`).
+판독기가 쓴 문장과 리뷰어(감사·심판)가 쓴 문장은 카드 안에서 칸을 나눠 싣는다.
 어느 상품이 어느 목록에 가는지는 심판(`review/verdicts.jsonl`)의 귀책이 정한다.
 심판이 없으면 프로필 신호의 `lane`, 그것도 없으면 미확정이라 두 목록에 다 나온다.
 
@@ -27,16 +28,11 @@ from catalog_profile import PROJECT_ROOT, default_profile, load_profile, output_
 
 # 귀책이 접히는 목록. 순서가 곧 표시 순서다.
 LANES: list[dict[str, str]] = [
-    {"id": "GT", "title": "의심되는 GT", "unit": "건 단위",
-     "note": "정책이 답을 내는데 GT가 다르거나, GT 자체가 정본을 갖지 못했다. 고칠 곳은 골든셋이다."},
-    {"id": "POLICY", "title": "의심되는 정책", "unit": "군집 단위",
-     "note": "GT에는 답이 있는데 정책이 그 답을 낼 근거가 없거나, 정책을 기계로 적용할 수 없다. 사람이 경계를 정해 판례로 남긴다."},
-    {"id": "RUNTIME", "title": "실행 결함", "unit": "분리해서 넘긴다",
-     "note": "정책은 답을 내는데 실행이 다른 값을 만들었다. 판정 대상이 아니라 버그다."},
-    {"id": "OPEN", "title": "미확정", "unit": "심판 없음",
-     "note": "귀책을 정할 심판 결과가 없다. 두 목록에 모두 나온다."},
-    {"id": "NONE", "title": "충돌 없음", "unit": "근거 수집 기록",
-     "note": "정책·GT·실행이 같다. 어떻게 근거를 모았는지만 기록으로 남는다."},
+    {"id": "GT", "title": "의심되는 GT", "unit": "건 단위"},
+    {"id": "POLICY", "title": "의심되는 정책", "unit": "군집 단위"},
+    {"id": "RUNTIME", "title": "실행 결함", "unit": "분리"},
+    {"id": "OPEN", "title": "미확정", "unit": "심판 없음"},
+    {"id": "NONE", "title": "충돌 없음", "unit": "기록"},
 ]
 LANE_IDS = [lane["id"] for lane in LANES]
 OWNER_LANE = {"GOLDEN": "GT", "POLICY": "POLICY", "EVIDENCE": "POLICY", "GOAL": "POLICY", "RUNTIME": "RUNTIME", "NONE": "NONE"}
@@ -46,26 +42,8 @@ OWNER_ORDER = ["GOLDEN", "PENDING_PRECEDENT", "POLICY", "EVIDENCE", "GOAL", "RUN
 
 INDEX_FILE = "catalog-audit.html"
 REPORTS: dict[str, dict[str, Any]] = {
-    "gt": {
-        "file": "suspect-gt.html",
-        "title": "의심되는 GT 찾기",
-        "unit": "건 단위",
-        "lanes": ["GT", "OPEN"],
-        "dual": False,
-        "lede": "정책이 답을 내는데 GT가 다르거나, GT 자체가 정본을 갖지 못한 상품이다. "
-                "판단기가 본 대표 이미지와 상세 타일을 사람이 다시 보고 GT를 고칠지 정한다. "
-                "확정은 사람 판정 원장에만 남고, 여기 있는 귀책은 전부 추천이다.",
-    },
-    "policy": {
-        "file": "policy-gaps.html",
-        "title": "빈 정책 찾기",
-        "unit": "군집 단위",
-        "lanes": ["POLICY", "OPEN"],
-        "dual": True,
-        "lede": "GT에는 답이 있는데 정책이 그 답을 낼 근거가 없거나, 정책을 기계로 적용할 수 없는 상품이다. "
-                "사례마다 라벨을 달지 않는다 — 사례를 가르는 질문 하나에 답하고, 그 답이 판례가 되어 정책에 들어간다. "
-                "실행이 값을 지어냈지만 정책도 근거가 없는 사례는 실행 결함이면서 여기에도 걸린다.",
-    },
+    "gt": {"file": "suspect-gt.html", "title": "의심되는 GT 찾기", "unit": "건 단위", "lanes": ["GT", "OPEN"], "dual": False},
+    "policy": {"file": "policy-gaps.html", "title": "빈 정책 찾기", "unit": "군집 단위", "lanes": ["POLICY", "OPEN"], "dual": True},
 }
 
 
@@ -226,7 +204,7 @@ def normalize_rows(
                 "brand": text(row.get("brand")),
                 "category": first(row, "standardCategory", "category"),
                 "url": first(row, "pdpUrl", "url"),
-                # 세 라벨. GT는 사람 정답, observed는 실행(판단기) 출력. 정책 답은 심판에서 온다.
+                # 세 라벨. GT는 사람 정답, observed는 실행(판독기) 출력. 정책 답은 리뷰어(심판)에서 온다.
                 "referenceLabel": first(row, "referenceLabel", "goldLabel", "canonicalGold"),
                 "observedLabel": text(row.get("observedLabel")),
                 "goldSource": text(row.get("goldSource")),
@@ -240,7 +218,7 @@ def normalize_rows(
                     "sceneIds": [],
                     "images": [],
                 },
-                # 판단기가 이미지를 보고 어떤 단계를 거쳐 답에 도달했는지. 어댑터가 넣은 만큼만 그린다.
+                # 판독기가 이미지를 보고 어떤 단계를 거쳐 답에 도달했는지. 어댑터가 넣은 만큼만 그린다.
                 "judge": {
                     "firstStage": text(row.get("thumbnailFold")),
                     "detailStage": first(row, "detailFold", "detailStageGender"),
@@ -379,21 +357,11 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .masthead-top nav a{margin-left:14px;border-bottom-color:var(--faint);color:var(--muted)}
 .masthead h1{font-family:var(--serif);font-weight:300;letter-spacing:-.035em;line-height:1.08;font-size:clamp(2.1rem,4.6vw,3.4rem);padding:16px 0 6px;border-top:1.5px solid var(--ink)}
 .masthead h1 small{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
-.standfirst{max-width:72ch;font-size:14.5px;color:var(--muted);padding:6px 0 22px}
-.standfirst b{color:var(--ink);font-weight:500}
-.runbar{display:flex;flex-wrap:wrap;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.runbar{display:flex;flex-wrap:wrap;margin-top:18px;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
 .runbar div{flex:1 1 130px;padding:9px 14px 10px;border-left:1px solid var(--rule)}
 .runbar div:first-child{border-left:0;padding-left:0}
 .runbar dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
 .runbar dd{margin:2px 0 0;font-family:var(--mono);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
-
-/* 세 라벨의 뜻. 어디서든 같은 이름을 쓴다. */
-.legend{display:grid;grid-template-columns:repeat(3,1fr);margin-top:24px;border:1px solid var(--rule)}
-.legend div{padding:11px 16px;border-left:1px solid var(--rule)}
-.legend div:first-child{border-left:0}
-.legend dt{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.04em}
-.legend dt small{font-weight:400;color:var(--faint);letter-spacing:.1em;font-size:9px;text-transform:uppercase}
-.legend dd{margin-top:3px;font-size:12px;color:var(--muted);line-height:1.5}
 
 /* 표지: 두 목록 */
 .lanes{display:grid;grid-template-columns:1fr 1fr;margin-top:44px}
@@ -405,7 +373,6 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .lane-count{margin:6px 0 4px;display:flex;align-items:baseline;gap:10px}
 .lane-count .num{font-size:3.2rem;font-weight:300;line-height:1}
 .lane-count span{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
-.lane-note{font-size:12.5px;color:var(--muted);max-width:52ch;margin-bottom:14px}
 .sig{display:grid;grid-template-columns:1fr auto;gap:2px 16px;padding:10px 0;border-top:1px solid var(--rule)}
 .sig strong{font-weight:500;font-size:13px}
 .sig strong i{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--accent);margin-right:8px}
@@ -416,14 +383,12 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .aside-strip div{display:grid;grid-template-columns:auto 1fr;gap:0 14px;align-items:center;padding:14px 18px;border-left:1px solid var(--rule)}
 .aside-strip div:first-child{border-left:0;padding-left:0}
 .aside-strip .num{font-size:1.9rem;font-weight:300;line-height:1}
-.aside-strip p{font-size:12.5px;color:var(--muted)}
-.aside-strip p b{display:flex;align-items:center;gap:7px;color:var(--ink);font-weight:500}
+.aside-strip p{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500}
 
 .sec{margin-top:60px}
 .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding-bottom:10px;border-bottom:1.5px solid var(--ink)}
 .sec-head h2{font-family:var(--serif);font-weight:400;font-size:1.7rem;letter-spacing:-.03em}
 .sec-head h2 small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
-.sec-head p{font-size:12.5px;color:var(--muted);max-width:52ch;text-align:right}
 .map{width:100%;border-collapse:collapse;margin-top:6px}
 .map th,.map td{text-align:left;padding:9px 16px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top;font-size:13px}
 .map th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:500;padding-top:0}
@@ -464,6 +429,8 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .q-impact dd{font-family:var(--mono);font-size:13px;font-weight:600}
 .q-rec{margin-top:10px;font-size:13px;max-width:72ch}
 .q-rec b{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:2px}
+.q-rec b i{font-style:normal;color:var(--accent)}
+.p-more h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--accent)}
 
 /* 상품 카드: 하네스 리포트처럼 상품 단위로 이미지를 밀집한다 */
 .product{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:22px 0 26px;border-top:1px solid var(--rule)}
@@ -488,22 +455,30 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .labels .verdict dd small{color:rgba(250,249,245,.7)}
 .labels .verdict.pending{background:var(--accent-soft);color:var(--accent)}
 .labels .verdict.pending dt,.labels .verdict.pending dd small{color:rgba(140,43,24,.7)}
-.p-why{margin-top:12px;font-size:13.5px;max-width:80ch}
-.p-why b{font-weight:500}
-.p-why span{color:var(--muted)}
+/* 판독기가 쓴 것과 리뷰어가 쓴 것을 한 칸에 섞지 않는다. 누가 쓴 문장인지가 판정을 가른다. */
+.p-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;margin-top:14px;border:1px solid var(--rule)}
+.voice{padding:11px 14px 13px;min-width:0}
+.voice + .voice{border-left:1px solid var(--rule)}
+.voice.review{background:var(--inset)}
+.voice > h4{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.voice > h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--faint);font-size:9.5px}
+.voice p{font-size:13px;line-height:1.55}
+.voice p + p{margin-top:6px}
+.voice .said{font-weight:500}
+.voice .aside{color:var(--muted);font-size:12.5px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+.voice .chips{margin-top:8px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:2px 7px;border:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:var(--paper)}
 .chip.open,.chip.dual{border-color:var(--accent);color:var(--accent)}
 .chip a{border:0}
-.p-judge{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start;margin-top:14px}
-.trail{display:flex;flex-wrap:wrap;border:1px solid var(--rule);width:fit-content}
+.trail{display:flex;flex-wrap:wrap;border:1px solid var(--rule);width:fit-content;background:var(--paper);margin-bottom:8px}
 .trail div{padding:5px 12px 6px;border-left:1px solid var(--rule)}
 .trail div:first-child{border-left:0}
 .trail dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
 .trail dd{font-family:var(--mono);font-size:12px;font-weight:600}
 .trail div.final{background:var(--ink);color:var(--paper)}
 .trail div.final dt{color:rgba(250,249,245,.6)}
-.trail-src{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px}
+.trail-src{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px}
 .quote{padding-left:12px;border-left:2px solid var(--ink);font-family:var(--serif);font-size:14.5px;font-weight:300;line-height:1.5}
 .quote span{display:block;margin-top:3px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
 .quote.absent{border-left-color:var(--rule);color:var(--muted);font-size:13px;font-family:var(--sans)}
@@ -555,7 +530,8 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
   .cluster-head,.product{grid-template-columns:1fr;gap:10px}
   .p-rail{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
   .p-rail .key,.p-rail .chips{margin-top:0}
-  .p-judge{grid-template-columns:1fr}
+  .p-split{grid-template-columns:1fr}
+  .voice + .voice{border-left:0;border-top:1px solid var(--rule)}
   .p-more .grid{grid-template-columns:1fr}
   .toolbar{position:static}
   .toolbar .search{margin-left:0;width:100%}
@@ -632,10 +608,10 @@ function clusterKey(row){
 }
 function clusterMeta(key,rows){
   const v=rows[0].verdict;
-  if(key==='OPEN') return {id:'미확정',plain:true,title:'심판 결과가 없어 귀책을 정하지 못했다.',sub:'큐 신호만으로 올라온 사례. 사람이 목표 기준으로 본다.',questions:[]};
+  if(key==='OPEN') return {id:'미확정',plain:true,title:'심판 결과 없음',questions:[]};
   if(mode==='policy'&&!key.startsWith('OWNER:')){
     const p=precedentById[key]; const qs=questionsByPrecedent[key]||[];
-    return {id:key,href:p?.href,status:p?.status,title:qs[0]?.question||v.reason,sub:`${v.action} — 이 판례가 답하면 아래 사례가 한 번에 닫힌다.`,questions:qs};
+    return {id:key,href:p?.href,status:p?.status,title:qs[0]?.question||v.reason,sub:v.action,questions:qs};
   }
   const pids=[...new Set(rows.flatMap(r=>r.verdict.blockedBy))];
   return {id:v.ownerShort,plain:true,title:v.reason,sub:v.action,questions:pids.flatMap(pid=>(questionsByPrecedent[pid]||[]).map(q=>({...q,pid})))};
@@ -659,26 +635,30 @@ function shot(image,isEvidence,captionTop,captionBottom){
 function card(row,i){
   const v=row.verdict, j=row.judge, e=row.evidence, inp=row.input, g=row.gallery||{};
   const verdictClass=v?(v.owner==='PENDING_PRECEDENT'?'verdict pending':'verdict'):'verdict pending';
-  const labels=`<dl class="labels"><div><dt>GT · 사람 정답</dt><dd>${esc(row.referenceLabel)||'—'}${row.goldSource?`<small>${esc(row.goldSource)}${row.gtReviewStatus?' · '+esc(row.gtReviewStatus):''}</small>`:''}</dd></div><div><dt>실행 · 판단기 출력</dt><dd>${esc(row.observedLabel)||'—'}${j.decisionSource?`<small>근거 출처 ${esc(j.decisionSource)}</small>`:''}</dd></div>${v?`<div><dt>정책 답 · 심판</dt><dd>${esc(v.policyAnswer)||'—'}<small>${esc(v.ruleId)}${v.strength?' · '+esc(v.strength):''}</small></dd></div>`:''}<div class="${verdictClass}"><dt>귀책</dt><dd>${v?esc(v.ownerShort):'미확정'}${v?`<small>${esc(v.action)}</small>`:''}</dd></div></dl>`;
-  const why=v?`<p class="p-why"><b>${esc(v.reason)}</b>${v.note?` <span>${esc(v.note)}</span>`:''}</p>`:'';
+  const labels=`<dl class="labels"><div><dt>GT · 사람 정답</dt><dd>${esc(row.referenceLabel)||'—'}${row.goldSource?`<small>${esc(row.goldSource)}${row.gtReviewStatus?' · '+esc(row.gtReviewStatus):''}</small>`:''}</dd></div><div><dt>실행 · 판독기 출력</dt><dd>${esc(row.observedLabel)||'—'}${j.decisionSource?`<small>근거 출처 ${esc(j.decisionSource)}</small>`:''}</dd></div>${v?`<div><dt>정책 답 · 리뷰어</dt><dd>${esc(v.policyAnswer)||'—'}<small>${esc(v.ruleId)}${v.strength?' · '+esc(v.strength):''}</small></dd></div>`:''}<div class="${verdictClass}"><dt>귀책 · 리뷰어</dt><dd>${v?esc(v.ownerShort):'미확정'}${v?`<small>${esc(v.action)}</small>`:''}</dd></div></dl>`;
+  /* 판독기가 쓴 것 — 실행이 이미지를 보고 남긴 기록. */
+  const trail=(j.firstStage||j.detailStage)?`<dl class="trail">${j.firstStage?`<div><dt>1차 · 대표 이미지</dt><dd>${esc(j.firstStage)}</dd></div>`:''}${j.detailStage?`<div><dt>2차 · 상세 이미지</dt><dd>${esc(j.detailStage)}</dd></div>`:''}<div class="final"><dt>최종 출력</dt><dd>${esc(row.observedLabel)||'—'}</dd></div></dl>`:'';
+  const quote=e.text?`<blockquote class="quote">${esc(e.text)}<span>${[e.type?'근거 유형 '+e.type:'',e.sceneIds.length?'장면 '+e.sceneIds.join(', '):''].filter(Boolean).map(esc).join(' · ')||'근거 문장'}</span></blockquote>`:'<blockquote class="quote absent">근거 문장 없음</blockquote>';
+  const judge=`<section class="voice judge"><h4>판독기<small>실행이 남긴 기록</small></h4>${trail}${quote}${j.promptVersion?`<p class="trail-src">${esc(j.promptVersion)}${j.decisionSource?' · 근거 출처 '+esc(j.decisionSource):''}</p>`:''}</section>`;
+
+  /* 리뷰어가 쓴 것 — 감사와 심판의 판단. 판독기 문장과 한 칸에 섞지 않는다. */
   const chips=[...(v?v.blockedBy.map(precedentChip):[]),row.dual?'<span class="chip dual">양쪽 계류 · 실행 결함</span>':''].filter(Boolean).join('');
-  const hasTrail=j.firstStage||j.detailStage;
-  const trail=hasTrail?`<div><dl class="trail">${j.firstStage?`<div><dt>1차 · 대표 이미지</dt><dd>${esc(j.firstStage)}</dd></div>`:''}${j.detailStage?`<div><dt>2차 · 상세 이미지</dt><dd>${esc(j.detailStage)}</dd></div>`:''}<div class="final"><dt>최종 출력</dt><dd>${esc(row.observedLabel)||'—'}</dd></div></dl>${j.promptVersion?`<p class="trail-src">${esc(j.promptVersion)}</p>`:''}</div>`:'<div></div>';
-  const quote=e.text?`<blockquote class="quote">${esc(e.text)}<span>${[e.type?'근거 유형 '+e.type:'',e.sceneIds.length?'장면 '+e.sceneIds.join(', '):'',j.classification?'감사 분류 '+j.classification:''].filter(Boolean).map(esc).join(' · ')||'판단기 기록'}</span></blockquote>`:`<blockquote class="quote absent">판단기가 남긴 근거 문장이 없다.${j.basis?' '+esc(j.basis)+'.':''}${inp.coverage?' 수집한 이미지는 전부 처리했지만 채택된 장면이 없다.':''}</blockquote>`;
+  const review=`<section class="voice review"><h4>리뷰어<small>심판 추천 · 사람 판정 아님</small></h4>${v?`<p class="said">${esc(v.reason)}</p>${v.note?`<p class="aside">${esc(v.note)}</p>`:''}`:'<p class="aside">심판 결과 없음</p>'}${j.classification?`<p class="aside">감사 분류 ${esc(j.classification)}${j.basis?' · '+esc(j.basis):''}</p>`:''}${j.reviewRecommendation?`<p class="aside">검토 권고 · ${esc(j.reviewRecommendation)}</p>`:''}${chips?`<div class="chips">${chips}</div>`:''}</section>`;
+
   const thumbs=(g.thumbnails||[]);
-  const thumbRow=thumbs.length?`<div class="shots-head"><b>대표 이미지</b>${fmt(thumbs.length)}장 · 판단기가 이미지마다 남긴 태그</div><div class="shots">${thumbs.map(t=>shot(t,false,t.label,[t.presence,t.note].filter(Boolean).join(' · ')||('#'+t.index))).join('')}</div>`:'';
+  const thumbRow=thumbs.length?`<div class="shots-head"><b>대표 이미지</b>${fmt(thumbs.length)}장</div><div class="shots">${thumbs.map(t=>shot(t,false,t.label,[t.presence,t.note].filter(Boolean).join(' · ')||('#'+t.index))).join('')}</div>`:'';
   let details=(g.details||[]).map(d=>({...d,isEvidence:e.sceneIds.includes(d.sceneId)||e.images.includes(d.url)}));
-  let detailTitle='상세 이미지 · 판단기 입력';
+  let detailTitle='상세 이미지 · 판독기 입력';
   if(!details.length&&e.images.length){details=e.images.map((u,k)=>({url:u,sceneId:e.sceneIds[k]||'',isEvidence:true}));detailTitle='근거로 채택된 이미지';}
   const evidenceCount=details.filter(d=>d.isEvidence).length;
-  const detailRow=details.length?`<div class="shots-head"><b>${detailTitle}</b>${fmt(details.length)}장${evidenceCount?` · <i>근거 장면 ${fmt(evidenceCount)}장</i>`:''}</div><div class="shots detail">${details.map(d=>shot(d,d.isEvidence,d.sceneId||'',d.label||'')).join('')}</div>`:(thumbs.length?'':'<div class="shots-head"><b>이미지</b></div><div class="shots"><figure class="shot missing">이미지 입력 없음<br>판단기가 본 이미지가 기록되지 않았다</figure></div>');
+  const detailRow=details.length?`<div class="shots-head"><b>${detailTitle}</b>${fmt(details.length)}장${evidenceCount?` · <i>근거 ${fmt(evidenceCount)}장</i>`:''}</div><div class="shots detail">${details.map(d=>shot(d,d.isEvidence,d.sceneId||'',d.label||'')).join('')}</div>`:(thumbs.length?'':'<div class="shots-head"><b>이미지</b></div><div class="shots"><figure class="shot missing">이미지 입력 없음</figure></div>');
   const signals=row.signals.map(s=>`<div class="sigrow"><strong>${esc(signalById[s.id]?.label||s.id)}</strong><p>${esc(s.reason||signalById[s.id]?.description||'')}</p></div>`).join('');
-  const sentences=row.policySentences.length?row.policySentences.map(s=>`<p class="sentence">${esc(s)}</p>`).join(''):'<p class="kv">직접 연결된 정책 문장이 없다.</p>';
+  const sentences=row.policySentences.length?row.policySentences.map(s=>`<p class="sentence">${esc(s)}</p>`).join(''):'<p class="kv">연결된 정책 문장 없음</p>';
   const hasInput=inp.preparedTiles!=null||inp.allTiles!=null||inp.selectedImages!=null||inp.sources.length;
   const inputLine=hasInput?`<p class="kv">${[inp.allTiles!=null||inp.preparedTiles!=null?`타일 <b>${esc(inp.allTiles??'—')}</b> / ${esc(inp.preparedTiles??'—')}`:'',inp.selectedImages!=null?`선택 <b>${esc(inp.selectedImages)}</b>${inp.omittedImages!=null?' · 생략 '+esc(inp.omittedImages):''}`:'',inp.coverage?`커버리지 ${esc(inp.coverage)}`:'',inp.sources.length?`수집 ${esc(inp.sources.join(', '))}`:''].filter(Boolean).join(' &nbsp;·&nbsp; ')}</p>`:'<p class="kv">상세 입력 기록 없음</p>';
-  const recovery=[inp.collectionRecovered&&inp.previousCollectionError?`이전 실패 · ${esc(inp.previousCollectionError)} → 이번 실행에서 복구`:'',inp.retryReason?`재시도 · ${esc(inp.retryReason)}`:''].filter(Boolean).map(t=>`<p class="recovery">${t}</p>`).join('');
+  const recovery=[inp.collectionRecovered&&inp.previousCollectionError?`이전 실패 · ${esc(inp.previousCollectionError)} → 이번 실행 복구`:'',inp.retryReason?`재시도 · ${esc(inp.retryReason)}`:''].filter(Boolean).map(t=>`<p class="recovery">${t}</p>`).join('');
   const conflict=row.sourceConflict?`<h4>GT 소스 충돌 · ${esc(row.sourceConflict.kind)}</h4><p class="kv">정본 <b>${esc(row.sourceConflict.canonical)||'—'}</b> ${esc(row.sourceConflict.canonicalSource)}${row.sourceConflict.canonicalVersion?' · '+esc(row.sourceConflict.canonicalVersion):''}<br>평가 <b>${esc(row.sourceConflict.evaluation)||'—'}</b> ${esc(row.sourceConflict.evaluationSource)}</p>`:'';
-  return `<section class="product" data-key="${esc(row.productKey)}"><div class="p-rail"><p class="idx"><span class="mark ${esc(row.lane)}" aria-hidden="true"></span>${String(i).padStart(2,'0')} · ${esc(laneById[row.lane].title)}</p><p class="key">${esc(row.productKey)}</p><p class="cat">${[row.brand,row.category].filter(Boolean).map(esc).join(' · ')}</p>${chips?`<div class="chips">${chips}</div>`:''}</div><div class="p-body"><header class="p-head"><h3>${esc(row.productName)}</h3>${row.url?`<a class="pdp" href="${esc(row.url)}" target="_blank" rel="noreferrer">상품 페이지 ↗</a>`:''}</header>${labels}${why}<div class="p-judge">${trail}${quote}</div>${thumbRow}${detailRow}<details class="p-more"><summary>왜 큐에 올랐나 · 적용된 정책 문장 · 상세 입력</summary><div class="grid"><div><h4>왜 큐에 올랐나</h4>${signals||'<p class="kv">신호 없음</p>'}</div><div><h4>적용된 정책 문장</h4>${sentences}${conflict}<h4>상세 입력</h4>${inputLine}${recovery}</div></div></details></div></section>`;
+  return `<section class="product" data-key="${esc(row.productKey)}"><div class="p-rail"><p class="idx"><span class="mark ${esc(row.lane)}" aria-hidden="true"></span>${String(i).padStart(2,'0')} · ${esc(laneById[row.lane].title)}</p><p class="key">${esc(row.productKey)}</p><p class="cat">${[row.brand,row.category].filter(Boolean).map(esc).join(' · ')}</p></div><div class="p-body"><header class="p-head"><h3>${esc(row.productName)}</h3>${row.url?`<a class="pdp" href="${esc(row.url)}" target="_blank" rel="noreferrer">상품 페이지 ↗</a>`:''}</header>${labels}<div class="p-split">${judge}${review}</div>${thumbRow}${detailRow}<details class="p-more"><summary>큐 신호 · 적용된 정책 문장 · 상세 입력</summary><div class="grid"><div><h4>큐 신호 <small>리뷰어</small></h4>${signals||'<p class="kv">신호 없음</p>'}</div><div><h4>적용된 정책 문장</h4>${sentences}${conflict}<h4>상세 입력 <small>판독기</small></h4>${inputLine}${recovery}</div></div></details></div></section>`;
 }
 
 function renderToolbar(){
@@ -692,9 +672,9 @@ function renderList(){
     const rows=c.rows.filter(matches); if(!rows.length) return '';
     shown+=rows.length; const m=c.meta;
     const impact=(m.questions||[]).map(q=>Object.entries(q.impact||{}).map(([k,v])=>`<div><dt>${esc(words(k))}</dt><dd>${esc(typeof v==='number'?fmt(v):v)}</dd></div>`).join('')).join('');
-    const rec=(m.questions||[]).map(q=>`<p class="q-rec"><b>${esc(q.id)} · 권고</b>${esc(q.recommendation)}</p>`).join('');
+    const rec=(m.questions||[]).map(q=>`<p class="q-rec"><b>${esc(q.id)} · 권고 <i>리뷰어</i></b>${esc(q.recommendation)}</p>`).join('');
     const linked=mode==='gt'&&m.questions.length?`<p class="q-rec"><b>이 사례를 가르는 질문</b>${m.questions.map(q=>`${esc(q.pid)} — ${esc(q.question)}`).join('<br>')}</p>`:'';
-    return `<section class="cluster"><div class="cluster-head"><div class="cluster-rail"><p class="cid${m.plain?' plain':''}">${m.href?`<a href="${esc(m.href)}">${esc(m.id)}</a>`:esc(m.id)}</p><p class="ccount"><span class="num">${fmt(rows.length)}</span>상품</p>${m.status?`<span class="status ${esc(m.status)}">${esc(m.status)}</span>`:''}</div><div class="cluster-body"><h2>${esc(m.title)}</h2><p class="sub">${esc(m.sub)}</p>${impact?`<dl class="q-impact">${impact}</dl>`:''}${mode==='policy'?rec:linked}</div></div>${rows.map(r=>card(r,++index)).join('')}</section>`;
+    return `<section class="cluster"><div class="cluster-head"><div class="cluster-rail"><p class="cid${m.plain?' plain':''}">${m.href?`<a href="${esc(m.href)}">${esc(m.id)}</a>`:esc(m.id)}</p><p class="ccount"><span class="num">${fmt(rows.length)}</span>상품</p>${m.status?`<span class="status ${esc(m.status)}">${esc(m.status)}</span>`:''}</div><div class="cluster-body"><h2>${esc(m.title)}</h2>${m.sub?`<p class="sub">${esc(m.sub)}</p>`:''}${impact?`<dl class="q-impact">${impact}</dl>`:''}${mode==='policy'?rec:linked}</div></div>${rows.map(r=>card(r,++index)).join('')}</section>`;
   }).join('')||'<p class="empty">조건에 맞는 상품이 없다.</p>';
   document.getElementById('shown').textContent=`${fmt(shown)} / ${fmt(data.rows.length)}`;
 }
@@ -721,15 +701,6 @@ def tail(payload: dict[str, Any], script: str) -> str:
         f'<script id="audit-data" type="application/json">{js_data(intern_strings(compact(payload)))}</script>\n'
         f"<script>{script}</script>\n</body>\n</html>\n"
     )
-
-
-LEGEND = """
-  <dl class="legend" aria-label="세 라벨의 뜻">
-    <div><dt>GT <small>사람 정답</small></dt><dd>골든셋 스냅샷에서 사람이 붙인 라벨. 검사 대상이지 기준이 아니다.</dd></div>
-    <div><dt>실행 <small>판단기 출력</small></dt><dd>프롬프트·코드가 이미지와 문구를 보고 실제로 낸 라벨. 도구이지 판정 대상이 아니다.</dd></div>
-    <div><dt>정책 답 <small>심판</small></dt><dd>소유 정책 문장만 기계적으로 적용해 낸 라벨. GT도 실행도 보지 않는다. 셋이 다를 때 어느 쪽을 고칠지가 <b>귀책</b>이다.</dd></div>
-  </dl>
-"""
 
 
 def main() -> int:
@@ -819,7 +790,6 @@ def main() -> int:
     attribute = html.escape(text(profile["attributeName"]))
     subject = html.escape(text(profile["subjectName"]))
     profile_id = html.escape(text(profile["id"]))
-    goal_path = html.escape(text(profile.get("goal") or ""))
     stamp = (
         f"생성 {html.escape(generated or '알 수 없음')} · 원본 {html.escape(source_commit or 'no commit')}"
         + (' <span class="dirty">미커밋 변경 있음</span>' if source_dirty else "")
@@ -832,11 +802,14 @@ def main() -> int:
         f'<div><dt>판례</dt><dd>{precedent_total:,} · 확정 {precedent_decided:,}</dd></div>'
         f'<div><dt>미추적 정책 공백</dt><dd>{untracked:,}</dd></div>'
     )
-    verdict_path = relative_or_absolute(root / "review" / "verdicts.jsonl")
-    decision_path = relative_or_absolute(root / "review" / "decisions.json")
-    footer_note = (
-        f'심판 추천 <span class="mono">{html.escape(verdict_path)}</span> · 사람 판정 원장 '
-        f'<span class="mono">{html.escape(decision_path)}</span> — 추천은 원장에 자동으로 들어가지 않는다.'
+    footer_note = "".join(
+        f'{label} <span class="mono">{html.escape(value)}</span><br>'
+        for label, value in (
+            ("목표", text(profile.get("goal") or "")),
+            ("심판 추천", relative_or_absolute(root / "review" / "verdicts.jsonl")),
+            ("사람 판정 원장", relative_or_absolute(root / "review" / "decisions.json")),
+        )
+        if value
     )
     nav = {
         "index": (INDEX_FILE, "표지"),
@@ -867,11 +840,9 @@ def main() -> int:
   <header class="masthead">
     <div class="masthead-top"><p class="kicker">Catalog OS · {profile_id} · {html.escape(spec['unit'])}</p><nav>{nav_links(kind)}</nav></div>
     <h1><small>{display_name}</small>{html.escape(spec['title'])}</h1>
-    <p class="standfirst">{html.escape(spec['lede'])}{f' 귀책 순서는 <span class="mono">{goal_path}</span>가 정한다.' if goal_path else ''}</p>
     <dl class="runbar"><div><dt>이 목록</dt><dd><span id="report-count">0</span> 상품</dd></div>{runbar_common}</dl>
     <p class="masthead-top" style="padding-top:8px">{stamp}</p>
   </header>
-  {LEGEND}
   <div class="toolbar" role="group" aria-label="군집 선택"><div id="cluster-tabs" style="display:contents"></div><label class="search"><input id="search" type="search" placeholder="상품명 · 키 · 라벨 · 사유 검색" aria-label="검색"><span class="shown" id="shown"></span></label></div>
   <div id="clusters"></div>
   <noscript><p class="empty">사례를 보려면 JavaScript를 켠다.</p></noscript>
@@ -894,39 +865,35 @@ def main() -> int:
         f'<div class="lane"><div class="lane-head"><span class="mark {lane_id}" aria-hidden="true"></span>'
         f'<h2>{html.escape(lane_by_id[lane_id]["title"])}</h2><small>{html.escape(lane_by_id[lane_id]["unit"])}</small></div>'
         f'<p class="lane-count"><span class="num" id="count-{lane_id}">0</span><span>상품</span></p>'
-        f'<p class="lane-note">{html.escape(lane_by_id[lane_id]["note"])}</p>'
         f'<div id="groups-{lane_id}"></div>'
         f'<a class="lane-open" href="{html.escape(REPORTS[kind]["file"])}">{html.escape(REPORTS[kind]["title"])} 열기 →</a></div>'
     )
     index_body = f"""<div class="wrap">
   <header class="masthead">
     <div class="masthead-top"><p class="kicker">Catalog OS · {profile_id} · 의심 원장</p><p>{stamp}</p></div>
-    <h1>{display_name}</h1>
-    <p class="standfirst">이 보고서는 정확도를 보고하지 않는다. <b>{subject}</b>의 <b>{attribute}</b>이(가) 어긋난 지점에서
-      GT와 정책 중 <b>어느 쪽을 고칠지</b>를 근거와 함께 지목하고, 사람이 한 번 답하면 닫히는 질문으로 넘긴다.{f' 귀책 순서는 <span class="mono">{goal_path}</span>가 정한다.' if goal_path else ''}</p>
+    <h1><small>{subject} · {attribute}</small>{display_name}</h1>
     <dl class="runbar">{runbar_common}</dl>
   </header>
-  {LEGEND}
   <section class="lanes" aria-label="의심 대상 두 갈래">
     {lane_column('GT', 'gt')}
     {lane_column('POLICY', 'policy')}
   </section>
   <div class="aside-strip">
-    <div><span class="num" id="count-RUNTIME">0</span><p><b><span class="mark RUNTIME" aria-hidden="true"></span>실행 결함</b>정책은 답을 내는데 실행이 다른 값을 만들었다. 판정 대상이 아니라 버그로 분리해 넘긴다. 아래 표에 있다.</p></div>
-    <div><span class="num" id="count-DUAL">0</span><p><b>양쪽 계류</b>실행이 값을 지어냈지만 정책도 그 상품에 답을 낼 근거가 없다. 실행을 고쳐도 정책 공백은 남아서 빈 정책 찾기에도 나온다.</p></div>
-    <div><span class="num" id="count-NONE">0</span><p><b><span class="mark NONE" aria-hidden="true"></span>충돌 없음</b>정책·GT·실행이 같다. 근거를 어떻게 모았는지만 기록으로 남는다.</p></div>
+    <div><span class="num" id="count-RUNTIME">0</span><p><span class="mark RUNTIME" aria-hidden="true"></span>실행 결함</p></div>
+    <div><span class="num" id="count-DUAL">0</span><p>양쪽 계류</p></div>
+    <div><span class="num" id="count-NONE">0</span><p><span class="mark NONE" aria-hidden="true"></span>충돌 없음</p></div>
   </div>
   <div class="aside-strip" id="count-OPEN-wrap" hidden style="border-top:0">
-    <div><span class="num" id="count-OPEN">0</span><p><b><span class="mark OPEN" aria-hidden="true"></span>미확정</b>심판 결과가 없어 귀책을 정하지 못했다. 두 보고서에 모두 나온다.</p></div>
+    <div><span class="num" id="count-OPEN">0</span><p><span class="mark OPEN" aria-hidden="true"></span>미확정</p></div>
   </div>
 
   <section class="sec" id="runtime-wrap" aria-labelledby="runtime-title">
-    <div class="sec-head"><h2 id="runtime-title"><small>분리해서 넘긴다</small>실행 결함</h2><p>정책과 GT가 같은 답을 내는데 실행만 다르다. 사람이 판정할 일이 아니라 고칠 버그다.</p></div>
-    <table class="map"><thead><tr><th>키</th><th>상품</th><th>GT</th><th>실행</th><th>정책 답</th><th>사유</th><th>기다리는 판례</th></tr></thead><tbody id="runtime-list"></tbody></table>
+    <div class="sec-head"><h2 id="runtime-title"><small>분리</small>실행 결함</h2></div>
+    <table class="map"><thead><tr><th>키</th><th>상품</th><th>GT</th><th>실행</th><th>정책 답</th><th>리뷰어 사유</th><th>기다리는 판례</th></tr></thead><tbody id="runtime-list"></tbody></table>
   </section>
 
   <section class="sec" aria-labelledby="map-title">
-    <div class="sec-head"><h2 id="map-title"><small>부록</small>신호가 어느 목록으로 갔나</h2><p>큐는 신호로 쌓이고 보고서는 귀책으로 읽는다. 같은 신호라도 심판이 다른 곳을 지목할 수 있다.</p></div>
+    <div class="sec-head"><h2 id="map-title"><small>부록</small>신호가 어느 목록으로 갔나</h2></div>
     <table class="map"><thead><tr><th>신호</th><th>ID</th><th>뜻</th><th>큐 건수</th><th>귀책 분포 (상품)</th></tr></thead><tbody id="signal-map"></tbody></table>
   </section>
   <footer><nav>{nav_links('index')}</nav>{footer_note}</footer>
