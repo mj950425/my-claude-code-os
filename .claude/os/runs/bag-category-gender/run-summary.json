@@ -1,13 +1,17 @@
 {
   "artifacts": {
+    "arbiterReport": ".claude/os/runs/bag-category-gender/reports/arbiter.md",
+    "arbiterVerdicts": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
     "auditReport": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-audit.md",
+    "decisionLedger": ".claude/os/runs/bag-category-gender/review/decisions.json",
     "htmlReport": ".claude/os/runs/bag-category-gender/reports/catalog-audit.html",
     "policyIndex": ".claude/os/runs/bag-category-gender/policy/policy-index.json",
     "policyQuestions": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-policy-questions.md",
     "policyQuestionsJson": ".claude/os/runs/bag-category-gender/reports/policy-questions.json",
     "policyStatus": ".claude/os/runs/bag-category-gender/reports/policy-status.md",
     "queueDirectory": ".claude/os/runs/bag-category-gender/queue",
-    "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md"
+    "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md",
+    "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json"
   },
   "completed": true,
   "cycle": [

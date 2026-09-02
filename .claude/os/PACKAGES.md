@@ -1,6 +1,6 @@
 # 패키지 목록
 
-이 OS는 다섯 패키지로 나뉜다. 패키지를 가르는 기준은 두 개뿐이다.
+이 OS는 여섯 패키지로 나뉜다. 패키지를 가르는 기준은 두 개뿐이다.
 
 1. **함께 바뀌는가** — 하나를 고칠 때 늘 같이 고치는 것들은 한 패키지다.
 2. **따로 쓰일 수 있는가** — 다른 맥락에서 혼자 쓰이면 별도 패키지다.
@@ -10,10 +10,11 @@
 | [engine](engine/package.md) | `.claude/os/engine/` | 속성이 무엇인지 모른 채 사이클을 돌리는 공통 코어 |
 | [bag-category-gender](attributes/bag-category-gender/package.md) | `.claude/os/attributes/bag-category-gender/` | 가방 상품의 대상 고객 성별만 아는 **속성 팩의 첫 인스턴스** |
 | [accessories-category-gender](attributes/accessories-category-gender/package.md) | `.claude/os/attributes/accessories-category-gender/` | 잡화 상품의 대상 고객 성별 골든셋과 근거 이미지만 아는 속성 팩. 아직 가져오기 한 단계뿐이다 |
+| [review](review/package.md) | `.claude/os/review/` | 엔진이 낸 run 하나를 심사한다 — 이 결과로 사람이 판정을 시작해도 되는가 |
 | [interview](interview/package.md) | `.claude/os/interview/` | 모호한 요구를 판정 가능한 문장으로 바꾸는 절차 |
 | [dev-workflow](dev-workflow/package.md) | `.claude/os/dev-workflow/` | 엔진·속성·인터뷰와 무관한 개발 워크플로우 — GitHub 절차와 요청 횟수 훅 |
 
-다섯 줄이 같은 종류는 아니다. `engine`·`interview`·`dev-workflow`는 **역할** 이름이라 늘어나지
+여섯 줄이 같은 종류는 아니다. `engine`·`review`·`interview`·`dev-workflow`는 **역할** 이름이라 늘어나지
 않고, `attributes/` 아래는 속성이 늘 때마다 옆으로 늘어나는 **인스턴스**다. 그래서 새 속성을
 추가하는 일은 이 표에 줄을 하나 더 붙이는 일이지, 구조를 바꾸는 일이 아니다.
 
@@ -21,11 +22,19 @@
 
 ```
 bag-category-gender  ──▶  engine        (속성은 엔진을 안다)
+bag-category-gender  ──▶  review        (run.sh가 사이클 뒤에 심사를 잇는다)
 interview   ──▶  engine        (프로필 해석기를 그대로 쓴다)
+review      ──▶  runs/<프로필ID>/run-summary.json   (코드가 아니라 산출물만 안다)
 engine      ──✗  bag-category-gender    (엔진은 속성을 모른다)
 engine      ──✗  interview     (엔진은 인터뷰를 모른다)
-dev-workflow ──✗ 둘 다          (독립)
+engine      ──✗  review        (엔진은 심사를 모른다)
+review      ──✗  engine · attributes    (import하지 않고 프로필도 읽지 않는다)
+dev-workflow ──✗ 전부           (독립)
 ```
+
+`review`만 화살표가 패키지가 아니라 **파일**을 가리킨다. 심사가 엔진 코드를 부르면
+엔진의 오해가 심사에도 그대로 들어가서, 다시 세는 의미가 없어지기 때문이다.
+계약은 [handoff.md](review/contracts/handoff.md)에 있다.
 
 `interview`가 속성이 아니라 별도 패키지인 이유는 시점이다. 엔진은 데이터가 있어야 돌지만
 인터뷰는 데이터가 없어도 돈다 — 오히려 데이터를 만들기 전에 도는 것이 정상이다.
@@ -100,6 +109,7 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 | 패키지 | 에이전트 | 무엇을 판단하나 |
 |---|---|---|
 | engine | `catalog-golden-adjudicator` | 큐의 **한 건**이 정책 공백인가 GT 오류인가 실행 오류인가 |
+| review | `catalog-run-reviewer` | run **하나**가 사람 판정의 근거가 될 수 있는가. 상품은 판정하지 않는다 |
 | interview | `catalog-source-curator` | 자료 더미에서 무엇을 참조로 넣을 것인가 |
 | interview | `catalog-interviewer` | 비어 있는 슬롯에 무엇을 물을 것인가 |
 

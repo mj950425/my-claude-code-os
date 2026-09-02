@@ -153,6 +153,15 @@ AI 판정은 추천일 뿐 이 숫자에 포함하지 않는다. `decisions.json
         except ValueError:
             review_progress_path = str(report_path)
         summary.setdefault("artifacts", {})["reviewProgress"] = review_progress_path
+        try:
+            ledger_path = str(decision_path.relative_to(PROJECT_ROOT))
+        except ValueError:
+            ledger_path = str(decision_path)
+        summary["artifacts"]["decisionLedger"] = ledger_path
+        try:
+            summary["artifacts"]["reviewStatus"] = str(status_path.relative_to(PROJECT_ROOT))
+        except ValueError:
+            summary["artifacts"]["reviewStatus"] = str(status_path)
         if "사람 판정 진행률" not in summary.setdefault("cycle", []):
             summary["cycle"].append("사람 판정 진행률")
         run_summary_path.write_text(

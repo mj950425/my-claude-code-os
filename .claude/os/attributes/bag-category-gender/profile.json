@@ -14,6 +14,7 @@
     "imported": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md"
   },
   "goal": ".claude/os/attributes/bag-category-gender/goal.md",
+  "gallery": ".claude/os/runs/bag-category-gender/golden/bag-product-gallery.jsonl",
   "adapters": {
     "import": ".claude/os/attributes/bag-category-gender/adapters/import_bag_category_gender_sources.py",
     "audit": ".claude/os/attributes/bag-category-gender/adapters/audit_bag_category_gender.py",

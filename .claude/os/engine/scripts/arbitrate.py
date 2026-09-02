@@ -16,7 +16,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from catalog_profile import PROJECT_ROOT, load_profile, output_root, project_path
+from catalog_profile import (
+    PROJECT_ROOT,
+    load_profile,
+    output_root,
+    project_path,
+    relative_or_absolute,
+)
 
 UNDETERMINED = "UNDETERMINED"
 UNRESOLVABLE = "UNRESOLVABLE"
@@ -220,6 +226,19 @@ def main() -> int:
 
     report_path = report_dir / "arbiter.md"
     report_path.write_text("\n".join(lines), encoding="utf-8")
+
+    # 만든 것을 요약에 선언한다. 하류가 경로를 추측하기 시작하면 그것은 계약이 아니라 관습이다.
+    summary_path = root / "run-summary.json"
+    if summary_path.is_file():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if isinstance(summary, dict):
+            artifacts = summary.setdefault("artifacts", {})
+            artifacts["arbiterVerdicts"] = relative_or_absolute(verdict_path)
+            artifacts["arbiterReport"] = relative_or_absolute(report_path)
+            summary_path.write_text(
+                json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
 
     print(
         json.dumps(

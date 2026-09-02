@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +54,11 @@ WORN_RECOVERY_SOURCE = Path(
 INVALID_TEXT_RECOVERY_SOURCE = Path(
     "tool/image-gender/gt-harness/results/"
     "bags-v1000-two-stage-image-complete-2026-08-31/invalid-explicit-text-recovered-ids.json"
+)
+# 하네스 리포트가 상품마다 늘어놓는 대표 이미지·상세 타일. 보고서의 이미지 갤러리는 여기서 온다.
+HARNESS_PRODUCT_RESULTS_SOURCE = Path(
+    "tool/image-gender/gt-harness/results/"
+    "bags-v1000-two-stage-image-complete-2026-08-31/harness-product-results.jsonl"
 )
 
 
@@ -279,6 +285,67 @@ def compact_detail_evidence(
     return sorted(compact_rows, key=lambda row: str(row["productKey"]))
 
 
+def compact_gallery(
+    rows: Iterable[dict[str, Any]], output_root: Path
+) -> list[dict[str, Any]]:
+    """하네스 리포트가 상품마다 늘어놓는 대표 이미지·상세 타일을 공통 갤러리 계약으로 옮긴다.
+
+    보고서가 상품 단위로 이미지를 밀집해 보여 주려면 근거로 채택된 한두 장이 아니라
+    판단기가 실제로 본 전부가 필요하다. 로컬 파일뿐인 대표 이미지는 run의 `asset/` 아래로
+    복사한다 — 원본 워크트리는 언제 사라질지 모르고, `asset/`은 다시 돌리면 복구된다.
+    `url`이 http가 아니면 run 폴더 기준 상대 경로다. 렌더러가 보고서 위치에 맞춰 다시 잇는다.
+    """
+    asset_root = output_root / "asset" / "thumbnails"
+    gallery: list[dict[str, Any]] = []
+    for row in rows:
+        product_key = str(row.get("productKey") or "")
+        goods_no = str(row.get("goodsNo") or "")
+        if not product_key:
+            continue
+        thumbnails: list[dict[str, Any]] = []
+        for index, image in enumerate(row.get("images") or [], start=1):
+            url = str(image.get("resolvedSourceUrl") or image.get("sourceUrl") or "")
+            if not url.startswith("http"):
+                source = (
+                    Path(url.removeprefix("file://"))
+                    if url.startswith("file://")
+                    else Path(str(image.get("localPath") or ""))
+                )
+                if not source.is_file():
+                    continue
+                target = asset_root / (
+                    f"{product_key.replace(':', '-')}-{index}{source.suffix or '.jpg'}"
+                )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.is_file() or target.stat().st_size != source.stat().st_size:
+                    shutil.copyfile(source, target)
+                url = str(target.relative_to(output_root))
+            thumbnails.append(
+                {
+                    "index": image.get("imageIndex") or index,
+                    "url": url,
+                    "label": str(image.get("gender") or ""),
+                    "presence": str(image.get("presence") or ""),
+                    "note": str(image.get("note") or ""),
+                }
+            )
+        details: list[dict[str, Any]] = []
+        for index, image in enumerate(row.get("detailImages") or [], start=1):
+            url = str(image.get("sourceUrl") or "")
+            if not url.startswith("http"):
+                continue
+            details.append(
+                {
+                    "index": index,
+                    "sceneId": str(image.get("id") or "").removeprefix(f"{goods_no}-"),
+                    "url": url,
+                    "label": str(image.get("gender") or ""),
+                }
+            )
+        gallery.append({"productKey": product_key, "thumbnails": thumbnails, "details": details})
+    return sorted(gallery, key=lambda item: item["productKey"])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-repo", type=Path, default=DEFAULT_SOURCE_REPO)
@@ -297,6 +364,7 @@ def main() -> int:
         "currentCollectionErrors": source_repo / CURRENT_COLLECTION_ERRORS_SOURCE,
         "wornInteractionRecoveries": source_repo / WORN_RECOVERY_SOURCE,
         "invalidExplicitTextRecoveries": source_repo / INVALID_TEXT_RECOVERY_SOURCE,
+        "harnessProductResults": source_repo / HARNESS_PRODUCT_RESULTS_SOURCE,
     }
     missing = [str(path) for path in sources.values() if not path.is_file()]
     if missing:
@@ -382,6 +450,11 @@ def main() -> int:
     canonical_count = write_jsonl(canonical_output, canonical_rows)
     evaluation_count = write_jsonl(evaluation_output, evaluation_rows)
     detail_evidence_count = write_jsonl(detail_evidence_output, detail_evidence_rows)
+    gallery_output = output_root / "golden" / "bag-product-gallery.jsonl"
+    gallery_count = write_jsonl(
+        gallery_output,
+        compact_gallery(read_jsonl(sources["harnessProductResults"]), output_root),
+    )
 
     canonical_keys = {row["productKey"] for row in canonical_rows}
     evaluation_keys = {row["productKey"] for row in evaluation_rows}
@@ -418,6 +491,10 @@ def main() -> int:
                 "path": str(detail_evidence_output.relative_to(PROJECT_ROOT)),
                 "count": detail_evidence_count,
             },
+            "bagProductGallery": {
+                "path": str(gallery_output.relative_to(PROJECT_ROOT)),
+                "count": gallery_count,
+            },
         },
         "integrity": {
             "overlappingProducts": len(overlapping),
@@ -437,6 +514,7 @@ def main() -> int:
                 "canonicalGtCount": canonical_count,
                 "evaluationCount": evaluation_count,
                 "detailEvidenceCount": detail_evidence_count,
+                "galleryCount": gallery_count,
                 "overlap": len(overlapping),
                 "goldLabelConflicts": len(label_conflicts),
                 "manifest": str(manifest_path),
