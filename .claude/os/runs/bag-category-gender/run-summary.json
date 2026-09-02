@@ -5,13 +5,15 @@
     "auditReport": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-audit.md",
     "decisionLedger": ".claude/os/runs/bag-category-gender/review/decisions.json",
     "htmlReport": ".claude/os/runs/bag-category-gender/reports/catalog-audit.html",
+    "policyGapReport": ".claude/os/runs/bag-category-gender/reports/policy-gaps.html",
     "policyIndex": ".claude/os/runs/bag-category-gender/policy/policy-index.json",
     "policyQuestions": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-policy-questions.md",
     "policyQuestionsJson": ".claude/os/runs/bag-category-gender/reports/policy-questions.json",
     "policyStatus": ".claude/os/runs/bag-category-gender/reports/policy-status.md",
     "queueDirectory": ".claude/os/runs/bag-category-gender/queue",
     "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md",
-    "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json"
+    "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json",
+    "suspectGtReport": ".claude/os/runs/bag-category-gender/reports/suspect-gt.html"
   },
   "completed": true,
   "cycle": [
@@ -24,7 +26,7 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-02T13:36:23.540074+00:00",
+  "generatedAt": "2026-09-02T14:30:07.582849+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 5,
     "UNCLASSIFIED_TO_LABELED": 5

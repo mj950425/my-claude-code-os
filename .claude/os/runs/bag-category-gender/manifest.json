@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T13:36:23.036532+00:00",
+  "generatedAt": "2026-09-02T14:30:07.087537+00:00",
   "integrity": {
     "goldLabelConflicts": [
       "MUSINSA:3539191",
@@ -24,13 +24,17 @@
       "count": 500,
       "path": ".claude/os/runs/bag-category-gender/golden/bag-policy-evaluation.jsonl"
     },
+    "bagProductGallery": {
+      "count": 500,
+      "path": ".claude/os/runs/bag-category-gender/golden/bag-product-gallery.jsonl"
+    },
     "canonicalBagProductGt": {
       "count": 100,
       "path": ".claude/os/runs/bag-category-gender/golden/bag-product-gt.jsonl"
     },
     "policy": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md"
   },
-  "sourceCommit": "f431d40a18bbc7bef02dffffa253567b3321bb55",
+  "sourceCommit": "a4a253334c193a6028a18fb97a369a59d9f5d897",
   "sourceDirty": true,
   "sourceRepository": "/Users/mj/musinsa/dev/core-catalog-platfom",
   "sources": {
@@ -57,6 +61,10 @@
     "evaluationSummary": {
       "path": "tool/image-gender/gt-harness/results/bags-v1000-two-stage-image-complete-2026-08-31/summary-complete.json",
       "sha256": "5aaf437ab95a4240b665d466cdc9447150e72d0b52b7b6036b731a47e182f8f1"
+    },
+    "harnessProductResults": {
+      "path": "tool/image-gender/gt-harness/results/bags-v1000-two-stage-image-complete-2026-08-31/harness-product-results.jsonl",
+      "sha256": "d8d86b079dff5b79b6069dce547948e9f21a9876c09140ea6225fac85f99ee5c"
     },
     "invalidExplicitTextRecoveries": {
       "path": "tool/image-gender/gt-harness/results/bags-v1000-two-stage-image-complete-2026-08-31/invalid-explicit-text-recovered-ids.json",

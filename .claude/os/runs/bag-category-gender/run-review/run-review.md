@@ -1,8 +1,8 @@
 # bag-category-gender · 실행 심사
 
 - 판정: **WARN** — 시작할 수 있지만, 먼저 읽어야 할 지적이 있다.
-- 본 요약: `.claude/os/runs/bag-category-gender/run-summary.json` (생성 2026-09-02T13:36:23.540074+00:00)
-- 심사 시각: 2026-09-02T14:19:22.536076+00:00
+- 본 요약: `.claude/os/runs/bag-category-gender/run-summary.json` (생성 2026-09-02T14:30:07.582849+00:00)
+- 심사 시각: 2026-09-02T14:30:08.123791+00:00
 
 이 문서는 엔진 산출물을 **읽기만** 하고 다시 센 결과다. 여기 숫자의 출처는
 `run-review.json`이고, 사람 판정 원장은 이 심사로 바뀌지 않는다.

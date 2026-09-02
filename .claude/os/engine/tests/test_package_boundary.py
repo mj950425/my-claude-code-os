@@ -175,12 +175,14 @@ class EngineRunsWithoutTheAttributeTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, f"{script} 실패:\n{result.stderr}")
 
-            report = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
-            self.assertIn("대표 소재", report)
-            self.assertIn("혼방 니트", report)
-            self.assertIn("혼용률 정책 공백", report)
-            self.assertNotIn("MALE", report)
-            self.assertNotIn("productGender", report)
+            index = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
+            self.assertIn("대표 소재", index)
+            self.assertIn("혼용률 정책 공백", index)
+            for name in ("suspect-gt.html", "policy-gaps.html"):
+                report = (run / "reports" / name).read_text(encoding="utf-8")
+                self.assertIn("혼방 니트", report, name)
+                self.assertNotIn("MALE", report, name)
+                self.assertNotIn("productGender", report, name)
             index = json.loads((run / "policy/policy-index.json").read_text(encoding="utf-8"))
             self.assertEqual(index["owned"]["labels"], ["COTTON", "UNKNOWN"])
 

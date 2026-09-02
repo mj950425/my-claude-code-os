@@ -87,12 +87,17 @@ class GenericReportTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            output = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
-            self.assertIn("대표 소재", output)
-            self.assertIn("혼용률 정책 공백", output)
-            self.assertIn("혼방 니트", output)
-            self.assertNotIn("MALE", output)
-            self.assertNotIn("productGender", output)
+            index = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
+            self.assertIn("대표 소재", index)
+            self.assertIn("혼용률 정책 공백", index)
+            # 심판이 없는 속성은 귀책이 미확정이라 두 사례 보고서에 모두 나온다.
+            for name in ("suspect-gt.html", "policy-gaps.html"):
+                report = (run / "reports" / name).read_text(encoding="utf-8")
+                self.assertIn("혼방 니트", report, name)
+                self.assertIn("혼용률 정책 공백", report, name)
+            for output in (index, *[(run / "reports" / n).read_text(encoding="utf-8") for n in ("suspect-gt.html", "policy-gaps.html")]):
+                self.assertNotIn("MALE", output)
+                self.assertNotIn("productGender", output)
 
 
 if __name__ == "__main__":

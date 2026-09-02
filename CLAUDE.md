@@ -82,7 +82,9 @@ python3 -m pytest .claude/os/engine/tests .claude/os/review/tests .claude/os/int
 첫 동작 프로필이다. 정책은 `core-catalog-platfom`의 가방 Judge 프롬프트, 골든셋은 상품 단위
 가방 GT를 쓴다. `run.sh` 한 번이 정책·GT 스냅샷 → 감사 큐 → 정책 질문서 → 사람 판정 진행률 →
 HTML 보고서까지 돌고, 그 뒤에 심사가 이어진다. 결과는
-`runs/bag-category-gender/reports/catalog-audit.html`과 `runs/bag-category-gender/run-review/`.
+`runs/bag-category-gender/reports/`의 세 장(`catalog-audit.html` 표지 · `suspect-gt.html` 의심되는 GT 찾기 ·
+`policy-gaps.html` 빈 정책 찾기)과 `runs/bag-category-gender/run-review/`. 사례 보고서는 상품마다
+판단기가 본 대표 이미지와 상세 타일을 밀집해 싣는다.
 
 심사는 엔진이 방금 쓴 `run-summary.json`만 읽어 숫자를 다시 세고, 판정을 `FAIL`·`WARN`·`PASS`로
 낸다. 미판정 건수보다 먼저 볼 것은 심사가 낸 **지금 사람이 가를 수 있는 건수**다 —

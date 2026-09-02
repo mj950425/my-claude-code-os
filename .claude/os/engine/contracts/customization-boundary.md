@@ -12,7 +12,7 @@
 | 출처 manifest | 원본 경로·커밋·dirty 여부·SHA-256으로 재현 가능성 기록 |
 | 사람 판정 원장 | AI 추천과 사람 확정을 분리하고, `supersedes`로 변경 이력 보존 |
 | `build_review_progress.py` | 여러 큐의 같은 상품을 한 건으로 합쳐 진행률 계산 |
-| `render_catalog_report.py` | 속성명과 신호 정의를 프로필에서 읽어 정적 HTML 생성 |
+| `render_catalog_report.py` | 속성명과 신호 정의를 프로필에서 읽어 정적 HTML 세 장 생성 — 표지, 의심되는 GT 찾기, 빈 정책 찾기 |
 | `build_policy_index.py` | 소유 정책·판례의 계약 검증과 정책 공백의 추적 여부 판정 |
 
 공통 코어에는 `성별`, `MALE`, `가방` 같은 도메인 규칙을 넣지 않는다.
@@ -46,6 +46,11 @@ import 어댑터 → audit 어댑터 → build_policy_index → build_review_pro
    프로필에 `policy` 블록(`owned`, `precedents`, `imported`)을 추가한다.
    자세한 계약은 [policy-layer.md](policy-layer.md)를 본다.
 3. import 어댑터가 `runs/<프로필ID>/`에 `policy/`, `golden/`, `manifest.json`을 만든다.
+   (선택) 상품별 이미지 목록을 `golden/` 아래 JSONL로 만들고 프로필 `gallery`에 경로를 적으면,
+   사례 보고서가 상품마다 대표 이미지와 상세 타일을 밀집해 싣는다. 행 계약은
+   `{productKey, thumbnails: [{url, label?, presence?, note?}], details: [{url, sceneId?, label?}]}`이고,
+   `url`이 http가 아니면 run 폴더 기준 상대 경로다(로컬 파일은 `asset/`에 복사해 둔다).
+   `sceneId`가 큐의 `policyEvidenceSceneIds`와 맞으면 그 타일을 근거 장면으로 강조한다.
 4. audit 어댑터가 공통 큐 계약의 JSONL과 `runs/<프로필ID>/reports/policy-questions.json`을 만든다.
 5. `run_catalog_cycle.py --profile <프로필>`을 실행한다.
 6. HTML에서 속성명·신호·상품이 하드코딩 없이 보이는지 확인한다.

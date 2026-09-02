@@ -1,7 +1,7 @@
 {
   "basedOn": {
     "file": ".claude/os/runs/bag-category-gender/run-summary.json",
-    "generatedAt": "2026-09-02T13:36:23.540074+00:00",
+    "generatedAt": "2026-09-02T14:30:07.582849+00:00",
     "profileId": "bag-category-gender"
   },
   "checks": [
@@ -171,7 +171,7 @@
     "noConflictProducts": 197,
     "pendingProducts": 305
   },
-  "reviewedAt": "2026-09-02T14:19:22.536076+00:00",
+  "reviewedAt": "2026-09-02T14:30:08.123791+00:00",
   "runId": "bag-category-gender",
   "schemaVersion": "catalog-run-review-v1",
   "verdict": "WARN"
