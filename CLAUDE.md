@@ -43,6 +43,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 하려는 일 | 여는 문서 |
 |---|---|
 | 사이클을 돌린다 | 스킬 `catalog-data-os` → 속성 스킬 (`bag-category-gender-os`) |
+| 산출물을 브라우저에서 본다 | `.claude/os/serve.sh start` → http://127.0.0.1:7391 |
 | 이 결과로 판정을 시작해도 되는지 본다 | 스킬 `catalog-run-review` · [handoff.md](.claude/os/review/contracts/handoff.md) |
 | 정책과 GT 중 어느 쪽이 틀렸는지 가른다 | [engine/goal.md](.claude/os/engine/goal.md)의 판정표 |
 | 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) |
@@ -71,6 +72,10 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 
 ```bash
 .claude/os/attributes/bag-category-gender/run.sh
+```
+
+```bash
+.claude/os/serve.sh start
 ```
 
 ```bash
@@ -104,5 +109,21 @@ GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT�
 `catalog-golden-adjudicator`가 근거를 정리하고, 확정은 데이터 운영팀만
 `runs/<id>/review/decisions.json`에 남긴다. AI 추천은 사람 판정률에 넣지 않고, 판정을 바꿀 때는
 이전 `decisionId`를 `supersedes`로 남긴다.
+
+## 산출물을 읽는 자리 — 로컬 서버
+
+`.claude/os/serve.sh start`가 상시 프로세스 하나를 띄운다(`stop`·`status`·`restart`·`logs`·`open`).
+홈은 요청마다 `run-summary.json`·`run-review.json`·`policy-index.json`을 **다시 읽으므로**,
+사이클을 다시 돌리면 새로고침만으로 바뀐다. 화면은 넷이다 — 홈, **GT 개선**, **정책 보기**,
+**정책 개선**. 홈이 처음 말하는 숫자는 미판정 전체가 아니라 심사가 낸 *지금 가를 수 있는* 건수다.
+
+**서버는 숫자를 만들지 않는다.** 화면의 건수는 전부 위 세 파일이 스스로 이름 붙여 기록한 값이고
+(`primaryFinding.count`, `counts.precedents` …), 큐를 다시 세는 일은 보고서에 맡긴다.
+큐 잔여 건수는 홈에 싣지 않는다 — 상품 단위라 일감의 크기가 아니고, 큰 숫자로 앞세우면
+그렇게 읽힌다. 그 분해는 심사 보고서가 한다. 서버가 따로 세면 보고서와 조용히 어긋나고, 어긋난 채로 판단 근거가 된다 —
+규칙 8이 문서에 요구하는 것과 같다. `test_serve.py`가 이 둘을 확인한다.
+
+`정책 보기`는 보고서가 없던 자리다. 소유 정책과 판례 마크다운을 그대로 렌더해 파일을 열지 않고
+읽게 한다. 화면 형태는 `engine/design/`의 캔버스에서 정했다.
 
 미션 완료 조건 대응표와 설계 배경은 [DESIGN.md](.claude/os/DESIGN.md)에 있다.
