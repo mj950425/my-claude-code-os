@@ -206,18 +206,28 @@ def main() -> int:
     canonical_by_key = {row["productKey"]: row for row in canonical_rows}
     evaluation_by_key = {row["productKey"]: row for row in rows}
 
+    # GT 계보 충돌은 이제 원장이 이미 풀어놓은 사실이다. 여기서 두 파일을 다시 비교하지 않는다 —
+    # 비교하는 쪽이 이기는 라벨을 따로 고르면, 화면마다 다른 정답을 그리게 된다. 실제로 그랬다.
     golden_source_conflicts: list[dict[str, Any]] = []
     for product_key in sorted(canonical_by_key.keys() & evaluation_by_key.keys()):
         canonical = canonical_by_key[product_key]
-        evaluation = evaluation_by_key[product_key]
-        if canonical.get("goldLabel") == evaluation.get("goldLabel"):
+        if not canonical.get("conflict"):
             continue
+        evaluation = evaluation_by_key[product_key]
+        gold = canonical.get("goldLabel")
+        superseded = [
+            other
+            for other in canonical.get("otherLineages") or []
+            if other.get("goldLabel") not in (None, "") and other.get("goldLabel") != gold
+        ]
         # 검수 계보가 "답 없음"이라고 적은 것과 두 계보가 서로 다른 답을 적은 것은 다른 사건이다.
-        # 앞은 채점 GT가 답이 없는 자리를 메운 것이고, 뒤는 사람 둘이 갈린 것이다.
         # 답 없음을 뜻하는 말은 계보마다 다르다 — 옛 정본은 UNCLASSIFIED, 검수 시트는 UNDETERMINED.
         conflict_kind = (
             "UNCLASSIFIED_TO_LABELED"
-            if canonical.get("goldLabel") in {"UNCLASSIFIED", "UNDETERMINED"}
+            if any(
+                other.get("goldLabel") in {"UNCLASSIFIED", "UNDETERMINED"}
+                for other in superseded
+            )
             else "LABEL_TO_LABEL"
         )
         golden_source_conflicts.append(
@@ -225,21 +235,23 @@ def main() -> int:
                 "signal": "GOLDEN_SOURCE_CONFLICT",
                 "conflictKind": conflict_kind,
                 "reason": (
-                    "정본 GT에 확정 라벨이 없고 평가 스냅샷에는 확정 라벨이 있다."
+                    "낮은 순위 계보에 확정 라벨이 없어 원장이 상위 계보 라벨을 정답으로 삼았다."
                     if conflict_kind == "UNCLASSIFIED_TO_LABELED"
-                    else "같은 상품의 두 GT 소스가 서로 다른 확정 라벨을 가진다."
+                    else "두 GT 계보가 서로 다른 확정 라벨을 가져 원장이 순위로 갈랐다."
                 ),
                 "productKey": product_key,
                 "productName": canonical.get("productName"),
                 "standardCategory": canonical.get("standardCategory"),
-                "canonicalGold": canonical.get("goldLabel"),
-                "canonicalDatasetVersion": canonical.get("datasetVersion"),
-                "canonicalSource": canonical.get("goldSource"),
-                "evaluationGold": evaluation.get("goldLabel"),
-                "evaluationSource": evaluation.get("goldSource"),
+                "goldLabel": gold,
+                "goldSource": canonical.get("goldSource"),
+                "goldLineage": canonical.get("goldLineage"),
+                "resolvedBy": canonical.get("resolvedBy"),
+                "supersededLineages": superseded,
                 "productGender": evaluation.get("productGender"),
-                "referenceLabel": canonical.get("goldLabel"),
-                "observedLabel": evaluation.get("goldLabel"),
+                # 이 두 칸은 모든 큐에서 같은 뜻이어야 한다 — GT와 실행이다.
+                # 여기에 두 GT 계보를 담았던 것이 조서가 정정 방향을 거꾸로 그린 원인이었다.
+                "referenceLabel": gold,
+                "observedLabel": evaluation.get("productGender"),
                 "pdpUrl": canonical.get("pdpUrl"),
             }
         )

@@ -14,6 +14,11 @@ __pycache__/
 # 1GB가 넘어 git에 넣지 않는다. import 어댑터를 다시 돌리면 복구된다.
 .claude/os/runs/*/asset/
 
+# 심사가 판독기 주장을 되짚으려고 다시 내려받은 장면 타일. 같은 이유로 재현물이다 —
+# 어느 장면을 왜 받았는지는 scenes/index.json이 남기고, 그 색인은 추적한다.
+.claude/os/runs/*/run-review/scenes/*/
+.claude/os/runs/*/run-review/scenes/.sources/
+
 # 서버 프로세스의 PID·로그. 이 머신에서만 뜻이 있는 값이라 추적하지 않는다.
 .claude/os/runs/.serve/
 

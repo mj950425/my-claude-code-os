@@ -1,0 +1,280 @@
+{
+  "basedOn": "2026-09-06T08:38:02.641932+00:00",
+  "products": [
+    {
+      "citedSceneIds": [
+        "D01T01",
+        "D05T13"
+      ],
+      "goldLabel": "FEMALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "D01T01": "여성 · 착용",
+        "D05T13": "남성 · 착용"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "EGOOCM:3446802",
+      "productName": "0007 Layered Pouch Hobo Bag_Suede Olive",
+      "scenes": [
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 1000,
+            "top": 0,
+            "width": 1000
+          },
+          "judgeSceneNote": "여성 · 착용",
+          "path": "run-review/scenes/EGOOCM-3446802/D01T01.jpg",
+          "sceneId": "D01T01",
+          "sourceUrl": "https://img.29cm.co.kr/item/202509/11f099db3902aefeb56303a558c75dd5.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 17550,
+            "top": 16200,
+            "width": 900
+          },
+          "judgeSceneNote": "남성 · 착용",
+          "path": "run-review/scenes/EGOOCM-3446802/D05T13.jpg",
+          "sceneId": "D05T13",
+          "sourceUrl": "https://img.29cm.co.kr/item/202509/11f08dedf8699630be170d68b945a5e9.jpeg"
+        }
+      ],
+      "unresolvedSceneIds": []
+    },
+    {
+      "citedSceneIds": [
+        "TARGET_REFERENCE"
+      ],
+      "goldLabel": "MALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "TARGET_REFERENCE": "여성 · 착용"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "MUSINSA:4888023",
+      "productName": "Edition6. 로고 스트링 피그먼트 라지핏 쇼퍼백 (7col)",
+      "scenes": [],
+      "unresolvedSceneIds": [
+        "TARGET_REFERENCE"
+      ]
+    },
+    {
+      "citedSceneIds": [
+        "D01T02",
+        "D01T04",
+        "D02T04"
+      ],
+      "goldLabel": "MALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "D01T02": "여성 · 착용",
+        "D01T04": "남성 · 착용",
+        "D02T04": "사이즈표 성별 표기"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "MUSINSA:5336216",
+      "productName": "NEEDLE STONE WALLET [KHAKI]",
+      "scenes": [
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 3000,
+            "top": 1500,
+            "width": 1000
+          },
+          "judgeSceneNote": "여성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5336216/D01T02.jpg",
+          "sceneId": "D01T02",
+          "sourceUrl": "https://defgarments.openhost.cafe24.com/web/upload/25fw/p-27-1.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 6000,
+            "top": 4500,
+            "width": 1000
+          },
+          "judgeSceneNote": "남성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5336216/D01T04.jpg",
+          "sceneId": "D01T04",
+          "sourceUrl": "https://defgarments.openhost.cafe24.com/web/upload/25fw/p-27-1.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 5461,
+            "top": 4500,
+            "width": 1000
+          },
+          "judgeSceneNote": "사이즈표 성별 표기",
+          "path": "run-review/scenes/MUSINSA-5336216/D02T04.jpg",
+          "sceneId": "D02T04",
+          "sourceUrl": "https://defgarments.openhost.cafe24.com/web/upload/25fw/p-27-2.jpg"
+        }
+      ],
+      "unresolvedSceneIds": []
+    },
+    {
+      "citedSceneIds": [
+        "D02T03",
+        "D02T09"
+      ],
+      "goldLabel": "FEMALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "D02T03": "여성 · 착용",
+        "D02T09": "남성 · 착용"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "MUSINSA:5365574",
+      "productName": "0007 레이어드 파우치 호보 백_도트블랙",
+      "scenes": [
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 4050,
+            "top": 2700,
+            "width": 900
+          },
+          "judgeSceneNote": "여성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5365574/D02T03.jpg",
+          "sceneId": "D02T03",
+          "sourceUrl": "https://image.msscdn.net/images/prd_img/2025103114191103658587266690446cf08ef1.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 12150,
+            "top": 10800,
+            "width": 900
+          },
+          "judgeSceneNote": "남성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5365574/D02T09.jpg",
+          "sceneId": "D02T09",
+          "sourceUrl": "https://image.msscdn.net/images/prd_img/2025103114191103658587266690446cf08ef1.jpg"
+        }
+      ],
+      "unresolvedSceneIds": []
+    },
+    {
+      "citedSceneIds": [
+        "D01T03",
+        "D01T06"
+      ],
+      "goldLabel": "FEMALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "D01T03": "여성 · 착용",
+        "D01T06": "남성 · 착용"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "MUSINSA:5385148",
+      "productName": "WO 스튜디오 펠라인 볼링백20x14x11",
+      "scenes": [
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 3375,
+            "top": 2250,
+            "width": 750
+          },
+          "judgeSceneNote": "여성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5385148/D01T03.jpg",
+          "sceneId": "D01T03",
+          "sourceUrl": "https://lifestyle2017.cafe24.com/web/upload/NNEditor/20250827/copy-1756286732-25FW20WO_STUDIO_BOWLING20BAG_WO_DAILY_SMALL20POUCH_1.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 6750,
+            "top": 5625,
+            "width": 750
+          },
+          "judgeSceneNote": "남성 · 착용",
+          "path": "run-review/scenes/MUSINSA-5385148/D01T06.jpg",
+          "sceneId": "D01T06",
+          "sourceUrl": "https://lifestyle2017.cafe24.com/web/upload/NNEditor/20250827/copy-1756286732-25FW20WO_STUDIO_BOWLING20BAG_WO_DAILY_SMALL20POUCH_1.jpg"
+        }
+      ],
+      "unresolvedSceneIds": []
+    },
+    {
+      "citedSceneIds": [
+        "D01T01",
+        "D05T01"
+      ],
+      "goldLabel": "FEMALE",
+      "judgeClaim": "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+      "judgeSceneNotes": {
+        "D01T01": "남성 · 착용",
+        "D05T01": "사이즈표 성별 표기"
+      },
+      "observedLabel": "UNISEX",
+      "owner": "GOLDEN",
+      "ownerAction": "골든셋을 고친다",
+      "policyRule": "P3_MIXED_WEARER",
+      "policyStrength": "STRONG",
+      "productKey": "MUSINSA:6221028",
+      "productName": "Mono 에코백",
+      "scenes": [
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 1438,
+            "top": 0,
+            "width": 960
+          },
+          "judgeSceneNote": "남성 · 착용",
+          "path": "run-review/scenes/MUSINSA-6221028/D01T01.jpg",
+          "sceneId": "D01T01",
+          "sourceUrl": "https://image.msscdn.net/images/prd_img/202603310925042166359745169cb146034e43.jpg"
+        },
+        {
+          "citedByJudge": true,
+          "crop": {
+            "bottom": 843,
+            "top": 0,
+            "width": 960
+          },
+          "judgeSceneNote": "사이즈표 성별 표기",
+          "path": "run-review/scenes/MUSINSA-6221028/D05T01.jpg",
+          "sceneId": "D05T01",
+          "sourceUrl": "https://image.msscdn.net/images/prd_img/202603310925041565483263569cb14602638e.jpg"
+        }
+      ],
+      "unresolvedSceneIds": []
+    }
+  ],
+  "selector": {
+    "allScenes": false,
+    "owner": "GOLDEN",
+    "products": []
+  },
+  "skipped": [],
+  "tileRule": {
+    "aspect": 1.5,
+    "minTilePx": 64
+  }
+}

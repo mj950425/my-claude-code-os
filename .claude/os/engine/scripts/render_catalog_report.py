@@ -1337,6 +1337,11 @@ def main() -> int:
         artifacts["gtFixesReport"] = relative_or_absolute(written["fixes"])
         artifacts["suspectGtReport"] = relative_or_absolute(written["gt"])
         artifacts["policyGapReport"] = relative_or_absolute(written["policy"])
+        # 갤러리를 산출물로 선언한다. 심사는 선언되지 않은 경로를 관습으로 추측하지 않으므로,
+        # 선언하지 않으면 "판독기가 무엇을 봤는가"를 되짚을 방법이 심사 쪽에 없다.
+        gallery_declared = text(profile.get("gallery"))
+        if gallery_declared and project_path(gallery_declared).exists():
+            artifacts["gallery"] = relative_or_absolute(project_path(gallery_declared))
         if "HTML 보고서" not in summary.setdefault("cycle", []):
             summary["cycle"].append("HTML 보고서")
         (root / "run-summary.json").write_text(

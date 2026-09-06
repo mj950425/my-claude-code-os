@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T08:28:04.143703+00:00",
+  "generatedAt": "2026-09-06T08:38:02.264490+00:00",
   "goldenLineages": {
     "reviewSheet": {
       "datasetVersion": "2026-09-03",
@@ -18,59 +18,7 @@
     }
   },
   "integrity": {
-    "goldLabelConflicts": [
-      "EGOOCM:3402970",
-      "EGOOCM:3407206",
-      "EGOOCM:3412663",
-      "EGOOCM:3412762",
-      "EGOOCM:3413967",
-      "EGOOCM:3415594",
-      "EGOOCM:3417737",
-      "EGOOCM:3430473",
-      "EGOOCM:3440294",
-      "EGOOCM:3442337",
-      "EGOOCM:3443954",
-      "EGOOCM:3443997",
-      "EGOOCM:3448339",
-      "EGOOCM:3448515",
-      "EGOOCM:3448530",
-      "EGOOCM:3451405",
-      "EGOOCM:3452054",
-      "EGOOCM:3456202",
-      "EGOOCM:3466795",
-      "EGOOCM:3469334",
-      "EGOOCM:3469341",
-      "EGOOCM:3469345",
-      "EGOOCM:3469359",
-      "EGOOCM:3477555",
-      "EGOOCM:3482935",
-      "EGOOCM:3483889",
-      "MUSINSA:4456012",
-      "MUSINSA:4816021",
-      "MUSINSA:4881189",
-      "MUSINSA:4881578",
-      "MUSINSA:4886329",
-      "MUSINSA:4888023",
-      "MUSINSA:4895456",
-      "MUSINSA:4924741",
-      "MUSINSA:4944670",
-      "MUSINSA:4956426",
-      "MUSINSA:4956475",
-      "MUSINSA:4956623",
-      "MUSINSA:4956711",
-      "MUSINSA:4988940",
-      "MUSINSA:5005582",
-      "MUSINSA:5336216",
-      "MUSINSA:5355278",
-      "MUSINSA:5355281",
-      "MUSINSA:5357570",
-      "MUSINSA:5385027",
-      "MUSINSA:5389049",
-      "MUSINSA:5392155",
-      "MUSINSA:5396278",
-      "MUSINSA:5519263",
-      "MUSINSA:6746326"
-    ],
+    "goldLabelConflicts": [],
     "goldLabelRefreshed": [
       "EGOOCM:3398529",
       "EGOOCM:3399281",
@@ -204,6 +152,10 @@
     "evaluationSummary": {
       "path": "tool/image-gender/gt-harness/results/bags-v1000-two-stage-image-complete-2026-08-31/summary-complete.json",
       "sha256": "5aaf437ab95a4240b665d466cdc9447150e72d0b52b7b6036b731a47e182f8f1"
+    },
+    "gtLedger": {
+      "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/gt/bag-category-gender/gt.jsonl",
+      "sha256": "66173b826894d884a7ec257c38fd95fb7f5c46d26b962a68b165dd677dd18430"
     },
     "gtUserCorrections": {
       "path": "tool/image-gender/gt-harness/data/bags-product-gt-user-corrections-20260905.jsonl",

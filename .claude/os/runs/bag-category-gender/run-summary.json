@@ -4,6 +4,7 @@
     "arbiterVerdicts": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
     "auditReport": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-audit.md",
     "decisionLedger": ".claude/os/runs/bag-category-gender/review/decisions.json",
+    "gallery": ".claude/os/runs/bag-category-gender/golden/bag-product-gallery.jsonl",
     "gtFixesReport": ".claude/os/runs/bag-category-gender/reports/gt-fixes.html",
     "htmlReport": ".claude/os/runs/bag-category-gender/reports/catalog-audit.html",
     "policyGapReport": ".claude/os/runs/bag-category-gender/reports/policy-gaps.html",
@@ -27,7 +28,7 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-06T08:28:04.583938+00:00",
+  "generatedAt": "2026-09-06T08:38:02.641932+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 44,
     "UNCLASSIFIED_TO_LABELED": 7

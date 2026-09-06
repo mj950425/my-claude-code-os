@@ -21,6 +21,9 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
    `attributes/<id>/`는 속성 팩이고 profile.json이 유일한 플러그다. `runs/<id>/`는 산출물이라 지워도 된다.
    엔진에 성별, 가방 같은 도메인 규칙을 넣지 않는다.
 4. 손으로 쓴 정책과 판례는 `attributes/<id>/policy/`에만 둔다. `runs/` 안의 정책은 가져온 읽기 전용 스냅샷이다.
+   골든셋도 같다 — 정답은 `.claude/gt/<id>/gt.jsonl` **한 곳에만** 있다. 계보가 여럿이면
+   `build_gt.py`가 순위로 합치고 진 라벨을 이력으로 남긴다. 정답이 두 파일에 있으면 화면마다
+   다른 답을 그린다. 계약은 [gt-layer.md](.claude/os/engine/contracts/gt-layer.md)에 있다.
 5. IMPORTANT: 사람 판정 원장 `runs/<id>/review/decisions.json`에는 사용자가 명시적으로 확정한 결정만
    기록한다. AI 추천을 자동으로 기록하지 않는다.
 6. 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`, 에이전트를 `.claude/agents/`에서만 읽는다.
@@ -48,6 +51,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 정책과 GT 중 어느 쪽이 틀렸는지 가른다 | [engine/goal.md](.claude/os/engine/goal.md)의 판정표 |
 | 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) |
 | 정책·판례 파일을 만들거나 고친다 | [policy-layer.md](.claude/os/engine/contracts/policy-layer.md) |
+| 골든셋 계보를 합치거나 GT를 고친다 | [gt-layer.md](.claude/os/engine/contracts/gt-layer.md) |
 | 정의가 비어 있어 질문부터 만든다 | [interview-protocol.md](.claude/os/interview/contracts/interview-protocol.md) |
 | 패키지 경계·의존 방향을 확인한다 | [PACKAGES.md](.claude/os/PACKAGES.md) · 각 패키지 `package.md` |
 | 왜 이 설계인지 되짚는다 | [DESIGN.md](.claude/os/DESIGN.md) |
@@ -56,6 +60,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 
 ```
 serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 engine/scripts/serve_reports.py
+.claude/gt/<id>/  골든셋 원장. 상품 하나에 라벨 하나  gt.jsonl  lineage.json
 .claude/os/
   engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ templates/ tests/
   review/       엔진 산출물을 심사한다. 읽기만 한다  contracts/ scripts/ skills/ agents/ tests/
