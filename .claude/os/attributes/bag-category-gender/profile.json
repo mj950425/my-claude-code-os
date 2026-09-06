@@ -20,6 +20,32 @@
     "audit": ".claude/os/attributes/bag-category-gender/adapters/audit_bag_category_gender.py",
     "arbiter": ".claude/os/attributes/bag-category-gender/adapters/arbiter_bag_category_gender.py"
   },
+  "gt": {
+    "path": ".claude/gt/bag-category-gender/gt.jsonl",
+    "lineageIndex": ".claude/gt/bag-category-gender/lineage.json",
+    "sourceDir": "tool/image-gender/gt-harness/data",
+    "lineages": [
+      {
+        "id": "scoring",
+        "rank": 1,
+        "pattern": "^bags-product-context-gt-(\\d{8})\\.jsonl$",
+        "labelField": "goldLabel",
+        "sourceField": "goldSource",
+        "role": "명시적 사람 검수가 얹힌 계보. 순위가 가장 높다."
+      },
+      {
+        "id": "reviewSheet",
+        "rank": 2,
+        "pattern": "^bags-product-gt-(\\d{8})\\.jsonl$",
+        "labelField": "goldLabel",
+        "sourceField": "goldLabelSource",
+        "role": "검수 시트 계보. 폴백·일괄 라벨이 섞여 있어 순위가 낮다."
+      }
+    ],
+    "corrections": {
+      "pattern": "^bags-product-gt-user-corrections-(\\d{8})\\.jsonl$"
+    }
+  },
   "labels": [
     "MALE",
     "FEMALE",
