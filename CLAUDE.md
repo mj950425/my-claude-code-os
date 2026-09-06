@@ -48,6 +48,8 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 사이클을 돌린다 | 스킬 `catalog-data-os` → 속성 스킬 (`bag-category-gender-os`) |
 | 산출물을 브라우저에서 본다 | `./serve.sh start` → http://127.0.0.1:7391 |
 | 이 결과로 판정을 시작해도 되는지 본다 | 스킬 `catalog-run-review` · [handoff.md](.claude/os/review/contracts/handoff.md) |
+| 다음에 무엇을 고칠지 고른다 (GT·정책 개선 포인트) | 스킬 `catalog-improvement-sweep` |
+| 판독기가 든 근거가 사진과 맞는지 되짚는다 | 스킬 `catalog-evidence-recheck` |
 | 정책과 GT 중 어느 쪽이 틀렸는지 가른다 | [engine/goal.md](.claude/os/engine/goal.md)의 판정표 |
 | 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) |
 | 정책·판례 파일을 만들거나 고친다 | [policy-layer.md](.claude/os/engine/contracts/policy-layer.md) |
@@ -62,12 +64,12 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 engine/scripts/serve_reports.py
 .claude/gt/<id>/  골든셋 원장. 상품 하나에 라벨 하나  gt.jsonl  lineage.json
 .claude/os/
-  engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ templates/ tests/
+  engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ workflows/ templates/ tests/
   review/       엔진 산출물을 심사한다. 읽기만 한다  contracts/ scripts/ skills/ agents/ tests/
   interview/    정의가 비어 있을 때 채우는 절차  contracts/ scripts/ skills/ agents/ tests/
   attributes/<id>/  속성 팩. profile.json이 유일한 플러그
                     policy/ ← 유일한 진실   adapters/ skills/ goal.md run.sh
-  runs/<id>/    산출물. 지워도 된다            golden/ queue/ review/ reports/ run-review/(심사) policy/(스냅샷) asset/(이미지)
+  runs/<id>/    산출물. 지워도 된다            golden/ queue/ review/ reports/ run-review/(심사) improvements/(개선 포인트) policy/(스냅샷) asset/(이미지)
   DESIGN.md     설계 근거 §1~§16
 ```
 

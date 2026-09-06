@@ -32,11 +32,56 @@
 |---|---|
 | 계약 | `contracts/handoff.md` — 엔진과 무엇으로 만나는가 |
 | 심사기 | `scripts/review_run.py` |
-| 테스트 | `tests/test_review_contract.py` |
-| 스킬 | `skills/catalog-run-review` |
+| 장면 수집기 | `scripts/fetch_review_scenes.py` — 실행이 인용한 장면을 다시 내려 놓는다 |
+| 테스트 | `tests/test_review_contract.py` · `tests/test_scene_fetch.py` |
+| 스킬 | `skills/catalog-run-review` · `skills/catalog-evidence-recheck` |
 | 에이전트 | `agents/catalog-run-reviewer` — 지적을 읽고 무엇이 신뢰를 깨는지 가른다 |
-| 진입점 링크 | `.claude/skills/catalog-run-review` · `.claude/agents/review/catalog-run-reviewer.md` → 여기 |
-| 산출물 | `runs/<프로필ID>/run-review/` — `run-review.json`·`findings.jsonl`·`run-review.md` |
+| | `agents/catalog-scene-reader` — 장면을 직접 보고 무엇이 찍혔는지만 기록한다 |
+| | `agents/catalog-evidence-reviewer` — 그 판독으로 실행의 주장이 서는지 가른다 |
+| 진입점 링크 | `.claude/skills/<스킬명>` · `.claude/agents/review/<에이전트명>.md` → 여기 |
+| 산출물 | `runs/<프로필ID>/run-review/` — `run-review.json`·`findings.jsonl`·`run-review.md`·`scenes/` |
+
+## 근거를 심사하는 자리 — 왜 눈을 셋으로 나누는가
+
+기계 심사는 숫자를 다시 센다. 그런데 엔진이 남기는 것은 판독기가 쓴 **문장**뿐이라
+("남성·여성 모델이 모두 확인됨"), 그 문장이 사진과 맞는지는 아무도 보지 않았다.
+심판은 그 문장을 정규식으로 읽어 `STRONG` 근거로 올리고, 사람이 확정한 GT를 뒤집자는
+권고까지 만든다. 장면 하나를 잘못 읽으면 그 오독이 끝까지 간다.
+
+그래서 `catalog-evidence-recheck`은 한 눈으로 하지 않는다.
+
+| 단계 | 누가 | 무엇을 보는가 | 무엇을 못 보는가 |
+|---|---|---|---|
+| 준비 | `fetch_review_scenes.py` | 선언된 산출물 · (선택) 이미지 원장 | 판정하지 않는다 |
+| 판독 | `catalog-scene-reader` | **타일 한 장** · 정책 근거 규칙 발췌 | 실행이 낸 라벨·근거 문장, 판정 규칙 |
+| 심사 | `catalog-evidence-reviewer` | 판독 결과 · 실행의 주장 | 이미지 |
+
+판독자가 정답을 모르게 하는 것을 지시문에 맡기지 않는다. 수집기가 `scenes/reader-view.json`을
+따로 쓰고 거기서 실행의 주장을 뺀다 — **"보지 말라"와 "볼 수 없다"는 다르다.**
+정답을 알고 사진을 보면 그 정답이 보이고, 그것이 실행 판독기가 실패한 방식이다.
+심사가 이미지를 안 보는 것도 같은 이유다. 판독한 눈이 그 판독을 심사하면 검증이 아니다.
+
+**정책은 발췌로만 준다.** 판독자는 근거 규칙(무엇이 근거인가)을 받고 판정 규칙(어느 근거면
+어느 라벨인가)은 받지 않는다. 둘 다 주면 «그 라벨로 떨어뜨릴 근거»를 찾으러 간다.
+그 발췌 하나가 판독을 바꾼다 — 정책 3순위가 «대상과 같은 물건을 든 사람만 센다»고 말해 주면,
+판독이 «이 사람이 든 것은 다른 물건»을 먼저 보고한다. 규칙 없이 본 판독은 그 자리를 그냥 지나간다.
+
+**과제는 타일 단위다.** 상품으로 묶어 주면 판독자 하나가 여러 장을 들고 앞 장면의 인상이
+뒤에 번진다("아까 남성이 있었으니 이것도"). 한 번에 한 장이면 판독끼리 오염되지 않고,
+문맥이 짧아 한 건의 비용도 작다. 타일은 저장할 때 폭을 줄인다 — 판독 비용은 넓이에 비례하고,
+흐려서 못 정했다고 판독이 보고한 타일만 `--max-width`를 올려 다시 받는다.
+
+**판독을 먼저 심사한다.** 심사자의 1단계는 실행이 아니라 판독이다. 근거 줄이 값을 받치지
+못하거나, 같은 촬영을 타일마다 다르게 읽었거나, `targetMatch`가 미정인 사람의 외형을
+근거로 세웠으면 `RE_READ`로 돌려보낸다. 틀린 판독으로 주장을 반박하면 오독을 오독으로 덮는다.
+
+**원장은 기본 경로가 아니다.** 산출물이 장면을 못 풀 때만 `--ledger`로 이미지 원장에 묻고,
+산출물이 답한 것은 덮지 않는다. 어디서 왔는지는 장면마다 `source`(`ARTIFACT`·`LEDGER`)로 남는다 —
+섞으면 다음 사람이 무엇을 근거로 되짚었는지 모르게 된다.
+
+수집기가 고르는 것은 **심판이 그 귀책으로 지목한 모든 건**이지 심사의 `decidableByOwner`가
+아니다. 둘은 다르다 — 미결 판례에 막혀 지금 사람이 가르지 못하는 건도 **근거가 성한지는
+지금 확인할 수 있다.** 두 숫자가 어긋나 보이면 `scenes/index.json`의 `selector`를 본다.
 
 ## 규칙
 
@@ -68,6 +113,7 @@
 
 ```
 review    ──▶  runs/<프로필ID>/run-summary.json   (산출물만 안다)
+review    ──▶  요약이 artifacts로 선언한 경로        (갤러리·큐·심판 판정)
 review    ──✗  engine                            (코드를 부르지 않는다)
 review    ──✗  attributes/<프로필ID>              (프로필도 어댑터도 읽지 않는다)
 engine    ──✗  review                            (엔진은 심사를 모른다)

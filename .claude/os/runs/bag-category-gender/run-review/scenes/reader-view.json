@@ -1,0 +1,90 @@
+{
+  "basedOn": "2026-09-06T08:38:02.641932+00:00",
+  "missing": [],
+  "tasks": [
+    {
+      "path": "run-review/scenes/EGOOCM-3446802/D01T01.jpg",
+      "productKey": "EGOOCM:3446802",
+      "productName": "0007 Layered Pouch Hobo Bag_Suede Olive",
+      "sceneId": "D01T01",
+      "taskId": "EGOOCM:3446802#D01T01"
+    },
+    {
+      "path": "run-review/scenes/EGOOCM-3446802/D05T13.jpg",
+      "productKey": "EGOOCM:3446802",
+      "productName": "0007 Layered Pouch Hobo Bag_Suede Olive",
+      "sceneId": "D05T13",
+      "taskId": "EGOOCM:3446802#D05T13"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-4888023/TARGET_REFERENCE.jpg",
+      "productKey": "MUSINSA:4888023",
+      "productName": "Edition6. 로고 스트링 피그먼트 라지핏 쇼퍼백 (7col)",
+      "sceneId": "TARGET_REFERENCE",
+      "taskId": "MUSINSA:4888023#TARGET_REFERENCE"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5336216/D01T02.jpg",
+      "productKey": "MUSINSA:5336216",
+      "productName": "NEEDLE STONE WALLET [KHAKI]",
+      "sceneId": "D01T02",
+      "taskId": "MUSINSA:5336216#D01T02"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5336216/D01T04.jpg",
+      "productKey": "MUSINSA:5336216",
+      "productName": "NEEDLE STONE WALLET [KHAKI]",
+      "sceneId": "D01T04",
+      "taskId": "MUSINSA:5336216#D01T04"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5336216/D02T04.jpg",
+      "productKey": "MUSINSA:5336216",
+      "productName": "NEEDLE STONE WALLET [KHAKI]",
+      "sceneId": "D02T04",
+      "taskId": "MUSINSA:5336216#D02T04"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5365574/D02T03.jpg",
+      "productKey": "MUSINSA:5365574",
+      "productName": "0007 레이어드 파우치 호보 백_도트블랙",
+      "sceneId": "D02T03",
+      "taskId": "MUSINSA:5365574#D02T03"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5365574/D02T09.jpg",
+      "productKey": "MUSINSA:5365574",
+      "productName": "0007 레이어드 파우치 호보 백_도트블랙",
+      "sceneId": "D02T09",
+      "taskId": "MUSINSA:5365574#D02T09"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5385148/D01T03.jpg",
+      "productKey": "MUSINSA:5385148",
+      "productName": "WO 스튜디오 펠라인 볼링백20x14x11",
+      "sceneId": "D01T03",
+      "taskId": "MUSINSA:5385148#D01T03"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-5385148/D01T06.jpg",
+      "productKey": "MUSINSA:5385148",
+      "productName": "WO 스튜디오 펠라인 볼링백20x14x11",
+      "sceneId": "D01T06",
+      "taskId": "MUSINSA:5385148#D01T06"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-6221028/D01T01.jpg",
+      "productKey": "MUSINSA:6221028",
+      "productName": "Mono 에코백",
+      "sceneId": "D01T01",
+      "taskId": "MUSINSA:6221028#D01T01"
+    },
+    {
+      "path": "run-review/scenes/MUSINSA-6221028/D05T01.jpg",
+      "productKey": "MUSINSA:6221028",
+      "productName": "Mono 에코백",
+      "sceneId": "D05T01",
+      "taskId": "MUSINSA:6221028#D05T01"
+    }
+  ]
+}
