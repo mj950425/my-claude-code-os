@@ -82,9 +82,15 @@ python3 -m pytest .claude/os/engine/tests .claude/os/review/tests .claude/os/int
 첫 동작 프로필이다. 정책은 `core-catalog-platfom`의 가방 Judge 프롬프트, 골든셋은 상품 단위
 가방 GT를 쓴다. `run.sh` 한 번이 정책·GT 스냅샷 → 감사 큐 → 정책 질문서 → 사람 판정 진행률 →
 HTML 보고서까지 돌고, 그 뒤에 심사가 이어진다. 결과는
-`runs/bag-category-gender/reports/`의 세 장(`catalog-audit.html` 표지 · `suspect-gt.html` 의심되는 GT 찾기 ·
-`policy-gaps.html` 빈 정책 찾기)과 `runs/bag-category-gender/run-review/`. 사례 보고서는 상품마다
-판단기가 본 대표 이미지와 상세 타일을 밀집해 싣는다.
+`runs/bag-category-gender/reports/`의 네 장(`catalog-audit.html` 표지 · `gt-fixes.html` GT 정정 후보 ·
+`suspect-gt.html` 의심되는 GT 찾기 · `policy-gaps.html` 빈 정책 찾기)과 `runs/bag-category-gender/run-review/`.
+사례 보고서는 상품마다 판단기가 본 대표 이미지와 상세 타일을 밀집해 싣는다. 정정 후보는 한 제안이
+한 장의 조서다 — `현재 GT → 제안`과 GT 출처, 판독기·리뷰어의 문장, 그리고 **판독기가 인용한 사진**이
+한 화면에 있다. "이 GT가 틀렸다"는 주장이라 사진 없이는 반박도 동의도 못 하기 때문이다.
+
+GT를 묻는 두 장(`gt-fixes`·`suspect-gt`)에는 **실행 품질 지표를 싣지 않는다.** 표면 정확도·처리 건수·
+정책 버전은 "이 GT가 틀렸나"에 답을 주지 않으면서, 옆에 있으면 판단에 섞인다. 실행 건강은 표지의 일이다.
+형태의 기준과 아직 못 따라간 것은 [samples/README.md](.claude/os/attributes/bag-category-gender/samples/README.md)에 있다.
 
 심사는 엔진이 방금 쓴 `run-summary.json`만 읽어 숫자를 다시 세고, 판정을 `FAIL`·`WARN`·`PASS`로
 낸다. 미판정 건수보다 먼저 볼 것은 심사가 낸 **지금 사람이 가를 수 있는 건수**다 —

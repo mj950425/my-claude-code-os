@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from datetime import UTC, datetime
@@ -26,7 +27,15 @@ DEFAULT_SOURCE_REPO = PROJECT_ROOT.parent / "core-catalog-platfom"
 POLICY_SOURCE = Path(
     "core/src/main/resources/prompts/image-gender/v1000/bag-role-aware-judge.txt"
 )
-CANONICAL_GT_SOURCE = Path("tool/product-gender/gt-harness/data/gt.jsonl")
+# 가방 GT는 한 파일이 아니라 두 계보다. 하나로 합쳐 들이지 않는다.
+#   - 검수 시트 계보(bags-product-gt-YYYYMMDD): 검수 탭에서 온 라벨. 리뷰어 이름이 남는다.
+#   - 채점 계보(bags-product-context-gt-YYYYMMDD): 하네스가 실제로 정확도를 재는 라벨.
+#     시트 이후의 판정이 얹히고 UNDETERMINED가 UNISEX로 접힌다.
+# 둘이 다르면 그것이 곧 GOLDEN_SOURCE_CONFLICT다. 여기서 한쪽을 골라 덮으면 그 신호가 사라진다.
+GT_DATA_DIR = Path("tool/image-gender/gt-harness/data")
+REVIEW_SHEET_GT_PATTERN = re.compile(r"^bags-product-gt-(\d{8})\.jsonl$")
+SCORING_GT_PATTERN = re.compile(r"^bags-product-context-gt-(\d{8})\.jsonl$")
+GT_CORRECTIONS_PATTERN = re.compile(r"^bags-product-gt-user-corrections-(\d{8})\.jsonl$")
 EVALUATION_SOURCE = Path(
     "tool/image-gender/gt-harness/results/"
     "bags-v1000-two-stage-image-complete-2026-08-31/final-complete.jsonl"
@@ -104,20 +113,90 @@ def git_value(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def compact_canonical(row: dict[str, Any]) -> dict[str, Any]:
+POLICY_PLACEHOLDER_PATTERN = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+
+
+def compose_policy(template_path: Path) -> tuple[str, dict[str, Path]]:
+    """판정 프롬프트의 자리표시자를 실제 조각으로 채워 완성된 정책을 만든다.
+
+    프롬프트 본문은 `{{BAG_OBSERVATION_SAFETY}}` 같은 자리표시자로 공용 문장을 불러온다.
+    자리표시자째로 떠 온 스냅샷은 정책이 아니라 정책의 겉면이다 — 실제 판단기가 읽는
+    보수 규칙이 통째로 빠지고, 그것을 근거로 감사가 돌아간다. 이름은 파일명 규칙이
+    정한다(`BAG_OBSERVATION_SAFETY` → `bag-observation-safety.txt`). 채우지 못한
+    자리표시자는 조용히 넘기지 않고 즉시 멈춘다.
+    """
+    text = template_path.read_text(encoding="utf-8")
+    partials: dict[str, Path] = {}
+    for name in dict.fromkeys(POLICY_PLACEHOLDER_PATTERN.findall(text)):
+        partial = template_path.parent / (name.lower().replace("_", "-") + ".txt")
+        if not partial.is_file():
+            raise SystemExit(f"정책 조각을 찾지 못했습니다: {{{{{name}}}}} → {partial}")
+        partials[name] = partial
+        text = text.replace(f"{{{{{name}}}}}", partial.read_text(encoding="utf-8").strip())
+    return text.strip(), partials
+
+
+def latest_dated_source(directory: Path, pattern: re.Pattern[str]) -> tuple[Path, str]:
+    """이름에 날짜가 박힌 GT 파일 중 가장 최신을 고른다.
+
+    날짜를 코드에 박으면 다음 갱신마다 어댑터를 고쳐야 하고, 고치는 것을 잊으면
+    조용히 옛 GT로 감사한다. 대신 고른 결과를 manifest에 경로·해시로 남겨 재현을 지킨다.
+    """
+    matched = sorted(
+        ((match.group(1), path) for path in directory.glob("*.jsonl") if (match := pattern.match(path.name))),
+    )
+    if not matched:
+        raise SystemExit(f"{directory}에서 {pattern.pattern}에 맞는 GT 파일을 찾지 못했습니다.")
+    stamp, path = matched[-1]
+    return path, f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}"
+
+
+def compact_review_sheet_gt(row: dict[str, Any], dataset_version: str) -> dict[str, Any]:
+    """검수 시트 계보를 정본 GT 스냅샷 계약으로 옮긴다.
+
+    리뷰어 이름과 시트 위치를 함께 남긴다. 충돌이 났을 때 "누가 언제 그렇게 봤는가"가
+    없으면 사람은 두 라벨 중 하나를 고를 근거가 없다.
+    """
     return {
-        "productKey": f"MUSINSA:{row.get('musinsaGoodsNo')}",
-        "goodsNo": str(row.get("musinsaGoodsNo") or ""),
-        "sellerProductId": str(row.get("sellerProductId") or ""),
+        "productKey": row.get("productKey"),
+        "goodsNo": str(row.get("goodsNo") or ""),
+        "platformCode": row.get("platformCode"),
         "productName": row.get("productName"),
-        "brand": row.get("brand"),
         "standardCategory": row.get("standardCategory"),
         "goldLabel": row.get("goldLabel"),
-        "goldSource": row.get("goldSource"),
+        "goldSource": row.get("goldLabelSource"),
         "reviewStatus": row.get("reviewStatus"),
-        "datasetVersion": row.get("datasetVersion"),
-        "pdpUrl": f"https://www.musinsa.com/products/{row.get('musinsaGoodsNo')}",
+        "reviewer": row.get("reviewer"),
+        "reviewNote": row.get("reviewNote"),
+        "sourceSheet": row.get("sourceSheet"),
+        "sheetRow": row.get("sheetRow"),
+        "datasetVersion": dataset_version,
+        "pdpUrl": row.get("pdpUrl"),
     }
+
+
+def apply_scoring_gt(
+    row: dict[str, Any], scoring: dict[str, Any] | None
+) -> dict[str, Any]:
+    """평가 스냅샷이 들고 온 옛 GT를 최신 채점 GT로 갈아 끼운다.
+
+    실행 결과는 그대로 두고 정답만 바꾼다 — 감사가 묻는 것은 "지금의 정답으로 볼 때
+    이 실행이 어디서 갈리는가"이기 때문이다. 다만 옛 정답을 전제로 계산된 값
+    (`correct`, `mismatchClassification`)은 더는 이 행을 설명하지 못하므로 지운다.
+    남겨 두면 다시 세지 않은 숫자가 조용히 판단 근거가 된다.
+    """
+    if scoring is None:
+        return row
+    previous = row.get("goldLabel")
+    row["goldLabel"] = scoring.get("goldLabel")
+    row["goldSource"] = scoring.get("goldSource")
+    row["gtReviewStatus"] = scoring.get("gtReviewStatus")
+    if previous != row["goldLabel"]:
+        row["goldLabelBeforeRefresh"] = previous
+        row["correct"] = None
+        row["mismatchClassification"] = None
+        row["mismatchClassificationBasis"] = None
+    return row
 
 
 def compact_evaluation(row: dict[str, Any]) -> dict[str, Any]:
@@ -354,9 +433,20 @@ def main() -> int:
     source_repo = args.source_repo.resolve()
     output_root = args.output_root.resolve()
 
+    gt_data_dir = source_repo / GT_DATA_DIR
+    review_sheet_gt_path, review_sheet_version = latest_dated_source(
+        gt_data_dir, REVIEW_SHEET_GT_PATTERN
+    )
+    scoring_gt_path, scoring_version = latest_dated_source(gt_data_dir, SCORING_GT_PATTERN)
+    corrections_path, corrections_version = latest_dated_source(
+        gt_data_dir, GT_CORRECTIONS_PATTERN
+    )
+
     sources = {
         "policy": source_repo / POLICY_SOURCE,
-        "canonicalGt": source_repo / CANONICAL_GT_SOURCE,
+        "reviewSheetGt": review_sheet_gt_path,
+        "scoringGt": scoring_gt_path,
+        "gtUserCorrections": corrections_path,
         "evaluation": source_repo / EVALUATION_SOURCE,
         "detailTrace": source_repo / DETAIL_TRACE_SOURCE,
         "evaluationSummary": source_repo / SUMMARY_SOURCE,
@@ -370,15 +460,24 @@ def main() -> int:
     if missing:
         raise SystemExit("missing source files:\n- " + "\n- ".join(missing))
 
-    policy_text = sources["policy"].read_text(encoding="utf-8").strip()
+    policy_text, policy_partials = compose_policy(sources["policy"])
+    for name, partial in policy_partials.items():
+        sources[f"policyPartial:{name}"] = partial
+    partial_lines = "".join(
+        f"- 조각 `{{{{{name}}}}}`: `{display_path(partial, source_repo)}` "
+        f"(SHA-256 `{sha256(partial)}`)\n"
+        for name, partial in policy_partials.items()
+    )
     policy_output = output_root / "policy" / "bag-category-gender.md"
     policy_output.parent.mkdir(parents=True, exist_ok=True)
     policy_output.write_text(
         "# 가방 상품 대상 성별 정책\n\n"
-        "> 자동 생성 스냅샷입니다. 원본 프롬프트를 수정하고 이 파일을 직접 고치지 마세요.\n\n"
+        "> 자동 생성 스냅샷입니다. 원본 프롬프트를 수정하고 이 파일을 직접 고치지 마세요.\n"
+        "> 자리표시자는 판단기가 읽는 것과 같은 본문으로 채워져 있습니다.\n\n"
         f"- 원본: `{POLICY_SOURCE}`\n"
-        f"- SHA-256: `{sha256(sources['policy'])}`\n\n"
-        "## 판정 프롬프트\n\n"
+        f"- SHA-256: `{sha256(sources['policy'])}`\n"
+        + partial_lines
+        + "\n## 판정 프롬프트\n\n"
         + policy_text
         + "\n",
         encoding="utf-8",
@@ -422,15 +521,30 @@ def main() -> int:
 
     canonical_rows = sorted(
         (
-            compact_canonical(row)
-            for row in read_jsonl(sources["canonicalGt"])
-            if str(row.get("standardCategory") or "").startswith("가방>")
+            compact_review_sheet_gt(row, review_sheet_version)
+            for row in read_jsonl(sources["reviewSheetGt"])
         ),
-        key=lambda row: row["productKey"],
-    )
-    evaluation_rows = sorted(
-        (compact_evaluation(row) for row in read_jsonl(sources["evaluation"])),
         key=lambda row: str(row["productKey"]),
+    )
+    scoring_gt_by_key = {
+        str(row.get("productKey")): row for row in read_jsonl(sources["scoringGt"])
+    }
+    evaluation_rows = sorted(
+        (
+            apply_scoring_gt(
+                compact_evaluation(row), scoring_gt_by_key.get(str(row.get("productKey")))
+            )
+            for row in read_jsonl(sources["evaluation"])
+        ),
+        key=lambda row: str(row["productKey"]),
+    )
+    refreshed_keys = sorted(
+        str(row["productKey"]) for row in evaluation_rows if "goldLabelBeforeRefresh" in row
+    )
+    unscored_keys = sorted(
+        str(row["productKey"])
+        for row in evaluation_rows
+        if str(row["productKey"]) not in scoring_gt_by_key
     )
     evaluation_by_goods_no = {str(row.get("goodsNo")): row for row in evaluation_rows}
     detail_evidence_rows = compact_detail_evidence(
@@ -496,9 +610,28 @@ def main() -> int:
                 "count": gallery_count,
             },
         },
+        "goldenLineages": {
+            "reviewSheet": {
+                "datasetVersion": review_sheet_version,
+                "path": display_path(review_sheet_gt_path, source_repo),
+                "role": "정본 GT 스냅샷. 검수 탭 라벨과 리뷰어 이름.",
+            },
+            "scoring": {
+                "datasetVersion": scoring_version,
+                "path": display_path(scoring_gt_path, source_repo),
+                "role": "감사가 실행과 대조하는 GT. 하네스가 정확도를 재는 라벨.",
+            },
+            "userCorrections": {
+                "datasetVersion": corrections_version,
+                "path": display_path(corrections_path, source_repo),
+                "role": "두 계보에 얹힌 사람 정정 이력.",
+            },
+        },
         "integrity": {
             "overlappingProducts": len(overlapping),
             "goldLabelConflicts": label_conflicts,
+            "goldLabelRefreshed": refreshed_keys,
+            "productsMissingScoringGt": unscored_keys,
         },
     }
     manifest_path = output_root / "manifest.json"
@@ -511,12 +644,16 @@ def main() -> int:
         json.dumps(
             {
                 "policy": str(policy_output),
+                "reviewSheetGtVersion": review_sheet_version,
+                "scoringGtVersion": scoring_version,
                 "canonicalGtCount": canonical_count,
                 "evaluationCount": evaluation_count,
                 "detailEvidenceCount": detail_evidence_count,
                 "galleryCount": gallery_count,
                 "overlap": len(overlapping),
                 "goldLabelConflicts": len(label_conflicts),
+                "goldLabelRefreshed": len(refreshed_keys),
+                "productsMissingScoringGt": len(unscored_keys),
                 "manifest": str(manifest_path),
             },
             ensure_ascii=False,

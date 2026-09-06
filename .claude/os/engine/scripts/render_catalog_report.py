@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """공통 큐 계약·심판 결과·이미지 갤러리를 읽어 속성에 독립적인 정적 HTML 보고서 세 장을 만든다.
 
+- `gt-fixes.html`      GT 정정 후보 — 제안 단위. 한 제안이 한 장의 조서다. "이 GT가 틀렸다"는 주장이라
+                       판독기가 실제로 본 사진을 함께 싣는다 — 사진 없이는 반박도 동의도 못 한다.
 - `suspect-gt.html`    의심되는 GT 찾기 — 건 단위. 판독기가 본 이미지를 사람이 다시 보고 GT를 고칠지 정한다.
 - `policy-gaps.html`   빈 정책 찾기 — 군집 단위. 판례 하나가 닫는 사례들을 그 질문 아래 모아 둔다.
 - `catalog-audit.html` 표지. 두 목록의 크기, 분리된 실행 결함, 신호가 어느 목록으로 갔는지.
@@ -11,6 +13,8 @@
 심판이 없으면 프로필 신호의 `lane`, 그것도 없으면 미확정이라 두 목록에 다 나온다.
 
 화면에 세는 숫자를 직접 적지 않는다. 건수는 전부 임베드된 데이터에서 브라우저가 센다.
+GT를 묻는 두 장(`gt-fixes`·`suspect-gt`)에는 실행 품질 지표를 싣지 않는다. 표면 정확도·처리 건수·
+정책 버전은 "이 GT가 틀렸나"에 답을 주지 않으면서, 옆에 있으면 사람의 판단에 섞이기 때문이다.
 """
 
 from __future__ import annotations
@@ -42,9 +46,20 @@ OWNER_ORDER = ["GOLDEN", "PENDING_PRECEDENT", "POLICY", "EVIDENCE", "GOAL", "RUN
 
 INDEX_FILE = "catalog-audit.html"
 REPORTS: dict[str, dict[str, Any]] = {
-    "gt": {"file": "suspect-gt.html", "title": "의심되는 GT 찾기", "unit": "건 단위", "lanes": ["GT", "OPEN"], "dual": False},
-    "policy": {"file": "policy-gaps.html", "title": "빈 정책 찾기", "unit": "군집 단위", "lanes": ["POLICY", "OPEN"], "dual": True},
+    "fixes": {"file": "gt-fixes.html", "title": "GT 정정 후보", "unit": "제안 단위", "lanes": ["GT", "OPEN"], "dual": False, "kind": "fixes"},
+    "gt": {"file": "suspect-gt.html", "title": "의심되는 GT 찾기", "unit": "건 단위", "lanes": ["GT", "OPEN"], "dual": False, "kind": "case"},
+    "policy": {"file": "policy-gaps.html", "title": "빈 정책 찾기", "unit": "군집 단위", "lanes": ["POLICY", "OPEN"], "dual": True, "kind": "case"},
 }
+
+# 정정 후보의 배지. 손으로 고른 확신도가 아니라 심판이 낸 귀책과 근거 강도에서 나온다.
+# 순서가 곧 표시 순서다 — 확실한 것이 위로 온다.
+FIX_GRADES: list[dict[str, str]] = [
+    {"id": "SURE", "label": "확신", "note": "정책 직접 근거로 GT가 틀렸다"},
+    {"id": "POLICY", "label": "정책적용", "note": "정책을 그대로 적용하면 뒤집힌다"},
+    {"id": "ASK", "label": "판단필요", "note": "미결 판례·근거 부족이라 한 답을 못 고른다"},
+    {"id": "OPEN", "label": "미확정", "note": "심판 결과가 없다"},
+]
+FIX_GRADE_IDS = [grade["id"] for grade in FIX_GRADES]
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -319,6 +334,95 @@ def slim(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def fix_grade(row: dict[str, Any]) -> str:
+    """이 제안을 얼마나 믿는지. 심판의 귀책과 근거 강도만 본다 — 속성 규칙을 보지 않는다."""
+    verdict = row.get("verdict")
+    if not verdict:
+        return "OPEN"
+    owner = text(verdict.get("owner"))
+    if owner == "GOLDEN":
+        return "SURE" if text(verdict.get("strength")) == "STRONG" else "POLICY"
+    if owner == "PENDING_PRECEDENT" or verdict.get("evidenceGap"):
+        return "ASK"
+    return "OPEN"
+
+
+def fix_proposal(row: dict[str, Any], labels: list[str]) -> dict[str, Any]:
+    """무엇으로 고치자는 제안인가. 정책이 답을 냈으면 그 답, 아니면 실행이 낸 값이다.
+
+    심판은 답을 못 냈다는 것도 `policyAnswer`에 적는다. 그 값은 프로필이 선언한 허용값이
+    아니라서 아무도 GT에 넣을 수 없다 — 제안 자리에 두면 목록이 거짓말을 한다. 제안에서 빼고
+    "정책이 답을 못 냈다"로만 남긴다.
+    """
+    verdict = row.get("verdict") or {}
+    answer = text(verdict.get("policyAnswer"))
+    usable = bool(answer) and (not labels or answer in labels)
+    proposed = answer if usable else text(row.get("observedLabel"))
+    return {
+        "grade": fix_grade(row),
+        "proposed": proposed,
+        "fromPolicy": usable,
+        "policyStuck": bool(answer) and not usable,
+        # 정책 답이 GT와 같다 — 고칠 대상은 GT가 아니다. 그래도 목록에서 빼지 않는다.
+        "unchanged": bool(proposed) and proposed == text(row.get("referenceLabel")),
+    }
+
+
+def fix_plate(row: dict[str, Any], gallery: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """이 제안의 증거판. 판독기가 근거로 든 사진이 먼저 오고, 나머지가 뒤를 받친다.
+
+    "GT가 틀렸다"는 주장은 사진 없이는 검증할 수 없다. 그래서 정정 후보 화면에도 사진을 싣는다 —
+    다만 다 같은 무게로 늘어놓지 않는다. 판독기가 실제로 인용한 장면(`evidence.sceneIds`,
+    `evidence.images`)에 `cited` 표시를 달아, 사람이 **어느 사진을 반박해야 하는지**부터 보게 한다.
+    """
+    images = gallery.get(row["productKey"]) or {}
+    evidence = row.get("evidence") or {}
+    cited_scenes = {text(scene) for scene in (evidence.get("sceneIds") or []) if text(scene)}
+    cited_urls = {text(url) for url in (evidence.get("images") or []) if text(url)}
+
+    plate: list[dict[str, Any]] = []
+    for image in images.get("thumbnails") or []:
+        url = text(image.get("url"))
+        if url:
+            plate.append({"url": url, "caption": "대표 판매 사진", "role": "TARGET", "cited": False})
+    for image in images.get("details") or []:
+        url = text(image.get("url"))
+        if not url:
+            continue
+        scene = text(image.get("sceneId"))
+        plate.append({
+            "url": url,
+            "caption": scene or "상세",
+            "role": "DETAIL",
+            "cited": bool((scene and scene in cited_scenes) or url in cited_urls),
+        })
+    # 인용된 장면이 앞으로. 대표 사진은 늘 첫 자리를 지킨다 — 무엇을 파는지 모르면 근거도 못 읽는다.
+    target = [item for item in plate if item["role"] == "TARGET"]
+    rest = [item for item in plate if item["role"] != "TARGET"]
+    rest.sort(key=lambda item: (not item["cited"],))
+    return target + rest
+
+
+def fix_line(row: dict[str, Any], gallery: dict[str, dict[str, Any]], labels: list[str]) -> dict[str, Any]:
+    """정정 후보 하나. 이 화면 하나로 예·아니오를 줄 수 있어야 한다.
+
+    실행 품질(정확도·처리 건수·프롬프트 버전)은 싣지 않는다. "이 GT가 틀렸나"를 묻는 자리에서
+    파이프라인이 몇 점인지는 답에 영향을 주지 않는다 — 근거가 아닌 것을 옆에 두면 사람은
+    그것으로도 판단하게 된다.
+    """
+    return {
+        key: row[key]
+        for key in ("productKey", "productName", "brand", "category", "url", "lane", "dual",
+                    "referenceLabel", "observedLabel", "goldSource", "gtReviewStatus",
+                    "verdict", "evidence", "sourceConflict")
+    } | {
+        "fix": fix_proposal(row, labels),
+        "plate": fix_plate(row, gallery),
+        "decisionSource": text((row.get("judge") or {}).get("decisionSource")),
+        "signals": [entry["id"] for entry in row["signals"]],
+    }
+
+
 STYLE = r"""
 :root{
   color-scheme:light;
@@ -432,6 +536,97 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .q-rec b i{font-style:normal;color:var(--accent)}
 .p-more h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--accent)}
 
+/* 정정 후보 조서(dossier): 한 상품이 한 장이다.
+   "이 GT가 틀렸다"는 주장이라, 사진 없이는 반박도 동의도 못 한다. 그래서 근거를 편다.
+   대신 실행 품질 지표는 이 화면에 없다 — 근거가 아닌 것을 옆에 두면 그것으로도 판단하게 된다 */
+.fx-intro{margin-top:18px;max-width:74ch;font-size:13.5px;line-height:1.8;color:var(--muted)}
+.fx-intro b{color:var(--accent);font-weight:600}
+.fx-intro code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.fx-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px}
+.fx-legend span{display:inline-flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}
+
+/* 조서 한 장 */
+.fx{display:grid;grid-template-columns:172px 1fr;gap:0 32px;padding:34px 0 40px;border-top:1.5px solid var(--ink);
+    animation:fx-rise .5s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fx-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.fx{animation:none}}
+
+/* 왼쪽 레일 — 도장과 사건 번호 */
+.fx-rail{position:sticky;top:56px;align-self:start}
+.stamp{display:inline-block;padding:6px 13px 5px;font-family:var(--mono);font-size:11px;font-weight:600;
+       letter-spacing:.16em;border:1.5px solid currentColor;box-shadow:0 0 0 3px var(--paper),0 0 0 4.5px currentColor;
+       transform:rotate(-3.5deg);transform-origin:left center}
+.stamp.SURE{color:var(--accent)}
+.stamp.POLICY{color:var(--ink)}
+.stamp.ASK{color:var(--muted);border-style:dashed;box-shadow:none}
+.stamp.OPEN{color:var(--faint);border-style:dotted;box-shadow:none}
+.fx-rail .case{margin-top:22px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all}
+.fx-rail .case a{color:var(--muted)}
+.fx-rail .case a:hover{color:var(--accent)}
+.fx-rail .org{margin-top:7px;font-family:var(--mono);font-size:10px;line-height:1.55;color:var(--faint)}
+.fx-rail .chips{margin-top:12px}
+
+/* 주문(主文) — 이 화면이 묻는 단 하나의 질문 */
+.fx-body{min-width:0}
+.fx h3{font-family:var(--serif);font-weight:400;font-size:1.44rem;line-height:1.34;letter-spacing:-.025em;max-width:34ch}
+.fx-body>.meta{margin-top:5px;font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--faint)}
+.ruling{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 22px;margin-top:20px;padding:16px 0 15px;
+        border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.ruling div{min-width:0}
+.ruling dt{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.ruling dd{font-family:var(--mono);font-size:1.5rem;font-weight:600;line-height:1;letter-spacing:-.01em}
+.ruling .was dd{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:var(--faint)}
+.ruling .now dd{color:var(--accent)}
+.ruling .keep dd{color:var(--ink);text-decoration:none}
+.ruling small{display:block;margin-top:7px;font-family:var(--mono);font-size:10px;line-height:1.5;letter-spacing:.02em;color:var(--faint);text-decoration:none}
+.ruling .to{align-self:center;font-size:1.35rem;color:var(--rule);margin-bottom:6px}
+
+/* 두 사람의 말 — 판독기와 리뷰어를 섞지 않는다 */
+.fx-say{margin-top:13px;font-size:13.2px;line-height:1.7;max-width:76ch;padding-left:16px;border-left:2px solid var(--rule)}
+.fx-say.mut{color:var(--muted);border-left-color:var(--inset)}
+.fx-say b{display:block;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+
+/* 증거판 — 판독기가 인용한 사진이 먼저 온다 */
+.plate{margin-top:22px}
+.plate-head{display:flex;align-items:baseline;gap:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+            text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+/* `.shots`는 사례 보고서(가로 스트립)가 이미 쓰는 이름이다. 증거판은 격자라 규칙이 정반대이므로
+   전부 `.plate` 아래로 가둔다 — 이름 하나를 두 물건이 나눠 쓰면 나중에 조용히 어긋난다 */
+.plate .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;overflow:visible;padding:0}
+.plate .shots figure{margin:0;min-width:0}
+.plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;cursor:zoom-in;
+              position:relative;transition:border-color .18s,transform .18s}
+.plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
+.plate .frame img{display:block;width:100%;height:300px;object-fit:contain;background:#fff}
+.plate figure.cited .frame{border:1.5px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:var(--paper);
+              font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;padding:3px 8px 2px}
+.plate figcaption{margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--faint)}
+.plate figcaption .fail{display:none;color:var(--accent)}
+.plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
+.plate figure.gone .frame img{height:44px;opacity:0}
+.plate figure.gone figcaption .fail{display:inline}
+.plate figure.cited figcaption{color:var(--accent)}
+.fx-say .src{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--faint)}
+.plate details{margin-top:12px;border-top:1px solid var(--rule);padding-top:12px}
+.plate summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
+.plate summary:hover{color:var(--accent)}
+.plate details .shots{margin-top:12px}
+.plate .noshot{padding:22px;border:1px dashed var(--rule);background:var(--inset);color:var(--faint);
+               font-family:var(--mono);font-size:11px;text-align:center}
+.fx .chips{margin-top:8px}
+
+/* 확대 뷰어 */
+dialog.viewer{max-width:96vw;max-height:96vh;padding:0;border:1.5px solid var(--ink);background:var(--paper)}
+dialog.viewer::backdrop{background:rgba(23,21,15,.86)}
+dialog.viewer img{display:block;max-width:92vw;max-height:84vh;object-fit:contain;background:#fff}
+dialog.viewer .bar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:8px 12px;
+                   border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;color:var(--muted)}
+dialog.viewer button{appearance:none;background:none;border:1px solid var(--rule);font-family:var(--mono);
+                     font-size:11px;padding:4px 10px;cursor:pointer;color:var(--ink)}
+dialog.viewer button:hover{background:var(--ink);color:var(--paper)}
+
 /* 상품 카드: 하네스 리포트처럼 상품 단위로 이미지를 밀집한다 */
 .product{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:22px 0 26px;border-top:1px solid var(--rule)}
 .p-rail{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
@@ -528,6 +723,12 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
   .sec-head{flex-direction:column;align-items:flex-start}
   .sec-head p{text-align:left}
   .cluster-head,.product{grid-template-columns:1fr;gap:10px}
+  .fx{grid-template-columns:1fr;gap:14px 0;padding:22px 0 28px}
+  .fx-rail{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+  .fx-rail .case,.fx-rail .org,.fx-rail .chips{margin-top:0}
+  .stamp{transform:none}
+  .plate .shots{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .plate .frame img{height:200px}
   .p-rail{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
   .p-rail .key,.p-rail .chips{margin-top:0}
   .p-split{grid-template-columns:1fr}
@@ -541,7 +742,8 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
 @media print{
   body{font-size:10pt}
   .toolbar,.p-head .pdp{display:none}
-  .product,.cluster-head{break-inside:avoid}
+  .product,.cluster-head,.fx{break-inside:avoid}
+  .plate figure{break-inside:avoid}
   .shots{flex-wrap:wrap;overflow:visible}
   a{border:0}
 }
@@ -561,6 +763,11 @@ const precedentById=Object.fromEntries((data.precedents||[]).map(p=>[p.id,p]));
 const questionsByPrecedent={};
 for(const q of (data.questions||[])) for(const p of (q.precedents||[])) (questionsByPrecedent[p.id]=questionsByPrecedent[p.id]||[]).push(q);
 const inLane=(row,laneId)=>laneId==='ALL'||row.lane===laneId||(laneId==='POLICY'&&row.dual);
+const anchor=k=>'p-'+String(k).replace(/[^A-Za-z0-9_-]+/g,'-');
+function precedentChip(pid){
+  const p=precedentById[pid]; const label=p?`${esc(pid)} · ${esc(p.status)}`:esc(pid);
+  return `<span class="chip ${p&&p.status==='OPEN'?'open':''}">${p&&p.href?`<a href="${esc(p.href)}">${label}</a>`:label}</span>`;
+}
 """
 
 
@@ -625,10 +832,6 @@ function matches(row){
   return (cluster==='ALL'||clusterKey(row)===cluster)&&(!q||[row.productKey,row.productName,row.brand,row.category,row.referenceLabel,row.observedLabel,row.verdict?.policyAnswer,row.verdict?.reason,row.evidence.text,...row.signals.map(s=>s.reason),...row.signals.map(s=>signalById[s.id]?.label||s.id)].join(' ').toLowerCase().includes(q));
 }
 
-function precedentChip(pid){
-  const p=precedentById[pid]; const label=p?`${esc(pid)} · ${esc(p.status)}`:esc(pid);
-  return `<span class="chip ${p&&p.status==='OPEN'?'open':''}">${p&&p.href?`<a href="${esc(p.href)}">${label}</a>`:label}</span>`;
-}
 function shot(image,isEvidence,captionTop,captionBottom){
   return `<figure class="shot${isEvidence?' evidence':''}"><a href="${esc(image.url)}" target="_blank" rel="noreferrer"><img loading="lazy" src="${esc(image.url)}" referrerpolicy="no-referrer" alt=""></a><figcaption>${captionTop?`<b>${esc(captionTop)}</b>`:''}${esc(captionBottom)}</figcaption></figure>`;
 }
@@ -658,7 +861,7 @@ function card(row,i){
   const inputLine=hasInput?`<p class="kv">${[inp.allTiles!=null||inp.preparedTiles!=null?`타일 <b>${esc(inp.allTiles??'—')}</b> / ${esc(inp.preparedTiles??'—')}`:'',inp.selectedImages!=null?`선택 <b>${esc(inp.selectedImages)}</b>${inp.omittedImages!=null?' · 생략 '+esc(inp.omittedImages):''}`:'',inp.coverage?`커버리지 ${esc(inp.coverage)}`:'',inp.sources.length?`수집 ${esc(inp.sources.join(', '))}`:''].filter(Boolean).join(' &nbsp;·&nbsp; ')}</p>`:'<p class="kv">상세 입력 기록 없음</p>';
   const recovery=[inp.collectionRecovered&&inp.previousCollectionError?`이전 실패 · ${esc(inp.previousCollectionError)} → 이번 실행 복구`:'',inp.retryReason?`재시도 · ${esc(inp.retryReason)}`:''].filter(Boolean).map(t=>`<p class="recovery">${t}</p>`).join('');
   const conflict=row.sourceConflict?`<h4>GT 소스 충돌 · ${esc(row.sourceConflict.kind)}</h4><p class="kv">정본 <b>${esc(row.sourceConflict.canonical)||'—'}</b> ${esc(row.sourceConflict.canonicalSource)}${row.sourceConflict.canonicalVersion?' · '+esc(row.sourceConflict.canonicalVersion):''}<br>평가 <b>${esc(row.sourceConflict.evaluation)||'—'}</b> ${esc(row.sourceConflict.evaluationSource)}</p>`:'';
-  return `<section class="product" data-key="${esc(row.productKey)}"><div class="p-rail"><p class="idx"><span class="mark ${esc(row.lane)}" aria-hidden="true"></span>${String(i).padStart(2,'0')} · ${esc(laneById[row.lane].title)}</p><p class="key">${esc(row.productKey)}</p><p class="cat">${[row.brand,row.category].filter(Boolean).map(esc).join(' · ')}</p></div><div class="p-body"><header class="p-head"><h3>${esc(row.productName)}</h3>${row.url?`<a class="pdp" href="${esc(row.url)}" target="_blank" rel="noreferrer">상품 페이지 ↗</a>`:''}</header>${labels}<div class="p-split">${judge}${review}</div>${thumbRow}${detailRow}<details class="p-more"><summary>큐 신호 · 적용된 정책 문장 · 상세 입력</summary><div class="grid"><div><h4>큐 신호 <small>리뷰어</small></h4>${signals||'<p class="kv">신호 없음</p>'}</div><div><h4>적용된 정책 문장</h4>${sentences}${conflict}<h4>상세 입력 <small>판독기</small></h4>${inputLine}${recovery}</div></div></details></div></section>`;
+  return `<section class="product" id="${esc(anchor(row.productKey))}" data-key="${esc(row.productKey)}"><div class="p-rail"><p class="idx"><span class="mark ${esc(row.lane)}" aria-hidden="true"></span>${String(i).padStart(2,'0')} · ${esc(laneById[row.lane].title)}</p><p class="key">${esc(row.productKey)}</p><p class="cat">${[row.brand,row.category].filter(Boolean).map(esc).join(' · ')}</p></div><div class="p-body"><header class="p-head"><h3>${esc(row.productName)}</h3>${row.url?`<a class="pdp" href="${esc(row.url)}" target="_blank" rel="noreferrer">상품 페이지 ↗</a>`:''}</header>${labels}<div class="p-split">${judge}${review}</div>${thumbRow}${detailRow}<details class="p-more"><summary>큐 신호 · 적용된 정책 문장 · 상세 입력</summary><div class="grid"><div><h4>큐 신호 <small>리뷰어</small></h4>${signals||'<p class="kv">신호 없음</p>'}</div><div><h4>적용된 정책 문장</h4>${sentences}${conflict}<h4>상세 입력 <small>판독기</small></h4>${inputLine}${recovery}</div></div></details></div></section>`;
 }
 
 function renderToolbar(){
@@ -680,7 +883,139 @@ function renderList(){
 }
 document.getElementById('search').addEventListener('input',ev=>{query=ev.target.value;renderList();});
 document.getElementById('report-count').textContent=fmt(data.rows.length);
+// GT를 묻는 화면의 계기판. 정책 화면에는 이 칸들이 없으므로 있을 때만 채운다.
+const put=(id,n)=>{const el=document.getElementById(id); if(el) el.textContent=fmt(n);};
+const shotsOf=r=>[...(((r.gallery||{}).thumbnails)||[]),...(((r.gallery||{}).details)||[])];
+const citedOf=r=>{
+  const ids=new Set(((r.evidence||{}).sceneIds)||[]), urls=new Set(((r.evidence||{}).images)||[]);
+  return shotsOf(r).filter(x=>ids.has(x.sceneId)||urls.has(x.url)).length;
+};
+put('with-shot',data.rows.filter(r=>shotsOf(r).length).length);
+put('with-cited',data.rows.filter(r=>citedOf(r)).length);
+put('gt-sources',new Set(data.rows.map(r=>r.goldSource).filter(Boolean)).size);
+put('gt-conflicts',data.rows.filter(r=>r.sourceConflict).length);
 renderToolbar();renderList();
+// 정정 후보에서 넘어온 링크. 사례는 JS가 그린 뒤에 생기므로 브라우저가 이미 지나간 앵커를 다시 잡는다.
+if(location.hash){const target=document.getElementById(location.hash.slice(1));if(target)target.scrollIntoView({block:'start'});}
+"""
+
+
+FIX_SCRIPT = COMMON_SCRIPT + r"""
+const gradeById=Object.fromEntries(data.grades.map(g=>[g.id,g]));
+const rank=Object.fromEntries(data.grades.map((g,i)=>[g.id,i]));
+const rows=[...data.rows].sort((a,b)=>(rank[a.fix.grade]??9)-(rank[b.fix.grade]??9)||String(a.productKey).localeCompare(String(b.productKey)));
+let grade='ALL', query='';
+
+function matches(row){
+  if(grade!=='ALL'&&row.fix.grade!==grade) return false;
+  const q=query.trim().toLowerCase(); if(!q) return true;
+  return [row.productName,row.productKey,row.brand,row.category,row.referenceLabel,row.observedLabel,
+          row.fix.proposed,row.goldSource,row.evidence&&row.evidence.text,row.verdict&&row.verdict.reason]
+    .filter(Boolean).join(' ').toLowerCase().includes(q);
+}
+
+function shot(item){
+  // 원본이 사라진 사진은 빈 액자로 남기지 않는다. 자리를 접고 "못 불러왔다"고 적는다 —
+  // 빈 액자는 "근거가 없다"로 읽히고, 그건 사실이 아니다.
+  return `<figure class="${item.cited?'cited':''}"><button class="frame" type="button" onclick="zoom(this)">`
+    + `<img loading="lazy" src="${esc(item.url)}" referrerpolicy="no-referrer" alt="${esc(item.caption)}"`
+    + ` onerror="this.closest('figure').classList.add('gone')"></button>`
+    + `<figcaption>${esc(item.caption)}${item.cited?' · 판독기가 인용':''}<span class="fail"> · 원본을 못 불러왔다</span></figcaption></figure>`;
+}
+
+function plate(row){
+  const all=row.plate||[];
+  if(!all.length) return '<div class="plate"><div class="noshot">판독기가 본 사진이 스냅샷에 없다. 사진 없이 GT를 뒤집지 않는다.</div></div>';
+  const lead=all.filter(x=>x.role==='TARGET'||x.cited);
+  const rest=all.filter(x=>!(x.role==='TARGET'||x.cited));
+  const cited=all.filter(x=>x.cited).length;
+  return `<div class="plate">
+    <div class="plate-head"><span>증거</span><span>${cited?`인용 ${fmt(cited)}장`:'인용 표시 없음'} · 전체 ${fmt(all.length)}장 · 클릭하면 확대</span></div>
+    <div class="shots">${lead.map(shot).join('')}</div>
+    ${rest.length?`<details><summary>판독기에 함께 들어간 나머지 ${fmt(rest.length)}장 보기</summary><div class="shots">${rest.map(shot).join('')}</div></details>`:''}
+  </div>`;
+}
+
+function ruling(row){
+  const src=[row.goldSource?esc(row.goldSource):'', row.gtReviewStatus?esc(row.gtReviewStatus):''].filter(Boolean).join(' · ');
+  const why=row.fix.fromPolicy
+    ? `정책이 낸 답 · ${esc((row.verdict&&row.verdict.ruleId)||'—')}`
+    : (row.fix.policyStuck ? '정책은 답을 못 냈다 · 판독기 값' : `판독기 값${row.decisionSource?' · '+esc(row.decisionSource):''}`);
+  if(row.fix.unchanged){
+    return `<dl class="ruling"><div class="keep"><dt>현재 GT · 유지</dt><dd>${esc(row.referenceLabel)||'—'}</dd>`
+      + `<small>${src||'출처 기록 없음'}</small></div>`
+      + `<div><dt>왜 여기 있나</dt><dd style="font-size:.95rem;font-weight:500">고칠 대상이 GT가 아니다</dd><small>${why}</small></div></dl>`;
+  }
+  return `<dl class="ruling">
+    <div class="was"><dt>현재 GT</dt><dd>${esc(row.referenceLabel)||'—'}</dd><small>${src||'출처 기록 없음'}</small></div>
+    <div class="to" aria-hidden="true">&rarr;</div>
+    <div class="now"><dt>이렇게 고치자</dt><dd>${esc(row.fix.proposed)||'—'}</dd><small>${why}</small></div>
+  </dl>`;
+}
+
+function line(row){
+  const g=gradeById[row.fix.grade]||{label:row.fix.grade,note:''};
+  const e=row.evidence||{}, v=row.verdict;
+  const chips=[...((v&&v.blockedBy)?v.blockedBy.map(precedentChip):[]),
+               row.dual?'<span class="chip dual">양쪽 계류</span>':''].filter(Boolean).join('');
+  const said=[
+    e.text?`<p class="fx-say"><b>판독기가 본 것</b>${esc(e.text)}</p>`:'',
+    (v&&v.reason)?`<p class="fx-say mut"><b>리뷰어가 가른 것</b>${esc(v.reason)}${v.note?' '+esc(v.note):''}</p>`:'',
+    (!e.text&&!(v&&v.reason))?'<p class="fx-say mut"><b>근거</b>기록된 문장이 없다.</p>':''
+  ].join('');
+  const sc=row.sourceConflict;
+  const conflict=sc
+    ? `<p class="fx-say mut"><b>같은 상품을 다르게 적은 GT</b>${esc(sc.canonical)||'—'} <span class="src">${esc(sc.canonicalSource)||'출처 없음'}${sc.canonicalVersion?' · '+esc(sc.canonicalVersion):''}</span> — 현재 GT와 갈린다. 어느 쪽을 정본으로 볼지가 먼저다.</p>`
+    : '';
+  return `<article class="fx" id="${esc(anchor(row.productKey))}">
+    <div class="fx-rail">
+      <span class="stamp ${esc(row.fix.grade)}" title="${esc(g.note)}">${esc(g.label)}</span>
+      <div class="case">${row.url?`<a href="${esc(row.url)}" target="_blank" rel="noreferrer">${esc(row.productKey)} &nearr;</a>`:esc(row.productKey)}</div>
+      <div class="org">${[row.brand,row.category].filter(Boolean).map(esc).join('<br>')}</div>
+      ${chips?`<div class="chips">${chips}</div>`:''}
+    </div>
+    <div class="fx-body">
+      <h3>${esc(row.productName)}</h3>
+      <p class="meta">${(row.signals||[]).map(id=>esc((signalById[id]||{}).label||id)).join(' · ')||'신호 없음'}</p>
+      ${ruling(row)}
+      ${said}${conflict}
+      ${plate(row)}
+    </div>
+  </article>`;
+}
+
+function zoom(button){
+  const img=button.querySelector('img');
+  document.getElementById('viewer-img').src=img.src;
+  document.getElementById('viewer-cap').textContent=img.alt||'';
+  document.getElementById('viewer').showModal();
+}
+function renderTabs(){
+  const bar=document.getElementById('grade-tabs');
+  const total=id=>rows.filter(r=>id==='ALL'||r.fix.grade===id).length;
+  bar.innerHTML=[{id:'ALL',label:'전체'},...data.grades].map(g=>{
+    const n=total(g.id); if(g.id!=='ALL'&&!n) return '';
+    return `<button type="button" data-grade="${esc(g.id)}" aria-pressed="${g.id===grade}">${esc(g.label)} ${fmt(n)}</button>`;
+  }).join('');
+  bar.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{grade=b.dataset.grade;renderTabs();renderList();}));
+}
+function renderList(){
+  const shown=rows.filter(matches);
+  const host=document.getElementById('fixes');
+  host.innerHTML=shown.map(line).join('')||'<p class="empty">조건에 맞는 제안이 없다.</p>';
+  host.querySelectorAll('.fx').forEach((el,i)=>{el.style.animationDelay=Math.min(i,8)*45+'ms';});
+  document.getElementById('shown').textContent=`${fmt(shown.length)} / ${fmt(rows.length)}`;
+}
+document.getElementById('legend').innerHTML=data.grades.filter(g=>rows.some(r=>r.fix.grade===g.id))
+  .map(g=>`<span><b class="stamp ${esc(g.id)}" style="transform:none">${esc(g.label)}</b>${esc(g.note)}</span>`).join('');
+document.getElementById('search').addEventListener('input',ev=>{query=ev.target.value;renderList();});
+document.getElementById('report-count').textContent=fmt(rows.length);
+document.getElementById('with-shot').textContent=fmt(rows.filter(r=>(r.plate||[]).length).length);
+document.getElementById('with-cited').textContent=fmt(rows.filter(r=>(r.plate||[]).some(x=>x.cited)).length);
+document.getElementById('gt-sources').textContent=fmt(new Set(rows.map(r=>r.goldSource).filter(Boolean)).size);
+document.getElementById('gt-conflicts').textContent=fmt(rows.filter(r=>r.sourceConflict).length);
+document.getElementById('viewer').addEventListener('click',e=>{if(e.target.id==='viewer')e.target.close()});
+renderTabs();renderList();
 """
 
 
@@ -729,6 +1064,7 @@ def main() -> int:
     raw_rows = read_queues(root / "queue")
     rows = normalize_rows(raw_rows, verdicts, signal_catalog)
     gallery = load_gallery(profile, root, report_dir)
+    profile_labels = [text(label) for label in (profile.get("labels") or [])]
     counts = Counter(text(row.get("signal")) for row in raw_rows if row.get("signal"))
     signal_meta = sorted(
         (
@@ -794,6 +1130,7 @@ def main() -> int:
         f"생성 {html.escape(generated or '알 수 없음')} · 원본 {html.escape(source_commit or 'no commit')}"
         + (' <span class="dirty">미커밋 변경 있음</span>' if source_dirty else "")
     )
+    # 표지와 정책 화면의 계기판. 실행 건강 지표는 여기까지만 온다.
     runbar_common = (
         f'<div><dt>평가 상품</dt><dd>{products:,}</dd></div>'
         f'<div><dt>표면 정확도</dt><dd>{accuracy:.1%}</dd></div>'
@@ -801,6 +1138,14 @@ def main() -> int:
         f'<div><dt>정책</dt><dd>v{html.escape(policy_version)}</dd></div>'
         f'<div><dt>판례</dt><dd>{precedent_total:,} · 확정 {precedent_decided:,}</dd></div>'
         f'<div><dt>미추적 정책 공백</dt><dd>{untracked:,}</dd></div>'
+    )
+    # GT를 묻는 화면의 계기판. "이 GT가 틀렸나"에 답을 주는 것만 남긴다 —
+    # 표면 정확도·처리 건수·정책 버전은 답에 기여하지 않으면서 옆에 있으면 판단에 섞인다.
+    runbar_gt = (
+        f'<div><dt>사진이 붙은 건</dt><dd><span id="with-shot">0</span></dd></div>'
+        f'<div><dt>인용 장면이 찍힌 건</dt><dd><span id="with-cited">0</span></dd></div>'
+        f'<div><dt>현재 GT의 출처 종류</dt><dd><span id="gt-sources">0</span></dd></div>'
+        f'<div><dt>다른 GT 소스와 갈린 건</dt><dd><span id="gt-conflicts">0</span></dd></div>'
     )
     footer_note = "".join(
         f'{label} <span class="mono">{html.escape(value)}</span><br>'
@@ -813,6 +1158,7 @@ def main() -> int:
     )
     nav = {
         "index": (INDEX_FILE, "표지"),
+        "fixes": (REPORTS["fixes"]["file"], REPORTS["fixes"]["title"]),
         "gt": (REPORTS["gt"]["file"], REPORTS["gt"]["title"]),
         "policy": (REPORTS["policy"]["file"], REPORTS["policy"]["title"]),
     }
@@ -822,11 +1168,54 @@ def main() -> int:
 
     written: dict[str, Path] = {}
 
-    # ── 사례 보고서 두 장 ──
+    # ── 정정 후보 한 장 + 사례 보고서 두 장 ──
     for kind, spec in REPORTS.items():
-        report_rows = [
-            {**row, "gallery": gallery.get(row["productKey"])} for row in rows if in_report(row, spec)
-        ]
+        selected = [row for row in rows if in_report(row, spec)]
+
+        if spec["kind"] == "fixes":
+            fix_payload = {
+                "mode": kind,
+                "profile": {"id": profile["id"], "attributeName": profile["attributeName"], "subjectName": profile["subjectName"]},
+                "lanes": LANES,
+                "grades": FIX_GRADES,
+                "precedents": precedents,
+                "signals": signal_meta,
+                "evidenceHref": REPORTS["gt"]["file"],
+                "rows": [fix_line(row, gallery, profile_labels) for row in selected],
+            }
+            # 이 화면의 계기판에는 GT에 관한 것만 둔다. 표면 정확도·처리 건수·정책 버전은
+            # "이 GT가 틀렸나"에 답을 주지 않으면서 옆에 있으면 판단에 섞인다. 전부 뺀다.
+            fix_body = f"""<div class="wrap">
+  <header class="masthead">
+    <div class="masthead-top"><p class="kicker">Catalog OS · {profile_id} · {html.escape(spec['unit'])}</p><nav>{nav_links(kind)}</nav></div>
+    <h1><small>{display_name}</small>{html.escape(spec['title'])}</h1>
+    <dl class="runbar"><div><dt>고치자는 제안</dt><dd><span id="report-count">0</span></dd></div>{runbar_gt}</dl>
+    <p class="fx-intro"><b>원장에 반영하지 않았다.</b> 여기 있는 것은 전부 제안이고, 사람이 판정을 주면
+      그때 <code>review/decisions.json</code>에 기록한다. 도장은 손으로 고른 확신도가 아니라
+      심판이 낸 귀책과 근거 강도에서 나온다.<br>
+      <b>이 화면은 GT만 묻는다.</b> 실행이 몇 점인지, 몇 건을 돌렸는지는 싣지 않았다 —
+      "이 GT가 틀렸나"에 답을 주지 않는 숫자는 판단에 섞이기만 한다.
+      사진은 판독기가 실제로 본 것이고, <em>근거</em> 표시가 붙은 장면이 이 제안이 딛고 선 자리다.
+      그 사진을 반박할 수 있으면 제안은 무너진다.</p>
+    <div class="fx-legend" id="legend"></div>
+    <p class="masthead-top" style="padding-top:10px">{stamp}</p>
+  </header>
+  <div class="toolbar" role="group" aria-label="도장 선택"><div id="grade-tabs" style="display:contents"></div><label class="search"><input id="search" type="search" placeholder="상품명 · 키 · 라벨 · GT 출처 · 사유 검색" aria-label="검색"><span class="shown" id="shown"></span></label></div>
+  <div id="fixes"></div>
+  <noscript><p class="empty">제안을 보려면 JavaScript를 켠다.</p></noscript>
+  <dialog class="viewer" id="viewer"><img id="viewer-img" alt="증거 사진 확대"><div class="bar"><span id="viewer-cap"></span><button type="button" onclick="document.getElementById('viewer').close()">닫기 ×</button></div></dialog>
+  <footer><nav>{nav_links(kind)}</nav>{footer_note}</footer>
+</div>
+"""
+            output = report_dir / spec["file"]
+            output.write_text(
+                head(f"{spec['title']} · {text(profile['displayName'])}") + fix_body + tail(fix_payload, FIX_SCRIPT),
+                encoding="utf-8",
+            )
+            written[kind] = output
+            continue
+
+        report_rows = [{**row, "gallery": gallery.get(row["productKey"])} for row in selected]
         payload = {
             "mode": kind,
             "profile": {"id": profile["id"], "attributeName": profile["attributeName"], "subjectName": profile["subjectName"]},
@@ -840,7 +1229,7 @@ def main() -> int:
   <header class="masthead">
     <div class="masthead-top"><p class="kicker">Catalog OS · {profile_id} · {html.escape(spec['unit'])}</p><nav>{nav_links(kind)}</nav></div>
     <h1><small>{display_name}</small>{html.escape(spec['title'])}</h1>
-    <dl class="runbar"><div><dt>이 목록</dt><dd><span id="report-count">0</span> 상품</dd></div>{runbar_common}</dl>
+    <dl class="runbar"><div><dt>이 목록</dt><dd><span id="report-count">0</span> 상품</dd></div>{runbar_gt if kind == "gt" else runbar_common}</dl>
     <p class="masthead-top" style="padding-top:8px">{stamp}</p>
   </header>
   <div class="toolbar" role="group" aria-label="군집 선택"><div id="cluster-tabs" style="display:contents"></div><label class="search"><input id="search" type="search" placeholder="상품명 · 키 · 라벨 · 사유 검색" aria-label="검색"><span class="shown" id="shown"></span></label></div>
@@ -861,12 +1250,17 @@ def main() -> int:
         "rows": [slim(row) for row in rows],
     }
     lane_by_id = {lane["id"]: lane for lane in LANES}
-    lane_column = lambda lane_id, kind: (  # noqa: E731
+    lane_column = lambda lane_id, *kinds: (  # noqa: E731
         f'<div class="lane"><div class="lane-head"><span class="mark {lane_id}" aria-hidden="true"></span>'
         f'<h2>{html.escape(lane_by_id[lane_id]["title"])}</h2><small>{html.escape(lane_by_id[lane_id]["unit"])}</small></div>'
         f'<p class="lane-count"><span class="num" id="count-{lane_id}">0</span><span>상품</span></p>'
         f'<div id="groups-{lane_id}"></div>'
-        f'<a class="lane-open" href="{html.escape(REPORTS[kind]["file"])}">{html.escape(REPORTS[kind]["title"])} 열기 →</a></div>'
+        + "".join(
+            f'<a class="lane-open" href="{html.escape(REPORTS[kind]["file"])}" style="margin-right:8px">'
+            f'{html.escape(REPORTS[kind]["title"])} 열기 →</a>'
+            for kind in kinds
+        )
+        + "</div>"
     )
     index_body = f"""<div class="wrap">
   <header class="masthead">
@@ -875,7 +1269,7 @@ def main() -> int:
     <dl class="runbar">{runbar_common}</dl>
   </header>
   <section class="lanes" aria-label="의심 대상 두 갈래">
-    {lane_column('GT', 'gt')}
+    {lane_column('GT', 'fixes', 'gt')}
     {lane_column('POLICY', 'policy')}
   </section>
   <div class="aside-strip">
@@ -906,6 +1300,7 @@ def main() -> int:
     if isinstance(summary, dict):
         artifacts = summary.setdefault("artifacts", {})
         artifacts["htmlReport"] = relative_or_absolute(index_output)
+        artifacts["gtFixesReport"] = relative_or_absolute(written["fixes"])
         artifacts["suspectGtReport"] = relative_or_absolute(written["gt"])
         artifacts["policyGapReport"] = relative_or_absolute(written["policy"])
         if "HTML 보고서" not in summary.setdefault("cycle", []):
@@ -914,7 +1309,7 @@ def main() -> int:
             json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-    for key in ("index", "gt", "policy"):
+    for key in ("index", "fixes", "gt", "policy"):
         print(written[key])
     return 0
 

@@ -4,6 +4,7 @@
     "arbiterVerdicts": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
     "auditReport": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-audit.md",
     "decisionLedger": ".claude/os/runs/bag-category-gender/review/decisions.json",
+    "gtFixesReport": ".claude/os/runs/bag-category-gender/reports/gt-fixes.html",
     "htmlReport": ".claude/os/runs/bag-category-gender/reports/catalog-audit.html",
     "policyGapReport": ".claude/os/runs/bag-category-gender/reports/policy-gaps.html",
     "policyIndex": ".claude/os/runs/bag-category-gender/policy/policy-index.json",
@@ -26,10 +27,10 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-02T14:30:07.582849+00:00",
+  "generatedAt": "2026-09-06T06:12:57.694249+00:00",
   "goldenSourceBreakdown": {
-    "LABEL_TO_LABEL": 5,
-    "UNCLASSIFIED_TO_LABELED": 5
+    "LABEL_TO_LABEL": 44,
+    "UNCLASSIFIED_TO_LABELED": 7
   },
   "imagePipeline": {
     "collectedTiles": 6956,
@@ -62,7 +63,7 @@
     "version": "1"
   },
   "primaryFinding": {
-    "count": 20,
+    "count": 12,
     "description": "상세 이미지·직접 문구가 단일 성별을 지지하지만 현재 GT가 다릅니다.",
     "label": "정책 직접 근거가 있는 GT 오류 후보",
     "signal": "GOLDEN_POLICY_VIOLATION_CANDIDATE"
@@ -73,20 +74,20 @@
     "adjudicatedProducts": 0,
     "adjudicationRate": 0.0,
     "deferredProducts": 0,
-    "pendingProducts": 305,
-    "queuedProducts": 305
+    "pendingProducts": 320,
+    "queuedProducts": 320
   },
   "signals": {
     "evidencePipelineRecovered": 4,
-    "goldenPolicyViolationCandidate": 20,
-    "goldenSourceConflict": 10,
-    "goldenUnsupportedAgreement": 16,
+    "goldenPolicyViolationCandidate": 12,
+    "goldenSourceConflict": 51,
+    "goldenUnsupportedAgreement": 20,
     "imageCollectionRecovered": 1,
     "interactionPolicyRecovered": 223,
     "invalidTextEvidenceDropped": 6,
     "modelPolicyContradiction": 1,
-    "policyGoldenConflict": 17,
-    "policyGoldenGap": 32,
+    "policyGoldenConflict": 12,
+    "policyGoldenGap": 28,
     "policyRuntimeContradiction": 48
   },
   "spotlightFinding": {
@@ -95,5 +96,5 @@
     "label": "29CM 상세 이미지 수집 복구",
     "signal": "IMAGE_COLLECTION_RECOVERED"
   },
-  "surfaceAccuracy": 0.828
+  "surfaceAccuracy": 0.826
 }

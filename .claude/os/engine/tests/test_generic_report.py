@@ -95,7 +95,9 @@ class GenericReportTest(unittest.TestCase):
                 report = (run / "reports" / name).read_text(encoding="utf-8")
                 self.assertIn("혼방 니트", report, name)
                 self.assertIn("혼용률 정책 공백", report, name)
-            for output in (index, *[(run / "reports" / n).read_text(encoding="utf-8") for n in ("suspect-gt.html", "policy-gaps.html")]):
+            # 정정 후보는 신호 이름을 싣지 않는다. 한 줄에 남는 것은 상품과 제안뿐이다.
+            self.assertIn("혼방 니트", (run / "reports/gt-fixes.html").read_text(encoding="utf-8"))
+            for output in (index, *[(run / "reports" / n).read_text(encoding="utf-8") for n in ("gt-fixes.html", "suspect-gt.html", "policy-gaps.html")]):
                 self.assertNotIn("MALE", output)
                 self.assertNotIn("productGender", output)
 

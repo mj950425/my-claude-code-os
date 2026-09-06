@@ -92,7 +92,7 @@ def main() -> int:
         "--output-root",
         str(root),
     )
-    for name in ("catalog-audit.html", "suspect-gt.html", "policy-gaps.html"):
+    for name in ("catalog-audit.html", "gt-fixes.html", "suspect-gt.html", "policy-gaps.html"):
         print(root / "reports" / name)
     return 0
 

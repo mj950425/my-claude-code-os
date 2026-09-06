@@ -1,7 +1,7 @@
 {
   "basedOn": {
     "file": ".claude/os/runs/bag-category-gender/run-summary.json",
-    "generatedAt": "2026-09-02T14:30:07.582849+00:00",
+    "generatedAt": "2026-09-06T06:12:57.694249+00:00",
     "profileId": "bag-category-gender"
   },
   "checks": [
@@ -61,7 +61,7 @@
     {
       "condition": "큐에 쌓인 상품이 전부 한 번은 사람 판정을 거쳤다",
       "met": false,
-      "observed": 305,
+      "observed": 320,
       "source": "recount"
     },
     {
@@ -97,49 +97,49 @@
   "findings": [
     {
       "check": "REVIEW_LOAD",
-      "count": 197,
+      "count": 201,
       "detail": {},
       "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
       "sample": [
         "EGOOCM:2970320",
         "EGOOCM:2970324",
+        "EGOOCM:3398529",
         "EGOOCM:3398767",
+        "EGOOCM:3399281",
+        "EGOOCM:3399286",
         "EGOOCM:3400436",
+        "EGOOCM:3400602",
         "EGOOCM:3400660",
         "EGOOCM:3400680",
         "EGOOCM:3402445",
         "EGOOCM:3402970",
         "EGOOCM:3403687",
+        "EGOOCM:3404922",
         "EGOOCM:3405513",
         "EGOOCM:3405653",
         "EGOOCM:3405753",
-        "EGOOCM:3407206",
         "EGOOCM:3408876",
         "EGOOCM:3410402",
-        "EGOOCM:3410700",
-        "EGOOCM:3412153",
-        "EGOOCM:3412701",
-        "EGOOCM:3413569",
-        "EGOOCM:3414273"
+        "EGOOCM:3410700"
       ],
       "severity": "WARN",
       "summary": "심판이 충돌 없음으로 본 상품이 미판정 큐에 남아 있다. 사람 시간이 여기에 쓰인다."
     },
     {
       "check": "REVIEW_LOAD",
-      "count": 76,
+      "count": 93,
       "detail": {
         "blockedByPrecedent": {
-          "BG-0001": 22,
+          "BG-0001": 14,
           "BG-0002": 48,
-          "BG-0003": 10
+          "BG-0003": 43
         }
       },
       "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
       "sample": [
         {
           "precedent": "BG-0001",
-          "products": 22
+          "products": 14
         },
         {
           "precedent": "BG-0002",
@@ -147,7 +147,7 @@
         },
         {
           "precedent": "BG-0003",
-          "products": 10
+          "products": 43
         }
       ],
       "severity": "WARN",
@@ -157,21 +157,21 @@
   "recount": {
     "adjudicatedProducts": 0,
     "deferredProducts": 0,
-    "pendingProducts": 305,
-    "queuedProducts": 305
+    "pendingProducts": 320,
+    "queuedProducts": 320
   },
   "reviewLoad": {
     "blockedByPrecedent": {
-      "BG-0001": 22,
+      "BG-0001": 14,
       "BG-0002": 48,
-      "BG-0003": 10
+      "BG-0003": 43
     },
-    "blockedProducts": 76,
-    "decidableNow": 32,
-    "noConflictProducts": 197,
-    "pendingProducts": 305
+    "blockedProducts": 93,
+    "decidableNow": 26,
+    "noConflictProducts": 201,
+    "pendingProducts": 320
   },
-  "reviewedAt": "2026-09-02T14:30:08.123791+00:00",
+  "reviewedAt": "2026-09-06T06:12:58.153358+00:00",
   "runId": "bag-category-gender",
   "schemaVersion": "catalog-run-review-v1",
   "verdict": "WARN"

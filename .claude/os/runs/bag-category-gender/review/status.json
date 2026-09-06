@@ -3,8 +3,8 @@
   "adjudicationRate": 0.0,
   "decisionCounts": {},
   "deferredProducts": 0,
-  "generatedAt": "2026-09-02T14:30:07.836894+00:00",
-  "pendingProducts": 305,
+  "generatedAt": "2026-09-06T06:12:57.884565+00:00",
+  "pendingProducts": 320,
   "pendingSample": [
     {
       "productKey": "EGOOCM:2970320",
@@ -21,7 +21,6 @@
     {
       "productKey": "EGOOCM:3398529",
       "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
         "INTERACTION_POLICY_RECOVERED"
       ]
     },
@@ -34,14 +33,12 @@
     {
       "productKey": "EGOOCM:3399281",
       "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
         "INTERACTION_POLICY_RECOVERED"
       ]
     },
     {
       "productKey": "EGOOCM:3399286",
       "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
         "INTERACTION_POLICY_RECOVERED"
       ]
     },
@@ -54,14 +51,7 @@
     {
       "productKey": "EGOOCM:3400602",
       "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
         "INTERACTION_POLICY_RECOVERED"
-      ]
-    },
-    {
-      "productKey": "EGOOCM:3400648",
-      "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE"
       ]
     },
     {
@@ -85,6 +75,7 @@
     {
       "productKey": "EGOOCM:3402970",
       "signals": [
+        "GOLDEN_SOURCE_CONFLICT",
         "INTERACTION_POLICY_RECOVERED"
       ]
     },
@@ -97,7 +88,6 @@
     {
       "productKey": "EGOOCM:3404922",
       "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
         "INTERACTION_POLICY_RECOVERED"
       ]
     },
@@ -122,6 +112,8 @@
     {
       "productKey": "EGOOCM:3407206",
       "signals": [
+        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
+        "GOLDEN_SOURCE_CONFLICT",
         "INVALID_TEXT_EVIDENCE_DROPPED"
       ]
     },
@@ -130,8 +122,14 @@
       "signals": [
         "INTERACTION_POLICY_RECOVERED"
       ]
+    },
+    {
+      "productKey": "EGOOCM:3410402",
+      "signals": [
+        "INTERACTION_POLICY_RECOVERED"
+      ]
     }
   ],
-  "queuedProducts": 305,
+  "queuedProducts": 320,
   "staleDecisionProductKeys": []
 }

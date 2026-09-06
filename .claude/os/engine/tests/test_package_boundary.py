@@ -178,7 +178,7 @@ class EngineRunsWithoutTheAttributeTest(unittest.TestCase):
             index = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
             self.assertIn("대표 소재", index)
             self.assertIn("혼용률 정책 공백", index)
-            for name in ("suspect-gt.html", "policy-gaps.html"):
+            for name in ("gt-fixes.html", "suspect-gt.html", "policy-gaps.html"):
                 report = (run / "reports" / name).read_text(encoding="utf-8")
                 self.assertIn("혼방 니트", report, name)
                 self.assertNotIn("MALE", report, name)

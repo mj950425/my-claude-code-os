@@ -162,7 +162,7 @@ flowchart TB
     end
 
     subgraph REP["reports · 사람이 읽는다"]
-        HTML["runs/‹id›/reports/<br/>catalog-audit · suspect-gt · policy-gaps"]
+        HTML["runs/‹id›/reports/<br/>catalog-audit · gt-fixes<br/>suspect-gt · policy-gaps"]
         FLOW["os/reports/step1-flow.html<br/>손으로 쓴 해설"]
     end
 

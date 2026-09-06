@@ -211,9 +211,12 @@ def main() -> int:
         evaluation = evaluation_by_key[product_key]
         if canonical.get("goldLabel") == evaluation.get("goldLabel"):
             continue
+        # 검수 계보가 "답 없음"이라고 적은 것과 두 계보가 서로 다른 답을 적은 것은 다른 사건이다.
+        # 앞은 채점 GT가 답이 없는 자리를 메운 것이고, 뒤는 사람 둘이 갈린 것이다.
+        # 답 없음을 뜻하는 말은 계보마다 다르다 — 옛 정본은 UNCLASSIFIED, 검수 시트는 UNDETERMINED.
         conflict_kind = (
             "UNCLASSIFIED_TO_LABELED"
-            if canonical.get("goldLabel") == "UNCLASSIFIED"
+            if canonical.get("goldLabel") in {"UNCLASSIFIED", "UNDETERMINED"}
             else "LABEL_TO_LABEL"
         )
         golden_source_conflicts.append(
@@ -221,7 +224,7 @@ def main() -> int:
                 "signal": "GOLDEN_SOURCE_CONFLICT",
                 "conflictKind": conflict_kind,
                 "reason": (
-                    "정본 GT가 UNCLASSIFIED이고 평가 스냅샷에는 확정 라벨이 있다."
+                    "정본 GT에 확정 라벨이 없고 평가 스냅샷에는 확정 라벨이 있다."
                     if conflict_kind == "UNCLASSIFIED_TO_LABELED"
                     else "같은 상품의 두 GT 소스가 서로 다른 확정 라벨을 가진다."
                 ),
