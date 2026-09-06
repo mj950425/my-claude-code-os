@@ -128,16 +128,42 @@ class BagPolicyPredicateTest(unittest.TestCase):
         self.assertEqual("WEAK", result["strength"])
         self.assertIn("BG-0001", result["blockedBy"])
 
-    def test_mixed_gender_evidence_is_not_a_single_label(self) -> None:
+    def test_mixed_gender_evidence_is_unisex(self) -> None:
+        """정책 v2: 남녀가 같은 가방을 모두 착용했으면 UNISEX다.
+
+        한쪽만 보이는 것은 촬영 컷 선택으로도 설명되지만 둘 다 보이는 것은 그렇지 않다.
+        그래서 단일 성별 착용자(WEAK)와 달리 STRONG이고 BG-0001에 막히지 않는다.
+        """
+        for evidence in (
+            "남녀 모델이 함께 착용한 이미지가 확인됨.",
+            "동일 대상 상품을 실제 착용한 남성·여성 모델이 모두 확인됨.",
+        ):
+            with self.subTest(evidence=evidence):
+                result = bag.policy_answer(
+                    {
+                        "productName": "표준 백팩",
+                        "detailStatus": "OK",
+                        "detailEvidenceType": "HUMAN",
+                        "detailEvidence": evidence,
+                    }
+                )
+                self.assertEqual("UNISEX", result["label"])
+                self.assertEqual("STRONG", result["strength"])
+                self.assertEqual("P3_MIXED_WEARER", result["rule"])
+                self.assertEqual([], result["blockedBy"])
+
+    def test_single_gender_wearer_still_weak(self) -> None:
+        """혼재 규칙이 단일 성별 착용자 경로를 삼키지 않는지 지킨다."""
         result = bag.policy_answer(
             {
                 "productName": "표준 백팩",
                 "detailStatus": "OK",
                 "detailEvidenceType": "HUMAN",
-                "detailEvidence": "남녀 모델이 함께 착용한 이미지가 확인됨.",
+                "detailEvidence": "여성 모델만 동일 대상 상품을 실제 착용한 이미지가 확인됨.",
             }
         )
-        self.assertEqual("UNRESOLVABLE", result["label"])
+        self.assertEqual("FEMALE", result["label"])
+        self.assertEqual("P3_WEARER", result["rule"])
 
     def test_no_evidence_is_undetermined_not_unisex(self) -> None:
         result = bag.policy_answer(

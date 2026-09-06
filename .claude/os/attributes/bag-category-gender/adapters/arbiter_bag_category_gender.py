@@ -25,7 +25,7 @@ DIRECT_TEXT: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 FEMALE_EVIDENCE = ("여성", "우먼", "여자")
 MALE_EVIDENCE = ("남성", "맨즈", "남자")
-MIXED_EVIDENCE = ("남녀", "남성과 여성", "여성과 남성")
+MIXED_EVIDENCE = ("남녀", "남성과 여성", "여성과 남성", "남성·여성", "여성·남성")
 
 
 def _direct_text_label(product_name: str) -> tuple[str, str] | None:
@@ -50,6 +50,20 @@ def _evidence_label(evidence: str) -> str | None:
     if has_male and not has_female:
         return "MALE"
     return None
+
+
+def _mixed_wearer(evidence: str) -> bool:
+    """정책 3순위: 남성과 여성이 같은 가방을 모두 착용했다.
+
+    한쪽만 보이는 것은 촬영 컷 선택으로도 설명되지만 둘 다 보이는 것은 그렇지 않다.
+    그래서 이 관측은 UNISEX의 적극적 근거이고, 단일 성별 착용자보다 강하다.
+    """
+    text = (evidence or "").lower()
+    if any(token in text for token in MIXED_EVIDENCE):
+        return True
+    has_female = any(token in text for token in FEMALE_EVIDENCE)
+    has_male = any(token in text for token in MALE_EVIDENCE)
+    return has_female and has_male
 
 
 def _no_evidence(row: dict[str, Any]) -> bool:
@@ -87,7 +101,16 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
 
     evidence_type = row.get("detailEvidenceType")
     if row.get("detailStatus") == "OK" and evidence_type in {"HUMAN", "TEXT", "MIXED"}:
-        label = _evidence_label(str(row.get("detailEvidence") or ""))
+        evidence_text = str(row.get("detailEvidence") or "")
+        if _mixed_wearer(evidence_text):
+            return {
+                "label": "UNISEX",
+                "strength": STRONG,
+                "rule": "P3_MIXED_WEARER",
+                "note": "남성과 여성이 같은 가방을 모두 착용했다. 두 성별이 함께 관측된 것은 공용의 적극적 근거다.",
+                "blockedBy": [],
+            }
+        label = _evidence_label(evidence_text)
         if label:
             if evidence_type == "TEXT":
                 return {
