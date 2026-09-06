@@ -304,10 +304,18 @@ def check_review_load(
     verdicts: list[dict[str, Any]] | None,
     decisions: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any] | None:
-    """미판정 큐 안에서 지금 판정 가능한 건이 몇 건인가.
+    """미판정 큐 안에서 지금 판정 가능한 건이 몇 건이고, 그것이 무슨 종류의 일인가.
 
     사람의 시간이 가장 비싼 자원이다. 충돌이 아닌 건과 판례에 막힌 건이 큐에 섞여 있으면
     진행률은 정직해도 그 숫자가 가리키는 일은 정직하지 않다.
+
+    건수만으로는 부족하다. 「판정 가능」은 상품 단위로 세지만, 심판이 사람 몫이라 본 이유는
+    상품마다 다르다 — 골든셋을 뒤집는 건과 정책 경계를 정하는 건은 같은 일이 아니다.
+    후자는 상품 26건이 곧 정책 공백 두어 개라, 상품 수로 읽으면 일감이 부풀어 보인다.
+    그래서 심판이 이미 적어 둔 귀책을 접어 `decidableByOwner`로 함께 낸다.
+
+    라벨이 이미 일치하는 건은 큐에서 빼지 않는다. 심판이 사람 몫이라 했고, 빼면 일감이
+    조용히 사라진다. 대신 몇 건인지 적어 「상품이 아니라 정책을 고쳐야 닫힌다」를 드러낸다.
     """
     check = "REVIEW_LOAD"
     if verdicts is None or queue_dir is None or not queue_dir.is_dir():
@@ -323,11 +331,31 @@ def check_review_load(
             blocked.setdefault(str(precedent), []).append(key)
     blocked_keys = {key for keys in blocked.values() for key in keys}
     decidable = sorted(pending - set(no_conflict) - blocked_keys)
+    # 「몇 건인가」만으로는 사람이 무엇을 할지 모른다. 심판이 이미 각 건에 «누가 고칠 몫인가»를
+    # 적어 두었으므로 그것을 그대로 접어 함께 낸다. 여기서 판단을 새로 하지 않는다 —
+    # 세는 쪽이 한 번 더 세는 것뿐이다.
+    by_owner: dict[str, int] = {}
+    for key in decidable:
+        by_owner[str(by_product.get(key, {}).get("owner") or "UNKNOWN")] = (
+            by_owner.get(str(by_product.get(key, {}).get("owner") or "UNKNOWN"), 0) + 1
+        )
+    # 라벨이 이미 일치하는 건. 상품 단위로 뒤집을 것이 없고 정책에 규칙을 써야 닫힌다.
+    # 큐에서 빼지는 않는다 — 심판이 사람 몫이라 했고, 빼면 일감이 조용히 사라진다.
+    # 두 라벨이 **모두 있을 때만** 비교한다. 심판이 라벨을 적지 않는 속성도 있는데,
+    # 없는 값끼리는 `None == None`으로 같아져 «뒤집을 것이 없다»가 조용히 참이 된다.
+    agreed = sorted(
+        key for key in decidable
+        if (by_product.get(key, {}).get("goldLabel")
+            and by_product.get(key, {}).get("observedLabel")
+            and by_product[key]["goldLabel"] == by_product[key]["observedLabel"])
+    )
     load = {
         "pendingProducts": len(pending),
         "noConflictProducts": len(no_conflict),
         "blockedProducts": len(blocked_keys),
         "decidableNow": len(decidable),
+        "decidableByOwner": dict(sorted(by_owner.items())),
+        "decidableWithAgreedLabels": len(agreed),
         "blockedByPrecedent": {pid: len(keys) for pid, keys in sorted(blocked.items())},
     }
     review.ran(check, [relative(queue_dir), str(review.artifacts.get("arbiterVerdicts"))])
@@ -339,6 +367,17 @@ def check_review_load(
             count=len(no_conflict),
             pointer=str(review.artifacts.get("arbiterVerdicts")),
             sample=no_conflict,
+        )
+    if agreed:
+        review.find(
+            check,
+            "WARN",
+            "판정 가능한 건 중 골든셋과 실행 라벨이 이미 같은 것이 있다. "
+            "상품 단위로 뒤집을 것이 없고, 정책에 규칙을 써야 닫힌다 — 건별 판정으로 세면 일감이 부풀어 보인다.",
+            count=len(agreed),
+            pointer=str(review.artifacts.get("arbiterVerdicts")),
+            sample=agreed,
+            detail={"decidableByOwner": load["decidableByOwner"]},
         )
     if blocked:
         review.find(
@@ -518,6 +557,23 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| **지금 사람이 가를 수 있는 것** | **{load['decidableNow']}** |",
             "",
         ]
+        by_owner = load.get("decidableByOwner") or {}
+        if by_owner:
+            lines += [
+                "가를 수 있다고 해서 다 같은 일은 아니다. 심판이 적은 귀책별로 나누면:",
+                "",
+                "| 귀책 | 건수 |",
+                "|---|---|",
+                *[f"| `{owner}` | {count} |" for owner, count in by_owner.items()],
+                "",
+            ]
+        agreed = int(load.get("decidableWithAgreedLabels") or 0)
+        if agreed:
+            lines += [
+                f"이 중 **{agreed}건은 골든셋과 실행 라벨이 이미 같다.** 상품 단위로 뒤집을 것이 없고,",
+                "정책에 규칙을 써야 닫힌다. 상품 수로 읽으면 일감이 실제보다 커 보인다.",
+                "",
+            ]
 
     lines += ["## 완료 조건", "", "| 조건 | 관측 | 충족 | 출처 |", "|---|---|---|---|"]
     for row in report["completion"]:
