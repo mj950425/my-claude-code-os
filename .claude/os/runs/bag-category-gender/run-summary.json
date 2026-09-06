@@ -27,7 +27,7 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-06T08:14:00.899183+00:00",
+  "generatedAt": "2026-09-06T08:28:04.583938+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 44,
     "UNCLASSIFIED_TO_LABELED": 7
@@ -60,7 +60,7 @@
     "questionsResolved": 0,
     "questionsWithPrecedent": 3,
     "untrackedReviewViolations": 0,
-    "version": "1"
+    "version": "2"
   },
   "primaryFinding": {
     "count": 12,

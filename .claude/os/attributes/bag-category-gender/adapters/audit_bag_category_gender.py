@@ -135,6 +135,7 @@ def merge_detail_evidence(
             {
                 **row,
                 "policyEvidenceSceneIds": detail.get("policyEvidenceSceneIds", []),
+                "sceneNotes": detail.get("sceneNotes", {}),
                 "evidenceImageUrls": detail.get("evidenceImageUrls", []),
                 "policyPromptVersion": detail.get("promptVersion"),
                 "policyPromptSha256": detail.get("promptSha256"),

@@ -9,7 +9,7 @@
     "questionsWithPrecedent": 3,
     "untrackedReviewViolations": 0
   },
-  "generatedAt": "2026-09-06T08:14:01.018828+00:00",
+  "generatedAt": "2026-09-06T08:28:04.732763+00:00",
   "imported": {
     "path": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md",
     "sha256": "5c54e56a1b80f933cbca3bd1fe00ff4a486ccf65349d77856da84034fda0352c"
@@ -30,9 +30,9 @@
       "판정 불가 조건",
       "허용값"
     ],
-    "sha256": "717af75380aa599ca34c9d7e0e5148667838c4aec1605d6fe012d18249edfbab",
-    "updatedAt": "2026-09-02",
-    "version": "1"
+    "sha256": "9c08c6cbd6540aab84fd9ca2ca322b3f1fd8a15d462ec6c2ce1ad38221aba0ef",
+    "updatedAt": "2026-09-06",
+    "version": "2"
   },
   "precedents": [
     {

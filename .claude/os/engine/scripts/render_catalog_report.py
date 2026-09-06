@@ -232,6 +232,9 @@ def normalize_rows(
                     "type": first(row, "detailEvidenceType", "evidenceType"),
                     "sceneIds": [],
                     "images": [],
+                    # 장면마다 판독기가 무엇을 봤는지. 어댑터가 쓴 문장을 그대로 싣는다 —
+                    # 엔진은 이 말을 해석하지 않는다.
+                    "notes": {},
                 },
                 # 판독기가 이미지를 보고 어떤 단계를 거쳐 답에 도달했는지. 어댑터가 넣은 만큼만 그린다.
                 "judge": {
@@ -274,6 +277,9 @@ def normalize_rows(
         for scene_id in row.get("policyEvidenceSceneIds") or []:
             if scene_id and scene_id not in item["evidence"]["sceneIds"]:
                 item["evidence"]["sceneIds"].append(str(scene_id))
+        for scene_id, note in (row.get("sceneNotes") or {}).items():
+            if scene_id and note:
+                item["evidence"]["notes"].setdefault(str(scene_id), str(note))
         if row.get("conflictKind") and item["sourceConflict"] is None:
             item["sourceConflict"] = {
                 "kind": text(row.get("conflictKind")),
@@ -379,6 +385,7 @@ def fix_plate(row: dict[str, Any], gallery: dict[str, dict[str, Any]]) -> list[d
     evidence = row.get("evidence") or {}
     cited_scenes = {text(scene) for scene in (evidence.get("sceneIds") or []) if text(scene)}
     cited_urls = {text(url) for url in (evidence.get("images") or []) if text(url)}
+    notes = evidence.get("notes") or {}
 
     plate: list[dict[str, Any]] = []
     for image in images.get("thumbnails") or []:
@@ -395,6 +402,8 @@ def fix_plate(row: dict[str, Any], gallery: dict[str, dict[str, Any]]) -> list[d
             "caption": scene or "상세",
             "role": "DETAIL",
             "cited": bool((scene and scene in cited_scenes) or url in cited_urls),
+            # 판독기가 이 장면에서 무엇을 봤는지. 주장과 사진을 잇는 한 줄이다.
+            "note": text(notes.get(scene)) if scene else "",
         })
     # 인용된 장면이 앞으로. 대표 사진은 늘 첫 자리를 지킨다 — 무엇을 파는지 모르면 근거도 못 읽는다.
     target = [item for item in plate if item["role"] == "TARGET"]
@@ -603,16 +612,24 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;
               cursor:zoom-in;position:relative;transition:border-color .16s,transform .16s}
 .plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
-.plate .frame img{display:block;width:100%;height:300px;object-fit:contain;background:#fff}
+/* 높이를 고정하면 세로로 긴 상세컷이 가운데 실오라기 한 줄로 줄어든다 — 증거를 못 읽는다.
+   폭을 채우고 높이는 사진이 정한다. 격자가 들쭉날쭉해지지만, 보이는 편이 낫다. */
+.plate .frame img{display:block;width:100%;height:auto;min-height:200px;max-height:520px;
+                  object-fit:contain;background:#fff}
 .plate figure.cited .frame{border:2px solid var(--accent)}
 .plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:#fff;
               font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;padding:5px 9px 4px}
 .plate figcaption{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--ghost)}
-.plate figure.cited figcaption{color:var(--accent)}
-.plate figcaption .fail{display:none;color:var(--accent)}
+.plate figcaption .scene{display:block}
+/* 판독기가 이 장면에서 본 것. 주장과 사진을 잇는 한 줄이라 캡션에서 가장 크게 읽혀야 한다 */
+.plate figcaption .saw{display:block;margin-top:4px;font-family:var(--sans);font-size:12.5px;
+                       font-weight:700;letter-spacing:0;color:var(--ink)}
+.plate figure.cited figcaption .scene{color:var(--accent)}
+.plate figure.cited figcaption .saw{color:var(--accent)}
+.plate figcaption .fail{display:none;margin-top:4px;color:var(--accent)}
 .plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
 .plate figure.gone .frame img{height:44px;opacity:0}
-.plate figure.gone figcaption .fail{display:inline}
+.plate figure.gone figcaption .fail{display:block}
 .plate details{margin-top:16px;border-top:1px solid var(--rule-soft);padding-top:14px}
 .plate summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
 .plate summary:hover{color:var(--accent)}
@@ -927,7 +944,9 @@ function shot(item){
   return `<figure class="${item.cited?'cited':''}"><button class="frame" type="button" onclick="zoom(this)" aria-label="${esc(item.caption)} 크게 보기">`
     + `<img loading="lazy" src="${esc(item.url)}" referrerpolicy="no-referrer" alt="${esc(item.caption)}${item.cited?' — 판독기가 인용한 근거 장면':' — 판독기에 함께 들어간 장면'}"`
     + ` onerror="this.closest('figure').classList.add('gone')"></button>`
-    + `<figcaption>${esc(item.caption)}${item.cited?' · 판독기가 인용':''}<span class="fail"> · 원본을 못 불러왔다</span></figcaption></figure>`;
+    + `<figcaption><span class="scene">${esc(item.caption)}${item.cited?' · 인용':''}</span>`
+    + (item.note?`<b class="saw">${esc(item.note)}</b>`:'')
+    + `<span class="fail">원본을 못 불러왔다</span></figcaption></figure>`;
 }
 
 
@@ -978,8 +997,10 @@ function say(label, text, muted, extra){
 function line(row, ordinal){
   const g=gradeById[row.fix.grade]||{label:row.fix.grade,note:''};
   const e=row.evidence||{}, v=row.verdict, sc=row.sourceConflict;
-  const chips=[...((v&&v.blockedBy)?v.blockedBy.map(precedentChip):[]),
-               row.dual?'<span class="chip dual">양쪽 계류</span>':''].filter(Boolean).join('');
+  // 판례 칩은 싣지 않는다. `BG-0003` 같은 코드는 뜻이 안 읽히고, 걸려 있던 링크는
+  // 저장소 안의 .md를 가리켜 브라우저에서 원문이 뜨거나 보고서를 넘기면 아예 끊긴다.
+  // "왜 지금 판정할 수 없는가"는 도장(판단필요)이 이미 말한다.
+  const chips=row.dual?'<span class="chip dual">양쪽 계류</span>':'';
   const said=[
     e.text?say('판독기', e.text, false):'',
     (v&&v.reason)?say('리뷰어', v.reason+(v.note?' '+v.note:''), true):'',

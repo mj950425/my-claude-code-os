@@ -33,6 +33,9 @@ POLICY_SOURCE = Path(
 #     시트 이후의 판정이 얹히고 UNDETERMINED가 UNISEX로 접힌다.
 # 둘이 다르면 그것이 곧 GOLDEN_SOURCE_CONFLICT다. 여기서 한쪽을 골라 덮으면 그 신호가 사라진다.
 GT_DATA_DIR = Path("tool/image-gender/gt-harness/data")
+# 이 속성의 GT 원장. 계보를 합친 결과이고, 상품 하나에 라벨 하나다.
+GT_LEDGER = Path(".claude/gt/bag-category-gender/gt.jsonl")
+GT_LINEAGE_INDEX = Path(".claude/gt/bag-category-gender/lineage.json")
 REVIEW_SHEET_GT_PATTERN = re.compile(r"^bags-product-gt-(\d{8})\.jsonl$")
 SCORING_GT_PATTERN = re.compile(r"^bags-product-context-gt-(\d{8})\.jsonl$")
 GT_CORRECTIONS_PATTERN = re.compile(r"^bags-product-gt-user-corrections-(\d{8})\.jsonl$")
@@ -69,6 +72,12 @@ HARNESS_PRODUCT_RESULTS_SOURCE = Path(
     "tool/image-gender/gt-harness/results/"
     "bags-v1000-two-stage-image-complete-2026-08-31/harness-product-results.jsonl"
 )
+
+
+# 장면 주석에 쓰는 낱말. 엔진은 이 문장을 해석하지 않고 그대로 싣는다 —
+# 성별·착용 같은 도메인 낱말은 속성 팩의 것이지 엔진의 것이 아니다.
+GENDER_WORD = {"MALE": "남성", "FEMALE": "여성", "UNISEX": "남녀", "UNCLEAR": "성별 불명"}
+INTERACTION_WORD = {"WORN": "착용", "CARRIED": "휴대", "HELD": "손에 듦", "NEARBY": "곁에 있음"}
 
 
 def sha256(path: Path) -> str:
@@ -278,6 +287,34 @@ def compact_detail_evidence(
             if isinstance(observation, dict)
             and observation.get("targetProductMatch") == "MATCH"
         ]
+        # 장면마다 판독기가 무엇을 봤는지 한 줄로 남긴다.
+        # "남성·여성 모델이 모두 확인됨"이라고 써 두고 어느 사진이 어느 쪽인지 안 밝히면,
+        # 사람은 사진을 봐도 그 문장을 검증할 수 없다. 주장과 사진을 잇는 것이 이 한 줄이다.
+        scene_notes: dict[str, str] = {}
+        for observation in observations:
+            if not isinstance(observation, dict):
+                continue
+            scene_id = str(observation.get("sourceImageId") or "")
+            if not scene_id:
+                continue
+            parts = [
+                GENDER_WORD.get(str(observation.get("gender") or ""), ""),
+                INTERACTION_WORD.get(str(observation.get("interactionState") or ""), ""),
+            ]
+            if observation.get("targetProductMatch") != "MATCH":
+                parts.append("대상 상품 아님")
+            elif str(observation.get("genderConfidence") or "") == "LOW":
+                parts.append("확신 낮음")
+            note = " · ".join(part for part in parts if part)
+            if note:
+                scene_notes[scene_id] = note
+        for field, word in (
+            ("exactProductGenderSourceImageId", "직접 성별 문구"),
+            ("exactSizeTableSourceImageId", "사이즈표 성별 표기"),
+        ):
+            scene_id = str(row.get(field) or "")
+            if scene_id:
+                scene_notes[scene_id] = word
         direct_source_ids = [
             str(row.get(field) or "")
             for field in (
@@ -356,6 +393,7 @@ def compact_detail_evidence(
                 "mixedHumanSceneIds": mixed_scene_ids,
                 "directGenderWordIds": text_scene_ids,
                 "policyEvidenceSceneIds": evidence_scene_ids,
+                "sceneNotes": scene_notes,
                 "evidenceImageUrls": evidence_urls,
                 "promptVersion": row.get("promptVersion"),
                 "promptSha256": row.get("promptSha256"),
@@ -441,9 +479,12 @@ def main() -> int:
     corrections_path, corrections_version = latest_dated_source(
         gt_data_dir, GT_CORRECTIONS_PATTERN
     )
+    gt_ledger_path = PROJECT_ROOT / GT_LEDGER
+    gt_lineage_index_path = PROJECT_ROOT / GT_LINEAGE_INDEX
 
     sources = {
         "policy": source_repo / POLICY_SOURCE,
+        "gtLedger": gt_ledger_path,
         "reviewSheetGt": review_sheet_gt_path,
         "scoringGt": scoring_gt_path,
         "gtUserCorrections": corrections_path,
@@ -519,16 +560,13 @@ def main() -> int:
         for row in target_reference_rows
     }
 
+    # 정답은 한 곳에서만 온다 — `.claude/gt/<프로필ID>/gt.jsonl`.
+    # 계보를 합치는 일은 engine/scripts/build_gt.py가 이미 끝냈고, 여기서는 읽기만 한다.
+    # 두 계보를 여기서 다시 합치면 어느 라벨이 정답인지가 또 갈린다.
     canonical_rows = sorted(
-        (
-            compact_review_sheet_gt(row, review_sheet_version)
-            for row in read_jsonl(sources["reviewSheetGt"])
-        ),
-        key=lambda row: str(row["productKey"]),
+        read_jsonl(sources["gtLedger"]), key=lambda row: str(row["productKey"])
     )
-    scoring_gt_by_key = {
-        str(row.get("productKey")): row for row in read_jsonl(sources["scoringGt"])
-    }
+    scoring_gt_by_key = {str(row.get("productKey")): row for row in canonical_rows}
     evaluation_rows = sorted(
         (
             apply_scoring_gt(

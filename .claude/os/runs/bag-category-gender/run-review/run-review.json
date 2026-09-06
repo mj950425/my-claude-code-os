@@ -1,7 +1,7 @@
 {
   "basedOn": {
     "file": ".claude/os/runs/bag-category-gender/run-summary.json",
-    "generatedAt": "2026-09-06T08:14:00.899183+00:00",
+    "generatedAt": "2026-09-06T08:28:04.583938+00:00",
     "profileId": "bag-category-gender"
   },
   "checks": [
@@ -92,12 +92,12 @@
   "findingCounts": {
     "ERROR": 0,
     "INFO": 0,
-    "WARN": 3
+    "WARN": 2
   },
   "findings": [
     {
       "check": "REVIEW_LOAD",
-      "count": 201,
+      "count": 211,
       "detail": {},
       "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
       "sample": [
@@ -124,30 +124,6 @@
       ],
       "severity": "WARN",
       "summary": "심판이 충돌 없음으로 본 상품이 미판정 큐에 남아 있다. 사람 시간이 여기에 쓰인다."
-    },
-    {
-      "check": "REVIEW_LOAD",
-      "count": 10,
-      "detail": {
-        "decidableByOwner": {
-          "GOAL": 26
-        }
-      },
-      "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
-      "sample": [
-        "EGOOCM:3412173",
-        "EGOOCM:3424890",
-        "EGOOCM:3426183",
-        "MUSINSA:4763649",
-        "MUSINSA:4815378",
-        "MUSINSA:4915963",
-        "MUSINSA:4977683",
-        "MUSINSA:5358301",
-        "MUSINSA:5401392",
-        "MUSINSA:6626242"
-      ],
-      "severity": "WARN",
-      "summary": "판정 가능한 건 중 골든셋과 실행 라벨이 이미 같은 것이 있다. 상품 단위로 뒤집을 것이 없고, 정책에 규칙을 써야 닫힌다 — 건별 판정으로 세면 일감이 부풀어 보인다."
     },
     {
       "check": "REVIEW_LOAD",
@@ -192,14 +168,15 @@
     },
     "blockedProducts": 93,
     "decidableByOwner": {
-      "GOAL": 26
+      "GOAL": 12,
+      "GOLDEN": 4
     },
-    "decidableNow": 26,
-    "decidableWithAgreedLabels": 10,
-    "noConflictProducts": 201,
+    "decidableNow": 16,
+    "decidableWithAgreedLabels": 0,
+    "noConflictProducts": 211,
     "pendingProducts": 320
   },
-  "reviewedAt": "2026-09-06T08:14:01.284365+00:00",
+  "reviewedAt": "2026-09-06T08:28:05.075230+00:00",
   "runId": "bag-category-gender",
   "schemaVersion": "catalog-run-review-v1",
   "verdict": "WARN"

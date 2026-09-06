@@ -11,18 +11,20 @@
 
 | 고칠 곳 | 뜻 | 건수 |
 |---|---|---|
-| `NONE` | 충돌 없음 | 201 |
-| `GOAL` | 사람이 목표 기준으로 경계를 정한다 | 56 |
+| `NONE` | 충돌 없음 | 211 |
 | `RUNTIME` | 실행을 고친다 | 51 |
+| `GOAL` | 사람이 목표 기준으로 경계를 정한다 | 40 |
 | `PENDING_PRECEDENT` | 미결 판례가 답해야 정해진다 | 12 |
+| `GOLDEN` | 골든셋을 고친다 | 6 |
 
 ## 적용된 정책 규칙
 
 | 규칙 | 건수 |
 |---|---|
 | `P3_WEARER` | 213 |
-| `NO_APPLICABLE_RULE` | 54 |
 | `P0_NO_EVIDENCE` | 48 |
+| `NO_APPLICABLE_RULE` | 38 |
+| `P3_MIXED_WEARER` | 16 |
 | `P1_DIRECT_TEXT` | 3 |
 | `P2_COMBINED_DESIGN` | 2 |
 
@@ -39,14 +41,15 @@
 | 큐 신호 | 새 귀책 | 건수 |
 |---|---|---|
 | `POLICY_RUNTIME_CONTRADICTION` | `RUNTIME` | 48 |
-| `GOLDEN_SOURCE_CONFLICT` | `GOAL` | 30 |
+| `GOLDEN_SOURCE_CONFLICT` | `GOAL` | 28 |
 | `POLICY_GOLDEN_GAP` | `RUNTIME` | 28 |
 | `GOLDEN_UNSUPPORTED_AGREEMENT` | `RUNTIME` | 20 |
-| `INTERACTION_POLICY_RECOVERED` | `GOAL` | 16 |
 | `POLICY_GOLDEN_CONFLICT` | `GOAL` | 12 |
 | `GOLDEN_POLICY_VIOLATION_CANDIDATE` | `PENDING_PRECEDENT` | 11 |
 | `GOLDEN_SOURCE_CONFLICT` | `RUNTIME` | 11 |
 | `INTERACTION_POLICY_RECOVERED` | `PENDING_PRECEDENT` | 9 |
+| `INTERACTION_POLICY_RECOVERED` | `GOLDEN` | 6 |
+| `GOLDEN_SOURCE_CONFLICT` | `GOLDEN` | 2 |
 | `GOLDEN_SOURCE_CONFLICT` | `PENDING_PRECEDENT` | 2 |
 | `GOLDEN_POLICY_VIOLATION_CANDIDATE` | `RUNTIME` | 1 |
 | `INTERACTION_POLICY_RECOVERED` | `RUNTIME` | 1 |
