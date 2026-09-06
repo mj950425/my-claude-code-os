@@ -15,11 +15,15 @@
 | 진행률 | `scripts/build_review_progress.py` |
 | 판정 원장 | `scripts/record_review_decision.py` |
 | 리포트 | `scripts/render_catalog_report.py` |
+| 개선 포인트 작업 목록 | `scripts/build_improvement_worklist.py` — 귀책으로 갈라 건·군집을 고르고 **센다** |
+| 개선 포인트 보고서 | `scripts/render_improvements.py` — 판단과 반증을 합쳐 `improvements/`에 남긴다 |
 | 보고서 형태 점검 | `scripts/check_report_shape.py` — 훅이 부른다. 진입점 링크는 `.claude/hooks/check-report-shape.py` |
 | 뼈대 | `templates/goal.md` · `templates/policy.md` · `templates/precedent.md` |
 | 테스트 | `tests/` — 계약 회귀와 패키지 경계 |
-| 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` |
+| 워크플로우 | `workflows/improvement-sweep.js` — 건·군집을 나눠 돌리는 스윕. `Workflow`가 `scriptPath`로 부른다 |
+| 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` · `catalog-improvement-sweep` |
 | 에이전트 | `agents/catalog-golden-adjudicator.md` — 큐의 한 건이 정책 공백인가 GT 오류인가 실행 오류인가 |
+| 에이전트 | `agents/catalog-policy-cluster-scout.md` — 같은 이유로 막힌 군집 하나가 어떤 정책 결함인가 |
 | 진입점 링크 | `.claude/skills/<이름>` · `.claude/agents/engine/<이름>.md` → 여기. 실체는 이 패키지가 소유한다 |
 
 ## 규칙
@@ -41,6 +45,14 @@ import 어댑터 → audit 어댑터 → arbitrate → build_policy_index → bu
 ```
 
 앞의 셋은 속성이 제공하고, 뒤의 셋은 엔진이 제공한다.
+
+사이클이 끝난 **뒤에** 개선 포인트 스윕이 이어진다. 사이클 안에 넣지 않은 이유는 둘이다 —
+스윕은 사람이 다음에 손댈 것을 고르는 일이라 매 실행마다 돌 이유가 없고, 에이전트를 여럿 띄우므로
+비용이 사이클과 다르다. 사이클은 데이터를 만들고, 스윕은 그 데이터에 대고 묻는다.
+
+```
+build_improvement_worklist → (워크플로우: 판정 · 반증 · 군집 질문) → render_improvements
+```
 
 ## 보고서 형태 점검
 
