@@ -236,10 +236,10 @@ class ServesAnyAttributeTest(unittest.TestCase):
 
 
 class ProcessTest(unittest.TestCase):
-    """serve.sh가 «두 번 눌러도 하나»를 지키는지, 죽은 PID에 속지 않는지 본다."""
+    """레포 맨 위의 serve.sh가 «두 번 눌러도 하나»를 지키는지, 죽은 PID에 속지 않는지 본다."""
 
     def test_start_is_idempotent_and_status_matches(self) -> None:
-        serve = OS_ROOT / "serve.sh"
+        serve = PROJECT_ROOT / "serve.sh"
         port = "7519"
         env = {"CATALOG_OS_PORT": port, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
 

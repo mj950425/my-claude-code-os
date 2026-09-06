@@ -43,7 +43,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 하려는 일 | 여는 문서 |
 |---|---|
 | 사이클을 돌린다 | 스킬 `catalog-data-os` → 속성 스킬 (`bag-category-gender-os`) |
-| 산출물을 브라우저에서 본다 | `.claude/os/serve.sh start` → http://127.0.0.1:7391 |
+| 산출물을 브라우저에서 본다 | `./serve.sh start` → http://127.0.0.1:7391 |
 | 이 결과로 판정을 시작해도 되는지 본다 | 스킬 `catalog-run-review` · [handoff.md](.claude/os/review/contracts/handoff.md) |
 | 정책과 GT 중 어느 쪽이 틀렸는지 가른다 | [engine/goal.md](.claude/os/engine/goal.md)의 판정표 |
 | 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) |
@@ -55,6 +55,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 ## 구조
 
 ```
+serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 engine/scripts/serve_reports.py
 .claude/os/
   engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ templates/ tests/
   review/       엔진 산출물을 심사한다. 읽기만 한다  contracts/ scripts/ skills/ agents/ tests/
@@ -75,7 +76,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 ```
 
 ```bash
-.claude/os/serve.sh start
+./serve.sh start
 ```
 
 ```bash
@@ -117,7 +118,7 @@ GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT�
 
 ## 산출물을 읽는 자리 — 로컬 서버
 
-`.claude/os/serve.sh start`가 상시 프로세스 하나를 띄운다(`stop`·`status`·`restart`·`logs`·`open`).
+`./serve.sh start`가 상시 프로세스 하나를 띄운다(`stop`·`status`·`restart`·`logs`·`open`).
 홈은 요청마다 `run-summary.json`·`run-review.json`·`policy-index.json`을 **다시 읽으므로**,
 사이클을 다시 돌리면 새로고침만으로 바뀐다. 화면은 넷이다 — 홈, **GT 개선**, **정책 보기**,
 **정책 개선**. 홈이 처음 말하는 숫자는 미판정 전체가 아니라 심사가 낸 *지금 가를 수 있는* 건수다.

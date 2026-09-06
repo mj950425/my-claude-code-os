@@ -8,7 +8,9 @@
 # 속성을 모른다. 어떤 속성이 있는지는 파이썬 쪽이 프로필을 훑어서 정한다.
 set -euo pipefail
 
-OS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 레포 맨 위에서 부른다. 어디서 실행하든 자기 위치에서 OS 폴더를 찾는다 —
+# 현재 디렉터리에 기대면 다른 폴더에서 부를 때 조용히 엉뚱한 곳을 가리킨다.
+OS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.claude/os" && pwd)"
 RUN_DIR="$OS_ROOT/runs/.serve"
 PORT="${CATALOG_OS_PORT:-7391}"
 # PID 파일 이름에 포트를 넣는다 — 이름이 하나면 다른 포트로 띄운 두 번째가
