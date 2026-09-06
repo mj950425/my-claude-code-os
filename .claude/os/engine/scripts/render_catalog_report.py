@@ -426,10 +426,15 @@ def fix_line(row: dict[str, Any], gallery: dict[str, dict[str, Any]], labels: li
 STYLE = r"""
 :root{
   color-scheme:light;
-  --paper:#FAF9F5; --inset:#F2F1EB; --ink:#17150F; --muted:#6E6A5E; --faint:#9A9689;
-  --rule:#DCD8CB; --accent:#8C2B18; --accent-soft:#EFE5E0;
-  --serif:"Hahmlet",Georgia,"Apple SD Gothic Neo",serif;
-  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif;
+  /* 순흑백에 액센트 하나. 그 하나는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다 —
+     화면에서 빨간 것이 보이면 그 자리가 곧 조치할 자리라는 뜻이 되어야 한다.
+     --faint와 --muted는 캔버스 시안(#A3A3A3·#B8B8B8)보다 어둡다. 시안 값은 흰 배경에서
+     2.5:1·2.0:1이라 본문으로 읽히지 않는다. 톤은 지키되 읽히는 선까지 내렸다. */
+  --paper:#FFFFFF; --inset:#F7F7F7; --ink:#000000; --muted:#5C5C5C; --faint:#767676;
+  --rule:#E4E4E4; --rule-soft:#F0F0F0; --ghost:#8A8A8A;
+  --accent:#D62300; --accent-soft:#FDEDEA;
+  --display:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
+  --sans:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
 }
 *{box-sizing:border-box}
@@ -459,7 +464,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .masthead-top{display:flex;justify-content:space-between;align-items:baseline;gap:24px;padding-bottom:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
 .masthead-top .dirty{color:var(--accent)}
 .masthead-top nav a{margin-left:14px;border-bottom-color:var(--faint);color:var(--muted)}
-.masthead h1{font-family:var(--serif);font-weight:300;letter-spacing:-.035em;line-height:1.08;font-size:clamp(2.1rem,4.6vw,3.4rem);padding:16px 0 6px;border-top:1.5px solid var(--ink)}
+.masthead h1{font-family:var(--display);font-weight:800;letter-spacing:-.045em;line-height:.98;font-size:clamp(2.4rem,5.4vw,4.6rem);padding:20px 0 10px;border-top:2px solid var(--ink)}
 .masthead h1 small{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
 .runbar{display:flex;flex-wrap:wrap;margin-top:18px;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
 .runbar div{flex:1 1 130px;padding:9px 14px 10px;border-left:1px solid var(--rule)}
@@ -472,7 +477,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .lane{padding:0 34px 22px 0}
 .lane + .lane{border-left:1px solid var(--rule);padding:0 0 22px 34px}
 .lane-head{display:flex;align-items:baseline;gap:10px}
-.lane-head h2{font-family:var(--serif);font-weight:400;font-size:1.6rem;letter-spacing:-.03em}
+.lane-head h2{font-family:var(--display);font-weight:700;font-size:1.5rem;letter-spacing:-.035em}
 .lane-head small{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
 .lane-count{margin:6px 0 4px;display:flex;align-items:baseline;gap:10px}
 .lane-count .num{font-size:3.2rem;font-weight:300;line-height:1}
@@ -491,7 +496,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 
 .sec{margin-top:60px}
 .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding-bottom:10px;border-bottom:1.5px solid var(--ink)}
-.sec-head h2{font-family:var(--serif);font-weight:400;font-size:1.7rem;letter-spacing:-.03em}
+.sec-head h2{font-family:var(--display);font-weight:700;font-size:1.55rem;letter-spacing:-.035em}
 .sec-head h2 small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
 .map{width:100%;border-collapse:collapse;margin-top:6px}
 .map th,.map td{text-align:left;padding:9px 16px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top;font-size:13px}
@@ -524,7 +529,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .cluster-rail .ccount .num{font-size:1.6rem;font-weight:300;display:block;line-height:1;color:var(--ink);margin-bottom:2px}
 .cluster-rail .status{display:inline-block;margin-top:8px;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em}
 .cluster-rail .status.DECIDED{border-color:var(--ink);color:var(--ink)}
-.cluster-body h2{font-family:var(--serif);font-weight:400;font-size:1.32rem;line-height:1.4;letter-spacing:-.02em;max-width:64ch}
+.cluster-body h2{font-family:var(--display);font-weight:700;font-size:1.24rem;line-height:1.42;letter-spacing:-.025em;max-width:64ch}
 .cluster-body .sub{margin-top:4px;font-size:12.5px;color:var(--muted)}
 .q-impact{display:flex;flex-wrap:wrap;margin-top:12px;border:1px solid var(--rule);width:fit-content;max-width:100%}
 .q-impact div{padding:5px 13px 6px;border-left:1px solid var(--rule)}
@@ -536,84 +541,83 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .q-rec b i{font-style:normal;color:var(--accent)}
 .p-more h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--accent)}
 
-/* 정정 후보 조서(dossier): 한 상품이 한 장이다.
-   "이 GT가 틀렸다"는 주장이라, 사진 없이는 반박도 동의도 못 한다. 그래서 근거를 편다.
-   대신 실행 품질 지표는 이 화면에 없다 — 근거가 아닌 것을 옆에 두면 그것으로도 판단하게 된다 */
-.fx-intro{margin-top:18px;max-width:74ch;font-size:13.5px;line-height:1.8;color:var(--muted)}
-.fx-intro b{color:var(--accent);font-weight:600}
-.fx-intro code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
-.fx-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px}
-.fx-legend span{display:inline-flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}
+/* 정정 후보: 한 제안이 한 장이다. 제목 다음이 바로 필터이고, 그 다음이 제안이다 —
+   머리에 리포트 자신을 설명하는 말도, 리포트 자신을 세는 숫자도 두지 않는다.
+   이 화면이 묻는 것은 "이 GT가 틀렸나" 하나뿐이고, 나머지는 그 답에 기여하지 않는다. */
+.fx-intro,.fx-legend{display:none}
 
-/* 조서 한 장 */
-.fx{display:grid;grid-template-columns:172px 1fr;gap:0 32px;padding:34px 0 40px;border-top:1.5px solid var(--ink);
-    animation:fx-rise .5s cubic-bezier(.2,.7,.3,1) both}
-@keyframes fx-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.fx{display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 32px;padding:60px 0 68px;
+    border-top:1px solid var(--ink);animation:fx-rise .45s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fx-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.fx{animation:none}}
 
-/* 왼쪽 레일 — 도장과 사건 번호 */
-.fx-rail{position:sticky;top:56px;align-self:start}
-.stamp{display:inline-block;padding:6px 13px 5px;font-family:var(--mono);font-size:11px;font-weight:600;
-       letter-spacing:.16em;border:1.5px solid currentColor;box-shadow:0 0 0 3px var(--paper),0 0 0 4.5px currentColor;
-       transform:rotate(-3.5deg);transform-origin:left center}
-.stamp.SURE{color:var(--accent)}
-.stamp.POLICY{color:var(--ink)}
-.stamp.ASK{color:var(--muted);border-style:dashed;box-shadow:none}
-.stamp.OPEN{color:var(--faint);border-style:dotted;box-shadow:none}
-.fx-rail .case{margin-top:22px;font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all}
-.fx-rail .case a{color:var(--muted)}
-.fx-rail .case a:hover{color:var(--accent)}
-.fx-rail .org{margin-top:7px;font-family:var(--mono);font-size:10px;line-height:1.55;color:var(--faint)}
-.fx-rail .chips{margin-top:12px}
+/* 왼쪽 — 일련번호. 카드를 세는 유일한 자리다 */
+.fx-rail{position:sticky;top:64px;align-self:start}
+.fx-rail .ord{display:block;font-family:var(--mono);font-size:40px;font-weight:600;letter-spacing:-.03em;
+              line-height:.85;color:var(--rule);font-variant-numeric:tabular-nums}
+.fx-rail .chips{margin-top:20px}
+.stamp{display:inline-block;margin-top:18px;padding:5px 10px 4px;font-family:var(--mono);font-size:10px;
+       font-weight:700;letter-spacing:.14em;border:1px solid var(--rule);color:var(--muted)}
+.stamp.SURE{border-color:var(--accent);color:var(--accent)}
+.stamp.POLICY{border-color:var(--ink);color:var(--ink)}
+.stamp.ASK,.stamp.OPEN{border-style:dashed}
 
-/* 주문(主文) — 이 화면이 묻는 단 하나의 질문 */
 .fx-body{min-width:0}
-.fx h3{font-family:var(--serif);font-weight:400;font-size:1.44rem;line-height:1.34;letter-spacing:-.025em;max-width:34ch}
-.fx-body>.meta{margin-top:5px;font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;color:var(--faint)}
-.ruling{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0 22px;margin-top:20px;padding:16px 0 15px;
-        border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
-.ruling div{min-width:0}
-.ruling dt{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
-.ruling dd{font-family:var(--mono);font-size:1.5rem;font-weight:600;line-height:1;letter-spacing:-.01em}
-.ruling .was dd{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:var(--faint)}
+.fx-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px;
+         font-family:var(--mono);font-size:11px;letter-spacing:.07em;color:var(--ghost)}
+.fx-meta a{font-weight:600;letter-spacing:.1em;color:var(--ink);border:0}
+.fx-meta a:hover{color:var(--accent)}
+.fx h3{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.3;letter-spacing:-.02em;
+       max-width:34ch;overflow-wrap:anywhere}
+
+/* 주문 — 현재 GT는 그어지고, 제안만 색을 갖는다 */
+.ruling{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 44px;margin-top:32px;padding:26px 0;
+        border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
+.ruling>div{min-width:0}
+.ruling dt{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.15em;color:var(--ghost);margin-bottom:10px}
+.ruling dd{font-family:var(--display);font-size:42px;font-weight:800;letter-spacing:-.03em;line-height:.95;
+           font-variant-numeric:tabular-nums}
+.ruling .was dd{color:#8A8A8A;text-decoration:line-through;text-decoration-thickness:2px}
 .ruling .now dd{color:var(--accent)}
-.ruling .keep dd{color:var(--ink);text-decoration:none}
-.ruling small{display:block;margin-top:7px;font-family:var(--mono);font-size:10px;line-height:1.5;letter-spacing:.02em;color:var(--faint);text-decoration:none}
-.ruling .to{align-self:center;font-size:1.35rem;color:var(--rule);margin-bottom:6px}
+.ruling .keep dd{color:var(--ink);font-size:32px}
+.ruling small{display:block;margin-top:12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+              line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.ruling .to{align-self:center;margin-bottom:24px;color:var(--rule);line-height:0}
+.ruling .to svg{display:block}
 
-/* 두 사람의 말 — 판독기와 리뷰어를 섞지 않는다 */
-.fx-say{margin-top:13px;font-size:13.2px;line-height:1.7;max-width:76ch;padding-left:16px;border-left:2px solid var(--rule)}
-.fx-say.mut{color:var(--muted);border-left-color:var(--inset)}
-.fx-say b{display:block;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.16em;
-          text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+/* 판독기와 리뷰어를 섞지 않는다 */
+.fx-say{display:grid;grid-template-columns:104px minmax(0,1fr);gap:20px;padding:19px 0;
+        border-bottom:1px solid var(--rule-soft)}
+.fx-say:last-of-type{border-bottom:0}
+.fx-say b{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost);padding-top:3px}
+.fx-say p{font-size:15px;line-height:1.75;color:var(--ink);max-width:76ch;overflow-wrap:anywhere}
+.fx-say.mut p{color:var(--muted)}
+.fx-say .src{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ghost)}
 
-/* 증거판 — 판독기가 인용한 사진이 먼저 온다 */
-.plate{margin-top:22px}
-.plate-head{display:flex;align-items:baseline;gap:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
-            text-transform:uppercase;color:var(--faint);margin-bottom:10px}
-/* `.shots`는 사례 보고서(가로 스트립)가 이미 쓰는 이름이다. 증거판은 격자라 규칙이 정반대이므로
-   전부 `.plate` 아래로 가둔다 — 이름 하나를 두 물건이 나눠 쓰면 나중에 조용히 어긋난다 */
-.plate .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;overflow:visible;padding:0}
+/* 증거판 — 인용된 장면이 먼저 온다 */
+.plate{margin-top:34px}
+.plate-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
+            font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.plate .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:20px;overflow:visible;padding:0}
 .plate .shots figure{margin:0;min-width:0}
-.plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;cursor:zoom-in;
-              position:relative;transition:border-color .18s,transform .18s}
+.plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;
+              cursor:zoom-in;position:relative;transition:border-color .16s,transform .16s}
 .plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
 .plate .frame img{display:block;width:100%;height:300px;object-fit:contain;background:#fff}
-.plate figure.cited .frame{border:1.5px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
-.plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:var(--paper);
-              font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;padding:3px 8px 2px}
-.plate figcaption{margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--faint)}
+.plate figure.cited .frame{border:2px solid var(--accent)}
+.plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:#fff;
+              font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;padding:5px 9px 4px}
+.plate figcaption{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--ghost)}
+.plate figure.cited figcaption{color:var(--accent)}
 .plate figcaption .fail{display:none;color:var(--accent)}
 .plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
 .plate figure.gone .frame img{height:44px;opacity:0}
 .plate figure.gone figcaption .fail{display:inline}
-.plate figure.cited figcaption{color:var(--accent)}
-.fx-say .src{font-family:var(--mono);font-size:10px;letter-spacing:.03em;color:var(--faint)}
-.plate details{margin-top:12px;border-top:1px solid var(--rule);padding-top:12px}
+.plate details{margin-top:16px;border-top:1px solid var(--rule-soft);padding-top:14px}
 .plate summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
 .plate summary:hover{color:var(--accent)}
-.plate details .shots{margin-top:12px}
-.plate .noshot{padding:22px;border:1px dashed var(--rule);background:var(--inset);color:var(--faint);
+.plate details .shots{margin-top:14px}
+.plate .noshot{padding:26px;border:1px dashed var(--rule);background:var(--inset);color:var(--ghost);
                font-family:var(--mono);font-size:11px;text-align:center}
 .fx .chips{margin-top:8px}
 
@@ -636,7 +640,7 @@ dialog.viewer button:hover{background:var(--ink);color:var(--paper)}
 .p-rail .chips{margin-top:10px}
 .p-body{min-width:0}
 .p-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
-.p-head h3{font-family:var(--serif);font-weight:400;font-size:1.22rem;line-height:1.32;letter-spacing:-.02em}
+.p-head h3{font-family:var(--display);font-weight:700;font-size:1.18rem;line-height:1.34;letter-spacing:-.025em}
 .p-head .pdp{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;padding:5px 9px;border:1px solid var(--rule)}
 .p-head .pdp:hover{border-color:var(--ink)}
 .labels{display:flex;align-items:stretch;border:1px solid var(--rule);width:fit-content;max-width:100%;margin-top:12px;background:var(--paper)}
@@ -664,7 +668,10 @@ dialog.viewer button:hover{background:var(--ink);color:var(--paper)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .voice .chips{margin-top:8px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:2px 7px;border:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:var(--paper)}
-.chip.open,.chip.dual{border-color:var(--accent);color:var(--accent)}
+/* 액센트는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다. 미결 판례는 맥락이지
+   주장이 아니다 — 빨강을 여기에 쓰면 화면에서 빨간 것을 찾는 눈이 흐려진다.
+   대신 굵기로 가른다: 미결은 검은 테두리, 확정은 회색. */
+.chip.open,.chip.dual{border-color:var(--ink);color:var(--ink)}
 .chip a{border:0}
 .trail{display:flex;flex-wrap:wrap;border:1px solid var(--rule);width:fit-content;background:var(--paper);margin-bottom:8px}
 .trail div{padding:5px 12px 6px;border-left:1px solid var(--rule)}
@@ -917,17 +924,22 @@ function matches(row){
 function shot(item){
   // 원본이 사라진 사진은 빈 액자로 남기지 않는다. 자리를 접고 "못 불러왔다"고 적는다 —
   // 빈 액자는 "근거가 없다"로 읽히고, 그건 사실이 아니다.
-  return `<figure class="${item.cited?'cited':''}"><button class="frame" type="button" onclick="zoom(this)">`
-    + `<img loading="lazy" src="${esc(item.url)}" referrerpolicy="no-referrer" alt="${esc(item.caption)}"`
+  return `<figure class="${item.cited?'cited':''}"><button class="frame" type="button" onclick="zoom(this)" aria-label="${esc(item.caption)} 크게 보기">`
+    + `<img loading="lazy" src="${esc(item.url)}" referrerpolicy="no-referrer" alt="${esc(item.caption)}${item.cited?' — 판독기가 인용한 근거 장면':' — 판독기에 함께 들어간 장면'}"`
     + ` onerror="this.closest('figure').classList.add('gone')"></button>`
     + `<figcaption>${esc(item.caption)}${item.cited?' · 판독기가 인용':''}<span class="fail"> · 원본을 못 불러왔다</span></figcaption></figure>`;
 }
 
+
 function plate(row){
   const all=row.plate||[];
   if(!all.length) return '<div class="plate"><div class="noshot">판독기가 본 사진이 스냅샷에 없다. 사진 없이 GT를 뒤집지 않는다.</div></div>';
-  const lead=all.filter(x=>x.role==='TARGET'||x.cited);
-  const rest=all.filter(x=>!(x.role==='TARGET'||x.cited));
+  // 대표 사진이 여러 장인 상품이 있다. 전부 앞에 깔면 인용된 장면이 맨 뒤로 밀려,
+  // 사람이 제일 먼저 봐야 할 사진을 제일 나중에 보게 된다. 대표는 한 장만 세우고
+  // 나머지는 접는다 — 무엇을 반박해야 하는지가 먼저 보여야 한다.
+  const firstTarget=all.find(x=>x.role==='TARGET');
+  const lead=all.filter(x=>x===firstTarget||x.cited);
+  const rest=all.filter(x=>lead.indexOf(x)<0);
   const cited=all.filter(x=>x.cited).length;
   return `<div class="plate">
     <div class="plate-head"><span>증거</span><span>${cited?`인용 ${fmt(cited)}장`:'인용 표시 없음'} · 전체 ${fmt(all.length)}장 · 클릭하면 확대</span></div>
@@ -935,6 +947,12 @@ function plate(row){
     ${rest.length?`<details><summary>판독기에 함께 들어간 나머지 ${fmt(rest.length)}장 보기</summary><div class="shots">${rest.map(shot).join('')}</div></details>`:''}
   </div>`;
 }
+
+// 딩벳 글리프(→, ↗)는 폰트마다 다르게 그려지고 없으면 두부가 된다. 도형은 도형으로 그린다.
+const ARROW='<svg width="46" height="12" viewBox="0 0 46 12" fill="none" aria-hidden="true">'
+  + '<path d="M0 6h43M38 1l5 5-5 5" stroke="currentColor" stroke-width="1.5"/></svg>';
+const OUTLINK='<svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true" style="margin-left:3px">'
+  + '<path d="M3 1h6v6M9 1L1 9" stroke="currentColor" stroke-width="1.4"/></svg>';
 
 function ruling(row){
   const src=[row.goldSource?esc(row.goldSource):'', row.gtReviewStatus?esc(row.gtReviewStatus):''].filter(Boolean).join(' · ');
@@ -944,41 +962,48 @@ function ruling(row){
   if(row.fix.unchanged){
     return `<dl class="ruling"><div class="keep"><dt>현재 GT · 유지</dt><dd>${esc(row.referenceLabel)||'—'}</dd>`
       + `<small>${src||'출처 기록 없음'}</small></div>`
-      + `<div><dt>왜 여기 있나</dt><dd style="font-size:.95rem;font-weight:500">고칠 대상이 GT가 아니다</dd><small>${why}</small></div></dl>`;
+      + `<div class="keep"><dt>왜 여기 있나</dt><dd style="font-size:1.05rem">고칠 대상이 GT가 아니다</dd><small>${why}</small></div></dl>`;
   }
   return `<dl class="ruling">
     <div class="was"><dt>현재 GT</dt><dd>${esc(row.referenceLabel)||'—'}</dd><small>${src||'출처 기록 없음'}</small></div>
-    <div class="to" aria-hidden="true">&rarr;</div>
+    <div class="to">${ARROW}</div>
     <div class="now"><dt>이렇게 고치자</dt><dd>${esc(row.fix.proposed)||'—'}</dd><small>${why}</small></div>
   </dl>`;
 }
 
-function line(row){
+function say(label, text, muted, extra){
+  return `<div class="fx-say${muted?' mut':''}"><b>${esc(label)}</b><p>${esc(text)}${extra||''}</p></div>`;
+}
+
+function line(row, ordinal){
   const g=gradeById[row.fix.grade]||{label:row.fix.grade,note:''};
-  const e=row.evidence||{}, v=row.verdict;
+  const e=row.evidence||{}, v=row.verdict, sc=row.sourceConflict;
   const chips=[...((v&&v.blockedBy)?v.blockedBy.map(precedentChip):[]),
                row.dual?'<span class="chip dual">양쪽 계류</span>':''].filter(Boolean).join('');
   const said=[
-    e.text?`<p class="fx-say"><b>판독기가 본 것</b>${esc(e.text)}</p>`:'',
-    (v&&v.reason)?`<p class="fx-say mut"><b>리뷰어가 가른 것</b>${esc(v.reason)}${v.note?' '+esc(v.note):''}</p>`:'',
-    (!e.text&&!(v&&v.reason))?'<p class="fx-say mut"><b>근거</b>기록된 문장이 없다.</p>':''
+    e.text?say('판독기', e.text, false):'',
+    (v&&v.reason)?say('리뷰어', v.reason+(v.note?' '+v.note:''), true):'',
+    (!e.text&&!(v&&v.reason))?say('근거', '기록된 문장이 없다.', true):'',
+    sc?say('갈린 GT', sc.canonical||'—',  true,
+        ` <span class="src">${esc(sc.canonicalSource)||'출처 없음'}${sc.canonicalVersion?' · '+esc(sc.canonicalVersion):''}</span>`
+        + ' — 현재 GT와 갈린다. 어느 쪽을 정본으로 볼지가 먼저다.'):''
   ].join('');
-  const sc=row.sourceConflict;
-  const conflict=sc
-    ? `<p class="fx-say mut"><b>같은 상품을 다르게 적은 GT</b>${esc(sc.canonical)||'—'} <span class="src">${esc(sc.canonicalSource)||'출처 없음'}${sc.canonicalVersion?' · '+esc(sc.canonicalVersion):''}</span> — 현재 GT와 갈린다. 어느 쪽을 정본으로 볼지가 먼저다.</p>`
-    : '';
+  const meta=[
+    row.url?`<a href="${esc(row.url)}" target="_blank" rel="noreferrer">${esc(row.productKey)}${OUTLINK}</a>`:esc(row.productKey),
+    [row.brand,row.category].filter(Boolean).map(esc).join(' · '),
+    (row.signals||[]).map(id=>esc((signalById[id]||{}).label||id)).join(' · ')
+  ].filter(Boolean).map(x=>`<span>${x}</span>`).join('');
   return `<article class="fx" id="${esc(anchor(row.productKey))}">
     <div class="fx-rail">
+      <span class="ord">${String(ordinal).padStart(2,'0')}</span>
       <span class="stamp ${esc(row.fix.grade)}" title="${esc(g.note)}">${esc(g.label)}</span>
-      <div class="case">${row.url?`<a href="${esc(row.url)}" target="_blank" rel="noreferrer">${esc(row.productKey)} &nearr;</a>`:esc(row.productKey)}</div>
-      <div class="org">${[row.brand,row.category].filter(Boolean).map(esc).join('<br>')}</div>
       ${chips?`<div class="chips">${chips}</div>`:''}
     </div>
     <div class="fx-body">
+      <div class="fx-meta">${meta}</div>
       <h3>${esc(row.productName)}</h3>
-      <p class="meta">${(row.signals||[]).map(id=>esc((signalById[id]||{}).label||id)).join(' · ')||'신호 없음'}</p>
       ${ruling(row)}
-      ${said}${conflict}
+      ${said}
       ${plate(row)}
     </div>
   </article>`;
@@ -1002,18 +1027,14 @@ function renderTabs(){
 function renderList(){
   const shown=rows.filter(matches);
   const host=document.getElementById('fixes');
-  host.innerHTML=shown.map(line).join('')||'<p class="empty">조건에 맞는 제안이 없다.</p>';
+  host.innerHTML=shown.map((r,i)=>line(r,i+1)).join('')||'<p class="empty">조건에 맞는 제안이 없다.</p>';
   host.querySelectorAll('.fx').forEach((el,i)=>{el.style.animationDelay=Math.min(i,8)*45+'ms';});
   document.getElementById('shown').textContent=`${fmt(shown.length)} / ${fmt(rows.length)}`;
 }
-document.getElementById('legend').innerHTML=data.grades.filter(g=>rows.some(r=>r.fix.grade===g.id))
-  .map(g=>`<span><b class="stamp ${esc(g.id)}" style="transform:none">${esc(g.label)}</b>${esc(g.note)}</span>`).join('');
 document.getElementById('search').addEventListener('input',ev=>{query=ev.target.value;renderList();});
-document.getElementById('report-count').textContent=fmt(rows.length);
-document.getElementById('with-shot').textContent=fmt(rows.filter(r=>(r.plate||[]).length).length);
-document.getElementById('with-cited').textContent=fmt(rows.filter(r=>(r.plate||[]).some(x=>x.cited)).length);
-document.getElementById('gt-sources').textContent=fmt(new Set(rows.map(r=>r.goldSource).filter(Boolean)).size);
-document.getElementById('gt-conflicts').textContent=fmt(rows.filter(r=>r.sourceConflict).length);
+// 머리의 계기판은 없앴다. 남아 있으면 채우고, 없으면 그냥 넘어간다.
+const put=(id,n)=>{const el=document.getElementById(id); if(el) el.textContent=fmt(n);};
+put('report-count',rows.length);
 document.getElementById('viewer').addEventListener('click',e=>{if(e.target.id==='viewer')e.target.close()});
 renderTabs();renderList();
 """
@@ -1026,7 +1047,7 @@ def head(title: str) -> str:
         f"<title>{html.escape(title)}</title>\n"
         '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
-        '<link href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">\n'
+        '<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Gothic+A1:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">\n'
         f"<style>{STYLE}</style>\n</head>\n<body>\n"
     )
 
@@ -1183,28 +1204,20 @@ def main() -> int:
                 "evidenceHref": REPORTS["gt"]["file"],
                 "rows": [fix_line(row, gallery, profile_labels) for row in selected],
             }
-            # 이 화면의 계기판에는 GT에 관한 것만 둔다. 표면 정확도·처리 건수·정책 버전은
-            # "이 GT가 틀렸나"에 답을 주지 않으면서 옆에 있으면 판단에 섞인다. 전부 뺀다.
+            # 제목 다음이 바로 필터이고, 그 다음이 제안이다. 머리에 리포트 자신을
+            # 설명하는 말도, 리포트 자신을 세는 숫자도 두지 않는다 — 사용자가 시안에서
+            # 눈썹·요약 4칸·머리말을 차례로 걷어냈고, 이유는 하나였다: 이 화면이 묻는 것은
+            # "이 GT가 틀렸나" 하나뿐이라는 것. 건수는 필터 칩이 이미 세고 있다.
             fix_body = f"""<div class="wrap">
   <header class="masthead">
-    <div class="masthead-top"><p class="kicker">Catalog OS · {profile_id} · {html.escape(spec['unit'])}</p><nav>{nav_links(kind)}</nav></div>
-    <h1><small>{display_name}</small>{html.escape(spec['title'])}</h1>
-    <dl class="runbar"><div><dt>고치자는 제안</dt><dd><span id="report-count">0</span></dd></div>{runbar_gt}</dl>
-    <p class="fx-intro"><b>원장에 반영하지 않았다.</b> 여기 있는 것은 전부 제안이고, 사람이 판정을 주면
-      그때 <code>review/decisions.json</code>에 기록한다. 도장은 손으로 고른 확신도가 아니라
-      심판이 낸 귀책과 근거 강도에서 나온다.<br>
-      <b>이 화면은 GT만 묻는다.</b> 실행이 몇 점인지, 몇 건을 돌렸는지는 싣지 않았다 —
-      "이 GT가 틀렸나"에 답을 주지 않는 숫자는 판단에 섞이기만 한다.
-      사진은 판독기가 실제로 본 것이고, <em>근거</em> 표시가 붙은 장면이 이 제안이 딛고 선 자리다.
-      그 사진을 반박할 수 있으면 제안은 무너진다.</p>
-    <div class="fx-legend" id="legend"></div>
-    <p class="masthead-top" style="padding-top:10px">{stamp}</p>
+    <div class="masthead-top"><nav>{nav_links(kind)}</nav></div>
+    <h1>{html.escape(spec['title'])}</h1>
   </header>
   <div class="toolbar" role="group" aria-label="도장 선택"><div id="grade-tabs" style="display:contents"></div><label class="search"><input id="search" type="search" placeholder="상품명 · 키 · 라벨 · GT 출처 · 사유 검색" aria-label="검색"><span class="shown" id="shown"></span></label></div>
   <div id="fixes"></div>
   <noscript><p class="empty">제안을 보려면 JavaScript를 켠다.</p></noscript>
   <dialog class="viewer" id="viewer"><img id="viewer-img" alt="증거 사진 확대"><div class="bar"><span id="viewer-cap"></span><button type="button" onclick="document.getElementById('viewer').close()">닫기 ×</button></div></dialog>
-  <footer><nav>{nav_links(kind)}</nav>{footer_note}</footer>
+  <footer><nav>{nav_links(kind)}</nav>{footer_note}<span class="mono">{stamp}</span></footer>
 </div>
 """
             output = report_dir / spec["file"]

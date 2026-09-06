@@ -134,10 +134,20 @@ class FixSheetTest(unittest.TestCase):
         self.assertNotIn("fromPolicy", rows["T:5"])
 
     def test_no_counted_number_is_written_into_the_page(self) -> None:
+        """건수는 문서에 적히지 않고 브라우저가 임베드된 데이터에서 센다 (프로젝트 규칙 8).
+
+        어떤 요소가 그 숫자를 이고 있는지는 묻지 않는다 — 계기판을 걷어내고 필터 칩으로
+        옮겨도 규칙은 그대로다. 묻는 것은 하나다: 마크업에 세어진 숫자가 박혀 있는가.
+        """
         body = self.sheet.read_text(encoding="utf-8")
         markup = body.split('<script id="audit-data"')[0]
         self.assertEqual(re.findall(r"\d[\d,]*\s*(?:건|제안)(?![^<]*</dt>)", markup), [])
-        self.assertIn('id="report-count">0<', markup)
+        # 건수를 이고 있는 자리는 전부 비어 있거나 0이어야 한다. JS가 채운다.
+        for element in re.findall(r'<span[^>]*id="(?:report-count|shown)"[^>]*>([^<]*)</span>', markup):
+            self.assertIn(element.strip(), ("", "0"), markup)
+        # 필터 칩도 서버가 그리지 않는다.
+        self.assertIn('id="grade-tabs"', markup)
+        self.assertEqual(re.findall(r'id="grade-tabs"[^>]*>\s*<button', markup), [])
 
     def test_every_line_can_open_its_case_card(self) -> None:
         """정정 후보에서 «근거 펼쳐 보기»로 넘어간 앵커가 사례 보고서에 실제로 있어야 한다."""
