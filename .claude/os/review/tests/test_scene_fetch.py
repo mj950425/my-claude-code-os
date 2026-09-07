@@ -29,7 +29,7 @@ SCRIPT = PROJECT_ROOT / ".claude/os/review/scripts/fetch_review_scenes.py"
 
 sys.path.insert(0, str(SCRIPT.parent))
 import fetch_review_scenes  # noqa: E402
-from fetch_review_scenes import _tile_ranges, absolutize, save_tile  # noqa: E402
+from fetch_review_scenes import _tile_ranges, absolutize, save_tile, url_key  # noqa: E402
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
@@ -63,6 +63,8 @@ class TileBoundaryTest(unittest.TestCase):
 class FixtureRun:
     """`run-summary.json`이 선언한 것만 읽는 심사의 입력 모양을 그대로 만든다."""
 
+    SOURCE = "https://example.invalid/detail-1.jpg"
+
     def __init__(self, root: Path) -> None:
         self.root = root
         (root / "queue").mkdir(parents=True)
@@ -73,7 +75,11 @@ class FixtureRun:
             json.dumps(
                 {
                     "productKey": "X:1",
-                    "details": [{"sceneId": "D01T01", "url": "asset/local-only.jpg"}],
+                    "details": [
+                        {"sceneId": "D01T01", "url": FixtureRun.SOURCE},
+                        {"sceneId": "D01T02", "url": FixtureRun.SOURCE},
+                        {"sceneId": "D01T03", "url": FixtureRun.SOURCE},
+                    ],
                 },
                 ensure_ascii=False,
             )
@@ -102,13 +108,39 @@ class FixtureRun:
                     "productKey": "X:1",
                     "productName": "표본 가방",
                     "detailEvidence": "남성·여성 모델이 모두 확인됨.",
-                    "sceneNotes": {"D01T01": "남성 · 착용"},
-                    "policyEvidenceSceneIds": ["D01T01"],
+                    "sceneNotes": {"D01T01": "남성 · 착용", "D01T02": "여성 · 착용"},
+                    "policyEvidenceSceneIds": ["D01T01", "D01T02"],
                 },
                 ensure_ascii=False,
             )
             + "\n",
             encoding="utf-8",
+        )
+
+    def seed_reference(self) -> None:
+        """갤러리의 대표 사진을 run 폴더 안 로컬 경로로 둔다."""
+        from PIL import Image as Pillow
+
+        target = self.root / "asset" / "thumbnails" / "X-1.jpg"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        Pillow.new("RGB", (120, 120), "white").save(target)
+        gallery = self.root / "golden" / "gallery.jsonl"
+        row = json.loads(gallery.read_text(encoding="utf-8"))
+        row["thumbnails"] = [{"url": "asset/thumbnails/X-1.jpg"}]
+        gallery.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    def seed_source(self, width: int = 200, height: int = 900) -> None:
+        """원본을 캐시에 미리 심어 네트워크 없이 장면이 만들어지게 한다.
+
+        캐시 이름이 URL로만 결정되기 때문에 이렇게 심을 수 있다. 실행마다 바뀌는 이름이면
+        여기서도 안 맞고, 실제 사용에서도 캐시가 한 번도 안 맞아 매번 다시 받는다.
+        """
+        from PIL import Image as Pillow
+
+        cache = self.root / "run-review" / "scenes" / ".sources"
+        cache.mkdir(parents=True, exist_ok=True)
+        Pillow.new("RGB", (width, height), "white").save(
+            cache / f"X-1-{url_key(self.SOURCE)}.jpg"
         )
 
     def summary(self, **artifacts: str) -> None:
@@ -159,26 +191,74 @@ class ReaderBlindnessTest(unittest.TestCase):
                            "owner", "policyRule", "남성", "여성", "UNISEX", "FEMALE"):
                 self.assertNotIn(leaked, reader, f"판독자 시야에 «{leaked}»가 샜다")
 
-    def test_the_reader_gets_one_tile_per_task_not_a_product(self) -> None:
-        """상품 단위로 묶어 주면 앞 장면의 인상이 뒷 장면에 번진다."""
+
+class FanoutTest(unittest.TestCase):
+    """비용을 정하는 것은 해상도가 아니라 판독자 수다. 묶는 단위가 곧 비용이다."""
+
+    def _view(self, fixture: "FixtureRun", *extra: str) -> dict:
+        self.assertEqual(fixture.fetch(*extra).returncode, 0)
+        return json.loads(
+            (fixture.root / "run-review" / "scenes" / "reader-view.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def test_the_default_gives_one_task_per_product(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = FixtureRun(Path(tmp) / "run")
             fixture.declared_everything()
-            self.assertEqual(fixture.fetch().returncode, 0)
+            fixture.seed_source()
+            view = self._view(fixture)
 
-            view = json.loads(
-                (fixture.root / "run-review" / "scenes" / "reader-view.json").read_text(
-                    encoding="utf-8"
-                )
+            self.assertEqual(view["fanout"], "product")
+            self.assertEqual(len(view["tasks"]), 1, "상품 하나에 과제 하나여야 한다")
+            task = view["tasks"][0]
+            self.assertEqual(
+                set(task), {"taskId", "productKey", "productName", "reference", "scenes"}
             )
-            self.assertIn("tasks", view)
-            self.assertNotIn("products", view, "과제가 상품 단위로 묶였다")
+            # 묶어도 장면은 낱개로 남는다. 판독자가 장면마다 따로 답할 수 있어야 한다.
+            self.assertEqual(len(task["scenes"]), 2)
+            for scene in task["scenes"]:
+                self.assertEqual(set(scene), {"sceneId", "path"})
+
+    def test_tile_fanout_splits_the_same_scenes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = FixtureRun(Path(tmp) / "run")
+            fixture.declared_everything()
+            fixture.seed_source()
+            view = self._view(fixture, "--fanout", "tile")
+
+            self.assertEqual(view["fanout"], "tile")
+            self.assertEqual(len(view["tasks"]), 2, "장면마다 과제 하나여야 한다")
             for task in view["tasks"]:
                 self.assertEqual(
                     set(task),
-                    {"taskId", "productKey", "productName", "sceneId", "path"},
+                    {"taskId", "productKey", "productName", "reference", "sceneId", "path"},
                     "판독 과제에 필요 이상이 실렸다",
                 )
+
+    def test_the_reader_gets_the_reference_photo(self) -> None:
+        """대상이 무엇인지는 상품명이 아니라 대표 판매 사진이 말한다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = FixtureRun(Path(tmp) / "run")
+            fixture.declared_everything()
+            fixture.seed_source()
+            fixture.seed_reference()
+            task = self._view(fixture)["tasks"][0]
+            self.assertTrue(task["reference"], "판독자에게 대표 사진이 안 갔다")
+            self.assertTrue(
+                (fixture.root / task["reference"]).is_file(), "대표 사진 파일이 없다"
+            )
+
+    def test_neither_fanout_leaks_the_run_s_answers(self) -> None:
+        for extra in ((), ("--fanout", "tile")):
+            with tempfile.TemporaryDirectory() as tmp:
+                fixture = FixtureRun(Path(tmp) / "run")
+                fixture.declared_everything()
+                fixture.seed_source()
+                raw = json.dumps(self._view(fixture, *extra), ensure_ascii=False)
+                for leaked in ("judgeClaim", "goldLabel", "남성", "여성", "UNISEX"):
+                    self.assertNotIn(leaked, raw, f"«{leaked}»가 판독자 시야에 샜다")
 
 
 class TileCostTest(unittest.TestCase):
@@ -256,6 +336,236 @@ class WritesNothingElseTest(unittest.TestCase):
                 self.assertTrue(
                     path.startswith("run-review/"), f"«{path}»가 run-review/ 밖에 생겼다"
                 )
+
+
+
+class PartialRefetchTest(unittest.TestCase):
+    """`--product`는 «그 상품만 다시 받는다»이지 «나머지를 잊는다»가 아니다.
+
+    판독이 흐리다고 한 타일 하나를 크게 다시 받는 것이 이 스크립트의 사용법인데,
+    그때 색인이 그 상품 하나로 덮이면 나머지 상품의 재판독이 조용히 증발한다.
+    """
+
+    def test_refetching_one_product_keeps_the_others_in_the_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "runs" / "demo"
+            scenes = run / "run-review" / "scenes"
+            scenes.mkdir(parents=True)
+            (run / "run-summary.json").write_text(
+                json.dumps({"generatedAt": "2026-01-01T00:00:00+00:00", "artifacts": {}}),
+                encoding="utf-8",
+            )
+            previous = {
+                "basedOn": "2026-01-01T00:00:00+00:00",
+                "selector": {"maxWidth": 640},
+                "products": [
+                    {"productKey": "A:1", "maxWidth": 640, "scenes": [{"sceneId": "D01T01"}]},
+                    {"productKey": "B:2", "maxWidth": 640, "scenes": [{"sceneId": "D01T01"}]},
+                ],
+                "skipped": [],
+            }
+            (scenes / "index.json").write_text(json.dumps(previous), encoding="utf-8")
+
+            # 갤러리가 없으므로 수집은 아무 상품도 새로 만들지 못한다.
+            # 그래도 지난 색인의 두 상품이 사라지면 안 된다.
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--run", str(run), "--product", "A:1"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            after = json.loads((scenes / "index.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                sorted(product["productKey"] for product in after["products"]),
+                ["A:1", "B:2"],
+                "지정 수집이 다른 상품을 색인에서 지웠다",
+            )
+
+    def test_a_carried_product_keeps_the_width_it_was_fetched_at(self) -> None:
+        """이어 붙인 상품에 이번 실행의 폭을 덮어쓰면, 어느 해상도의 판독인지 거짓말이 된다."""
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "runs" / "demo"
+            scenes = run / "run-review" / "scenes"
+            scenes.mkdir(parents=True)
+            (run / "run-summary.json").write_text(
+                json.dumps({"generatedAt": "2026-01-01T00:00:00+00:00", "artifacts": {}}),
+                encoding="utf-8",
+            )
+            (scenes / "index.json").write_text(
+                json.dumps(
+                    {
+                        "basedOn": "2026-01-01T00:00:00+00:00",
+                        "selector": {"maxWidth": 640},
+                        "products": [{"productKey": "B:2", "maxWidth": 640, "scenes": []}],
+                        "skipped": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [sys.executable, str(SCRIPT), "--run", str(run),
+                 "--product", "A:1", "--max-width", "1400"],
+                capture_output=True, text=True,
+            )
+            after = json.loads((scenes / "index.json").read_text(encoding="utf-8"))
+            carried = next(p for p in after["products"] if p["productKey"] == "B:2")
+            self.assertEqual(carried["maxWidth"], 640)
+            self.assertEqual(after["selector"]["maxWidth"], 1400)
+
+    def test_an_index_from_another_run_is_not_carried_over(self) -> None:
+        """사이클이 다시 돌았으면 그 장면들은 옛 실행의 것이다. 섞으면 근거의 출처가 사라진다."""
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "runs" / "demo"
+            scenes = run / "run-review" / "scenes"
+            scenes.mkdir(parents=True)
+            (run / "run-summary.json").write_text(
+                json.dumps({"generatedAt": "2026-02-02T00:00:00+00:00", "artifacts": {}}),
+                encoding="utf-8",
+            )
+            (scenes / "index.json").write_text(
+                json.dumps(
+                    {
+                        "basedOn": "2026-01-01T00:00:00+00:00",
+                        "products": [{"productKey": "B:2", "maxWidth": 640, "scenes": []}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [sys.executable, str(SCRIPT), "--run", str(run), "--product", "A:1"],
+                capture_output=True, text=True,
+            )
+            after = json.loads((scenes / "index.json").read_text(encoding="utf-8"))
+            self.assertEqual(after["products"], [])
+
+
+
+class AllScenesUnionTest(unittest.TestCase):
+    """`--all-scenes`는 «전부»이지 «인용된 것 대신»이 아니다.
+
+    갤러리의 상세 목록만 넣으면 실행이 인용한 이름(타일 좌표가 아닌 것)이 통째로 빠진다.
+    하필 그 자리가 되짚어야 할 유일한 근거인 건이 있었다 — 인용 장면이 사라지면
+    「확인했더니 아니었다」와 「아무도 안 봤다」가 같은 모양이 된다.
+    """
+
+    def test_a_cited_name_survives_all_scenes(self) -> None:
+        from PIL import Image as PILImage
+
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary) / "runs" / "demo"
+            for folder in ("golden", "queue", "review", "asset"):
+                (run / folder).mkdir(parents=True, exist_ok=True)
+            PILImage.new("RGB", (300, 450), "white").save(run / "asset" / "thumb.jpg")
+            PILImage.new("RGB", (300, 450), "white").save(run / "asset" / "detail.jpg")
+            (run / "golden" / "gallery.jsonl").write_text(
+                json.dumps({
+                    "productKey": "DEMO:1",
+                    "thumbnails": [{"url": "asset/thumb.jpg"}],
+                    "details": [{"sceneId": "D01T01", "url": "asset/detail.jpg"}],
+                }, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            (run / "review" / "verdicts.jsonl").write_text(
+                json.dumps({"productKey": "DEMO:1", "owner": "GOLDEN"}) + "\n", encoding="utf-8"
+            )
+            # 실행이 타일 좌표가 아닌 이름을 근거로 인용했다.
+            (run / "queue" / "signal.jsonl").write_text(
+                json.dumps({"productKey": "DEMO:1",
+                            "policyEvidenceSceneIds": ["TARGET_REFERENCE"]}) + "\n",
+                encoding="utf-8",
+            )
+            (run / "run-summary.json").write_text(
+                json.dumps({
+                    "generatedAt": "2026-01-01T00:00:00+00:00",
+                    "artifacts": {
+                        "gallery": str(run / "golden" / "gallery.jsonl"),
+                        "arbiterVerdicts": str(run / "review" / "verdicts.jsonl"),
+                        "queueDirectory": str(run / "queue"),
+                    },
+                }),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [sys.executable, str(SCRIPT), "--run", str(run), "--all-scenes"],
+                capture_output=True, text=True,
+            )
+            index = json.loads((run / "run-review/scenes/index.json").read_text(encoding="utf-8"))
+            product = index["products"][0]
+            resolved = {scene["sceneId"] for scene in product["scenes"]}
+            self.assertIn("TARGET_REFERENCE", resolved | set(product["unresolvedSceneIds"]),
+                          "--all-scenes가 인용된 장면을 통째로 떨어뜨렸다")
+
+
+class ReferencePickTest(unittest.TestCase):
+    """대표 사진은 **대상의 정의**다. 여기가 작으면 「이 사람이 든 것이 파는 그 물건인가」가
+    작은 그림 위에서 갈리고, 색·프린트처럼 한 축으로만 다른 대조가 거기서 무너진다.
+    실제로 갤러리 첫 항목이 200px 목록용 축소본이고 뒤에 500px가 있던 상품이 있었다.
+    """
+
+    def _run_with_thumbnails(self, root: Path, sizes: list[tuple[int, int]]) -> dict:
+        from PIL import Image as PILImage
+
+        run = root / "runs" / "demo"
+        (run / "golden").mkdir(parents=True, exist_ok=True)
+        (run / "queue").mkdir(parents=True, exist_ok=True)
+        (run / "review").mkdir(parents=True, exist_ok=True)
+        thumbs = run / "thumbs"
+        thumbs.mkdir(exist_ok=True)
+        urls = []
+        for index, size in enumerate(sizes):
+            path = thumbs / f"t{index}.jpg"
+            PILImage.new("RGB", size, "white").save(path)
+            urls.append(f"thumbs/t{index}.jpg")
+
+        detail = thumbs / "detail.jpg"
+        PILImage.new("RGB", (300, 450), "white").save(detail)
+        (run / "golden" / "gallery.jsonl").write_text(
+            json.dumps(
+                {
+                    "productKey": "DEMO:1",
+                    "thumbnails": [{"url": url} for url in urls],
+                    "details": [{"sceneId": "D01T01", "url": "detail.jpg"}],
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (run / "review" / "verdicts.jsonl").write_text(
+            json.dumps({"productKey": "DEMO:1", "owner": "GOLDEN"}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        (run / "queue" / "signal.jsonl").write_text(
+            json.dumps({"productKey": "DEMO:1"}, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        (run / "run-summary.json").write_text(
+            json.dumps(
+                {
+                    "generatedAt": "2026-01-01T00:00:00+00:00",
+                    "artifacts": {
+                        "gallery": str(run / "golden" / "gallery.jsonl"),
+                        "arbiterVerdicts": str(run / "review" / "verdicts.jsonl"),
+                        "queueDirectory": str(run / "queue"),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPT), "--run", str(run)], capture_output=True, text=True
+        )
+        return json.loads((run / "run-review/scenes/index.json").read_text(encoding="utf-8"))
+
+    def test_the_biggest_thumbnail_wins_not_the_first(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            index = self._run_with_thumbnails(Path(temporary), [(200, 240), (500, 600)])
+            reference = index["products"][0]["reference"]
+            self.assertEqual(reference["size"], [500, 600])
+
+    def test_the_reference_size_is_recorded(self) -> None:
+        """작은 대표 사진에서 나온 대조는 큰 것에서 뒤집힐 수 있다. 크기가 없으면 그걸 모른다."""
+        with tempfile.TemporaryDirectory() as temporary:
+            index = self._run_with_thumbnails(Path(temporary), [(200, 240)])
+            self.assertEqual(index["products"][0]["reference"]["size"], [200, 240])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "basedOn": {
     "file": ".claude/os/runs/bag-category-gender/run-summary.json",
-    "generatedAt": "2026-09-06T08:38:02.641932+00:00",
+    "generatedAt": "2026-09-07T00:08:29.479231+00:00",
     "profileId": "bag-category-gender"
   },
   "checks": [
@@ -61,7 +61,7 @@
     {
       "condition": "큐에 쌓인 상품이 전부 한 번은 사람 판정을 거쳤다",
       "met": false,
-      "observed": 320,
+      "observed": 386,
       "source": "recount"
     },
     {
@@ -92,12 +92,12 @@
   "findingCounts": {
     "ERROR": 0,
     "INFO": 0,
-    "WARN": 2
+    "WARN": 3
   },
   "findings": [
     {
       "check": "REVIEW_LOAD",
-      "count": 211,
+      "count": 202,
       "detail": {},
       "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
       "sample": [
@@ -127,11 +127,45 @@
     },
     {
       "check": "REVIEW_LOAD",
-      "count": 93,
+      "count": 75,
+      "detail": {
+        "decidableByOwner": {
+          "GOAL": 89
+        }
+      },
+      "pointer": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
+      "sample": [
+        "EGOOCM:3398259",
+        "EGOOCM:3398514",
+        "EGOOCM:3403458",
+        "EGOOCM:3407501",
+        "EGOOCM:3408507",
+        "EGOOCM:3409072",
+        "EGOOCM:3409179",
+        "EGOOCM:3409704",
+        "EGOOCM:3409735",
+        "EGOOCM:3409806",
+        "EGOOCM:3411357",
+        "EGOOCM:3412173",
+        "EGOOCM:3412458",
+        "EGOOCM:3412527",
+        "EGOOCM:3413942",
+        "EGOOCM:3416996",
+        "EGOOCM:3417061",
+        "EGOOCM:3424890",
+        "EGOOCM:3424926",
+        "EGOOCM:3425580"
+      ],
+      "severity": "WARN",
+      "summary": "판정 가능한 건 중 골든셋과 실행 라벨이 이미 같은 것이 있다. 상품 단위로 뒤집을 것이 없고, 정책에 규칙을 써야 닫힌다 — 건별 판정으로 세면 일감이 부풀어 보인다."
+    },
+    {
+      "check": "REVIEW_LOAD",
+      "count": 95,
       "detail": {
         "blockedByPrecedent": {
           "BG-0001": 14,
-          "BG-0002": 48,
+          "BG-0002": 55,
           "BG-0003": 43
         }
       },
@@ -143,7 +177,7 @@
         },
         {
           "precedent": "BG-0002",
-          "products": 48
+          "products": 55
         },
         {
           "precedent": "BG-0003",
@@ -157,26 +191,25 @@
   "recount": {
     "adjudicatedProducts": 0,
     "deferredProducts": 0,
-    "pendingProducts": 320,
-    "queuedProducts": 320
+    "pendingProducts": 386,
+    "queuedProducts": 386
   },
   "reviewLoad": {
     "blockedByPrecedent": {
       "BG-0001": 14,
-      "BG-0002": 48,
+      "BG-0002": 55,
       "BG-0003": 43
     },
-    "blockedProducts": 93,
+    "blockedProducts": 95,
     "decidableByOwner": {
-      "GOAL": 12,
-      "GOLDEN": 4
+      "GOAL": 89
     },
-    "decidableNow": 16,
-    "decidableWithAgreedLabels": 0,
-    "noConflictProducts": 211,
-    "pendingProducts": 320
+    "decidableNow": 89,
+    "decidableWithAgreedLabels": 75,
+    "noConflictProducts": 202,
+    "pendingProducts": 386
   },
-  "reviewedAt": "2026-09-06T08:38:03.053238+00:00",
+  "reviewedAt": "2026-09-07T00:08:49.977462+00:00",
   "runId": "bag-category-gender",
   "schemaVersion": "catalog-run-review-v1",
   "verdict": "WARN"
