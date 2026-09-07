@@ -15,9 +15,6 @@ import html, json, pathlib
 ROWS = json.loads(pathlib.Path('gt-rows.json').read_text(encoding='utf-8'))
 E = lambda s: html.escape(str(s or ''), quote=True)
 
-LABEL_KO = {'FEMALE': '여성', 'MALE': '남성', 'UNISEX': '남녀공용', 'UNCLASSIFIED': '미분류',
-            'UNDETERMINED': '판정보류'}
-
 def kept_photos(row):
     return [p for p in row['plate'] if p['role'] == 'TARGET' or p['cited']]
 

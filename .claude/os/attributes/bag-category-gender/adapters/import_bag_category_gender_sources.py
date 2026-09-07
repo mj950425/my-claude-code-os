@@ -35,7 +35,6 @@ POLICY_SOURCE = Path(
 GT_DATA_DIR = Path("tool/image-gender/gt-harness/data")
 # 이 속성의 GT 원장. 계보를 합친 결과이고, 상품 하나에 라벨 하나다.
 GT_LEDGER = Path(".claude/gt/bag-category-gender/gt.jsonl")
-GT_LINEAGE_INDEX = Path(".claude/gt/bag-category-gender/lineage.json")
 REVIEW_SHEET_GT_PATTERN = re.compile(r"^bags-product-gt-(\d{8})\.jsonl$")
 SCORING_GT_PATTERN = re.compile(r"^bags-product-context-gt-(\d{8})\.jsonl$")
 GT_CORRECTIONS_PATTERN = re.compile(r"^bags-product-gt-user-corrections-(\d{8})\.jsonl$")
@@ -158,30 +157,6 @@ def latest_dated_source(directory: Path, pattern: re.Pattern[str]) -> tuple[Path
         raise SystemExit(f"{directory}에서 {pattern.pattern}에 맞는 GT 파일을 찾지 못했습니다.")
     stamp, path = matched[-1]
     return path, f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}"
-
-
-def compact_review_sheet_gt(row: dict[str, Any], dataset_version: str) -> dict[str, Any]:
-    """검수 시트 계보를 정본 GT 스냅샷 계약으로 옮긴다.
-
-    리뷰어 이름과 시트 위치를 함께 남긴다. 충돌이 났을 때 "누가 언제 그렇게 봤는가"가
-    없으면 사람은 두 라벨 중 하나를 고를 근거가 없다.
-    """
-    return {
-        "productKey": row.get("productKey"),
-        "goodsNo": str(row.get("goodsNo") or ""),
-        "platformCode": row.get("platformCode"),
-        "productName": row.get("productName"),
-        "standardCategory": row.get("standardCategory"),
-        "goldLabel": row.get("goldLabel"),
-        "goldSource": row.get("goldLabelSource"),
-        "reviewStatus": row.get("reviewStatus"),
-        "reviewer": row.get("reviewer"),
-        "reviewNote": row.get("reviewNote"),
-        "sourceSheet": row.get("sourceSheet"),
-        "sheetRow": row.get("sheetRow"),
-        "datasetVersion": dataset_version,
-        "pdpUrl": row.get("pdpUrl"),
-    }
 
 
 def apply_scoring_gt(
@@ -480,7 +455,6 @@ def main() -> int:
         gt_data_dir, GT_CORRECTIONS_PATTERN
     )
     gt_ledger_path = PROJECT_ROOT / GT_LEDGER
-    gt_lineage_index_path = PROJECT_ROOT / GT_LINEAGE_INDEX
 
     sources = {
         "policy": source_repo / POLICY_SOURCE,

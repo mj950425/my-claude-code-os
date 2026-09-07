@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from catalog_profile import PROJECT_ROOT, default_profile, load_profile, output_root
+from catalog_profile import default_profile, load_profile, output_root
 
 DECISIONS = {
     "GOLDEN_CONFIRMED",

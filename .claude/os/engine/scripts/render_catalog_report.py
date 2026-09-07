@@ -59,7 +59,6 @@ FIX_GRADES: list[dict[str, str]] = [
     {"id": "ASK", "label": "판단필요", "note": "미결 판례·근거 부족이라 한 답을 못 고른다"},
     {"id": "OPEN", "label": "미확정", "note": "심판 결과가 없다"},
 ]
-FIX_GRADE_IDS = [grade["id"] for grade in FIX_GRADES]
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -374,6 +373,9 @@ def fix_proposal(row: dict[str, Any], labels: list[str]) -> dict[str, Any]:
     }
 
 
+SCENE_ID_RE = re.compile(r"^D(\d+)T(\d+)$")
+
+
 def fix_plate(row: dict[str, Any], gallery: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """이 제안의 증거판. 판독기가 근거로 든 사진이 먼저 오고, 나머지가 뒤를 받친다.
 
@@ -387,24 +389,66 @@ def fix_plate(row: dict[str, Any], gallery: dict[str, dict[str, Any]]) -> list[d
     cited_urls = {text(url) for url in (evidence.get("images") or []) if text(url)}
     notes = evidence.get("notes") or {}
 
+    details = [image for image in (images.get("details") or []) if text(image.get("url"))]
+    # 한 원본이 여러 타일로 갈린다. `DxxTyy`의 `Dxx`가 원본이고 `Tyy`가 그 안의 순번이다.
+    tiles_per_source: Counter[str] = Counter()
+    for image in details:
+        match = SCENE_ID_RE.match(text(image.get("sceneId")))
+        if match:
+            tiles_per_source[text(image.get("url"))] += 1
+
     plate: list[dict[str, Any]] = []
     for image in images.get("thumbnails") or []:
         url = text(image.get("url"))
         if url:
             plate.append({"url": url, "caption": "대표 판매 사진", "role": "TARGET", "cited": False})
-    for image in images.get("details") or []:
+    for image in details:
         url = text(image.get("url"))
-        if not url:
-            continue
         scene = text(image.get("sceneId"))
+        match = SCENE_ID_RE.match(scene)
+        sliced = bool(match) and tiles_per_source.get(url, 0) > 1
         plate.append({
             "url": url,
             "caption": scene or "상세",
             "role": "DETAIL",
-            "cited": bool((scene and scene in cited_scenes) or url in cited_urls),
+            # 인용은 **장면으로만** 판정한다. 긴 원본 하나가 열 타일로 갈리면 URL은 열 장이 공유하므로,
+            # URL로 맞추면 인용하지 않은 아홉 장까지 「근거」가 된다 — 그러면 사람은 어느 사진을
+            # 반박해야 하는지 알 수 없다. 장면 이름이 없는 사진(대표 컷 등)에만 URL을 쓴다.
+            "cited": bool(scene in cited_scenes if scene else url in cited_urls),
             # 판독기가 이 장면에서 무엇을 봤는지. 주장과 사진을 잇는 한 줄이다.
             "note": text(notes.get(scene)) if scene else "",
+            # 잘린 조각을 원본 통째로 보여주면 열 장이 똑같아 보인다. 어디를 봤는지 못 가린다.
+            "tile": int(match.group(2)) if sliced else 0,
+            "derived": False,
+            "absent": False,
         })
+    # 갤러리는 판독기가 **고른** 타일만 싣는다. 그런데 인용한 장면이 그 목록에 없을 수 있다.
+    # 그대로 두면 "남녀 모두 확인됨"이라 써 놓고 여성 사진 한 장만 실리고, 사람은 남성 근거가
+    # 아예 없었다고 읽는다 — 실제로는 **사진을 안 실은 것**이다. 둘은 다르다.
+    #
+    # 같은 원본(`Dxx`)의 다른 타일이 하나라도 있으면 그 URL로 빠진 타일도 되짚을 수 있다.
+    # 되짚지 못하면 빈자리로 두지 말고 "스냅샷에 없다"고 적는다.
+    shown = {text(image.get("sceneId")) for image in details}
+    url_by_source: dict[str, str] = {}
+    for image in details:
+        match = SCENE_ID_RE.match(text(image.get("sceneId")))
+        if match:
+            url_by_source.setdefault(match.group(1), text(image.get("url")))
+    for scene in sorted(cited_scenes - shown):
+        match = SCENE_ID_RE.match(scene)
+        url = url_by_source.get(match.group(1)) if match else ""
+        plate.append({
+            "url": url,
+            "caption": scene,
+            "role": "DETAIL",
+            "cited": True,
+            "note": text(notes.get(scene)),
+            "tile": int(match.group(2)) if (match and url) else 0,
+            # 갤러리가 싣지 않은 장면이다. 어디서 왔는지 밝히지 않으면 나머지와 구분되지 않는다.
+            "derived": bool(url),
+            "absent": not url,
+        })
+
     # 인용된 장면이 앞으로. 대표 사진은 늘 첫 자리를 지킨다 — 무엇을 파는지 모르면 근거도 못 읽는다.
     target = [item for item in plate if item["role"] == "TARGET"]
     rest = [item for item in plate if item["role"] != "TARGET"]
@@ -553,8 +597,6 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 /* 정정 후보: 한 제안이 한 장이다. 제목 다음이 바로 필터이고, 그 다음이 제안이다 —
    머리에 리포트 자신을 설명하는 말도, 리포트 자신을 세는 숫자도 두지 않는다.
    이 화면이 묻는 것은 "이 GT가 틀렸나" 하나뿐이고, 나머지는 그 답에 기여하지 않는다. */
-.fx-intro,.fx-legend{display:none}
-
 .fx{display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 32px;padding:60px 0 68px;
     border-top:1px solid var(--ink);animation:fx-rise .45s cubic-bezier(.2,.7,.3,1) both}
 @keyframes fx-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
@@ -614,6 +656,16 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
 /* 높이를 고정하면 세로로 긴 상세컷이 가운데 실오라기 한 줄로 줄어든다 — 증거를 못 읽는다.
    폭을 채우고 높이는 사진이 정한다. 격자가 들쭉날쭉해지지만, 보이는 편이 낫다. */
+/* 긴 상세 원본에서 이 장면이 실제로 차지한 자리만 보여준다. 타일 높이는 폭×1.5라
+   (`DxxTyy` 경계 규칙), 액자를 2:3으로 잡으면 액자 높이가 곧 타일 한 칸이다.
+   그러면 `top`의 100%가 정확히 한 타일이라 원본 높이를 몰라도 잘라 낼 수 있다.
+   자르지 않으면 한 원본에서 나온 열 장이 전부 같은 그림으로 보이고,
+   「어느 사진이 남성 근거인가」에 답할 수 없다. */
+.plate .frame.tiled{position:relative;aspect-ratio:2/3;overflow:hidden;border-width:0;
+  outline:1px solid var(--rule);outline-offset:-1px}
+.plate figure.cited .frame.tiled{border-width:0;outline:2px solid var(--accent);outline-offset:-2px}
+.plate .frame.tiled img{position:absolute;left:0;top:calc(var(--tile) * -100%);
+  width:100%;height:auto;min-height:0;max-height:none}
 .plate .frame img{display:block;width:100%;height:auto;min-height:200px;max-height:520px;
                   object-fit:contain;background:#fff}
 .plate figure.cited .frame{border:2px solid var(--accent)}
@@ -622,10 +674,19 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .plate figcaption{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--ghost)}
 .plate figcaption .scene{display:block}
 /* 판독기가 이 장면에서 본 것. 주장과 사진을 잇는 한 줄이라 캡션에서 가장 크게 읽혀야 한다 */
-.plate figcaption .saw{display:block;margin-top:4px;font-family:var(--sans);font-size:12.5px;
-                       font-weight:700;letter-spacing:0;color:var(--ink)}
+/* 판독 기록은 사진에 붙어야 한다. 캡션 한 줄로 떨어뜨리면 어느 사진의 말인지 흐려진다. */
+.plate .seen{position:absolute;left:0;right:0;bottom:0;padding:7px 9px;
+  font-family:var(--sans);font-size:12px;line-height:1.35;text-align:left;
+  background:rgba(255,255,255,.94);border-top:1px solid var(--rule)}
+.plate .seen b{font-weight:600}
+.plate .seen.male b{color:#1449b8}
+.plate .seen.female b{color:#c0134a}
+.plate .seen.none{color:var(--ghost);font-style:italic}
+.plate .frame.missing{position:relative;aspect-ratio:2/3;display:grid;place-items:center;
+  border:1px dashed var(--rule);background:var(--inset);padding:14px;text-align:center}
+.plate .frame.missing .seen{position:static;background:none;border:0;text-align:center}
+.plate figcaption .derived{display:block;margin-top:3px;font-family:var(--sans);font-size:11.5px;color:var(--muted)}
 .plate figure.cited figcaption .scene{color:var(--accent)}
-.plate figure.cited figcaption .saw{color:var(--accent)}
 .plate figcaption .fail{display:none;margin-top:4px;color:var(--accent)}
 .plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
 .plate figure.gone .frame img{height:44px;opacity:0}
@@ -738,9 +799,9 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (max-width:900px){
   .wrap{width:min(1360px,calc(100% - 28px))}
-  .legend,.lanes,.aside-strip{grid-template-columns:1fr}
-  .legend div,.aside-strip div{border-left:0;border-top:1px solid var(--rule)}
-  .legend div:first-child,.aside-strip div:first-child{border-top:0}
+  .lanes,.aside-strip{grid-template-columns:1fr}
+  .aside-strip div{border-left:0;border-top:1px solid var(--rule)}
+  .aside-strip div:first-child{border-top:0}
   .aside-strip div{padding-left:0}
   .lane{padding:0 0 22px}
   .lane + .lane{border-left:0;border-top:1px solid var(--rule);padding:22px 0}
@@ -749,7 +810,7 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
   .cluster-head,.product{grid-template-columns:1fr;gap:10px}
   .fx{grid-template-columns:1fr;gap:14px 0;padding:22px 0 28px}
   .fx-rail{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
-  .fx-rail .case,.fx-rail .org,.fx-rail .chips{margin-top:0}
+  .fx-rail .chips{margin-top:0}
   .stamp{transform:none}
   .plate .shots{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
   .plate .frame img{height:200px}
@@ -938,14 +999,43 @@ function matches(row){
     .filter(Boolean).join(' ').toLowerCase().includes(q);
 }
 
+// 원본의 **마지막 조각**은 한 타일보다 짧다. 액자가 2:3을 강제하면 그만큼 아래가 빈칸으로 남아,
+// 근거 사진이 «비어 있다»로 보인다. 실제로는 조각이 짧은 것뿐이다.
+// 이미지가 뜬 뒤 실제 남은 높이를 재서 액자를 거기에 맞춘다 — CSS만으로는 원본 높이를 모른다.
+function fitTile(img){
+  const frame = img.closest('.frame.tiled');
+  if(!frame) return;
+  const rendered = img.naturalHeight * (img.clientWidth / img.naturalWidth);
+  const offset = -parseFloat(getComputedStyle(img).top) || 0;
+  const left = rendered - offset;
+  if(left > 0 && left < frame.getBoundingClientRect().height){
+    frame.style.aspectRatio = 'auto';
+    frame.style.height = left + 'px';
+  }
+}
+
 function shot(item){
   // 원본이 사라진 사진은 빈 액자로 남기지 않는다. 자리를 접고 "못 불러왔다"고 적는다 —
   // 빈 액자는 "근거가 없다"로 읽히고, 그건 사실이 아니다.
-  return `<figure class="${item.cited?'cited':''}"><button class="frame" type="button" onclick="zoom(this)" aria-label="${esc(item.caption)} 크게 보기">`
+  // 인용된 장면에는 «여기서 무엇을 봤는가»를 사진 위에 얹는다. 인용해 놓고 기록이 없으면
+  // 그 사실을 적는다 — 빈칸은 «볼 게 없었다»로 읽히지만 실제로는 «적지 않았다»이고, 둘은 다르다.
+  const tone = /남성/.test(item.note||'') ? 'male' : /여성/.test(item.note||'') ? 'female' : '';
+  const seen = item.cited
+    ? (item.note ? `<span class="seen ${tone}">판독기가 본 것 <b>${esc(item.note)}</b></span>`
+                 : `<span class="seen none">인용했지만 이 장면의 판독 기록이 없다</span>`)
+    : '';
+  // 인용했는데 원본조차 못 찾은 장면. 빈자리로 접으면 «근거가 없었다»로 읽히지만
+  // 사실은 «사진을 못 구했다»이다. 자리를 남기고 그렇게 적는다.
+  if(item.absent) return `<figure class="cited absent"><div class="frame missing">`
+    + `<span class="seen none">인용했지만 이 장면이 스냅샷에 없다</span></div>`
+    + `<figcaption><span class="scene">${esc(item.caption)} · 인용</span></figcaption></figure>`;
+  return `<figure class="${item.cited?'cited':''}"><button class="frame${item.tile?' tiled':''}" type="button"`
+    + (item.tile?` style="--tile:${item.tile-1}"`:'')
+    + ` onclick="zoom(this)" aria-label="${esc(item.caption)} 크게 보기">`
     + `<img loading="lazy" src="${esc(item.url)}" referrerpolicy="no-referrer" alt="${esc(item.caption)}${item.cited?' — 판독기가 인용한 근거 장면':' — 판독기에 함께 들어간 장면'}"`
-    + ` onerror="this.closest('figure').classList.add('gone')"></button>`
-    + `<figcaption><span class="scene">${esc(item.caption)}${item.cited?' · 인용':''}</span>`
-    + (item.note?`<b class="saw">${esc(item.note)}</b>`:'')
+    + ` onload="fitTile(this)" onerror="this.closest('figure').classList.add('gone')">${seen}</button>`
+    + `<figcaption><span class="scene">${esc(item.caption)}${item.cited?' · 인용':''}${item.tile?` · 원본 ${item.tile}번째 조각`:''}</span>`
+    + (item.derived?`<span class="derived">갤러리에 없어 같은 원본에서 되짚었다</span>`:'')
     + `<span class="fail">원본을 못 불러왔다</span></figcaption></figure>`;
 }
 

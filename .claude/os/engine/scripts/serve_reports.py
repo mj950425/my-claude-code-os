@@ -99,6 +99,9 @@ class Attribute:
         self.root = output_root(self.profile)
         self.summary = read_json(self.root / "run-summary.json", {})
         self.review = read_json(self.root / "run-review" / "run-review.json", {})
+        # 심사가 남긴 재판독 판정. 엔진 보고서는 «실행이 주장한 것»을 싣고,
+        # 그 주장이 반박됐는지는 이 파일에만 있다. 서버가 둘을 잇는 유일한 자리다.
+        self.recheck = read_json(self.root / "run-review" / "recheck.json", {})
         self.policy = read_json(self.root / "policy" / "policy-index.json", {})
         self.status = read_json(self.root / "review" / "status.json", {})
         self.questions = read_json(self.root / "reports" / "policy-questions.json", [])
@@ -280,7 +283,6 @@ h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
 a{color:inherit;text-decoration:none}
 .lnk{border-bottom:1px solid #D8D8D8;transition:border-color .16s}
 .lnk:hover{border-color:var(--ink)}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .mk{display:inline-block;width:11px;height:11px;border:1.5px solid currentColor;flex:0 0 auto}
 .mk.gt{background:currentColor}
 .mk.op{background:linear-gradient(135deg,currentColor 0 50%,transparent 50% 100%)}
@@ -465,7 +467,7 @@ def no_run(attribute: Attribute, others: list[Attribute]) -> bytes:
 def page_home(attribute: Attribute, others: list[Attribute]) -> bytes:
     if not attribute.has_run:
         return no_run(attribute, others)
-    load, counts = attribute.load(), attribute.counts()
+    counts = attribute.counts()
     finding = attribute.summary.get("primaryFinding")
     finding = finding if isinstance(finding, dict) else {}
 
@@ -592,7 +594,6 @@ def page_doc(attribute: Attribute, others: list[Attribute], rel: str) -> bytes |
 def page_gt(attribute: Attribute, others: list[Attribute]) -> bytes:
     if not attribute.has_run:
         return no_run(attribute, others)
-    load = attribute.load()
     finding = attribute.summary.get("primaryFinding")
     finding = finding if isinstance(finding, dict) else {}
     titles = {
@@ -609,6 +610,19 @@ def page_gt(attribute: Attribute, others: list[Attribute]) -> bytes:
         for path in [attribute.artifact(key)]
         if path is not None
     )
+    # 재판독 화면은 심사 산출물이라 요약의 artifacts에 없다. 엔진이 심사를 모르기 때문이다.
+    # 서버는 양쪽을 다 읽으므로 여기서 잇는다 — 건수는 recheck.json이 적어 둔 값을 그대로 쓴다.
+    recheck_counts = attribute.recheck.get("counts") if isinstance(attribute.recheck, dict) else None
+    if isinstance(recheck_counts, dict) and recheck_counts.get("products"):
+        refuted = recheck_counts.get("REFUTED") or 0
+        cards += (
+            f'<a class="card" href="/f/{esc(attribute.id)}/run-review/recheck.html">'
+            '<div class="top"><b>재판독 판정</b>'
+            '<span class="st DECIDED">열기 &rarr;</span></div>'
+            "<p>판독기가 든 근거를 사진으로 되짚은 결과다. "
+            f"{num(refuted)}건이 반박됐다 &mdash; 그 건은 위 보고서의 주장이 서지 않는다.</p>"
+            '<p class="meta">recheck.html</p></a>'
+        )
     return shell(
         f"GT 개선 — {attribute.profile['displayName']}",
         top_bar(attribute, others, "홈 / GT 개선",

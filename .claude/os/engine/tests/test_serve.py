@@ -14,7 +14,6 @@ import json
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 import urllib.error
 import urllib.request
