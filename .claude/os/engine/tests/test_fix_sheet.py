@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -66,6 +67,20 @@ def unpack(report: Path) -> dict:
         return value
 
     return thaw(packed["data"])
+
+
+def _load_renderer():
+    spec = importlib.util.spec_from_file_location("render_catalog_report", RENDERER)
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(RENDERER.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
+    return module
+
+
+render = _load_renderer()
 
 
 class FixSheetTest(unittest.TestCase):
@@ -166,3 +181,52 @@ class FixSheetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReaderNotesAreNeverFoldedTest(unittest.TestCase):
+    """판독기가 적어 둔 것은 인용 여부와 무관하게 보인다.
+
+    이 시험은 실제 사고에서 나왔다. 실행이 「여성 모델만 대상 상품을 착용」이라 주장한
+    상품에서, 판독기 자신이 다른 장면에 **「남성 · 대상 상품 아님」**을 적어 두었다.
+    그 남성은 사진에서 대상 상품을 들고 있었고 — 즉 그 한 줄이 주장의 반증이었는데,
+    인용하지 않았다는 이유로 접힌 채였다. 사람은 「인용 1장」만 보고 주장이 섰다고 읽었다.
+
+    **인용하지 않은 장면의 기록이 주장과 어긋날 때가 가장 중요하다.** 그때 접으면 못 본다.
+    """
+
+    def row(self) -> dict:
+        return {
+            "productKey": "T:9",
+            "evidence": {
+                "sceneIds": ["D01T01"],
+                "images": [],
+                # 주장은 여성만인데, 인용하지 않은 장면에 남성 기록이 남아 있다.
+                "notes": {"D01T01": "여성 · 착용", "D06T01": "남성 · 대상 상품 아님"},
+            },
+        }
+
+    def gallery(self) -> dict:
+        return {
+            "T:9": {
+                "thumbnails": [{"url": "thumb.jpg"}],
+                "details": [
+                    {"url": "a.jpg", "sceneId": "D01T01"},
+                    {"url": "b.jpg", "sceneId": "D06T01"},
+                ],
+            }
+        }
+
+    def test_a_note_on_an_uncited_scene_survives_into_the_plate(self) -> None:
+        plate = render.fix_plate(self.row(), self.gallery())
+        found = {item["caption"]: item for item in plate if item["role"] == "DETAIL"}
+        self.assertFalse(found["D06T01"]["cited"])
+        self.assertEqual(found["D06T01"]["note"], "남성 · 대상 상품 아님")
+
+    def test_the_sheet_keeps_noted_scenes_out_of_the_fold(self) -> None:
+        """접는 규칙에 «기록이 있는 장면»이 빠지면 반증이 다시 숨는다."""
+        source = RENDERER.read_text(encoding="utf-8")
+        self.assertIn("x===firstTarget||x.cited||x.note", source)
+
+    def test_the_note_is_drawn_even_when_the_scene_was_not_cited(self) -> None:
+        source = RENDERER.read_text(encoding="utf-8")
+        self.assertIn("const seen = item.note", source)

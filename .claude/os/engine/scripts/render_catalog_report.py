@@ -645,6 +645,43 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .fx-say.mut p{color:var(--muted)}
 .fx-say .src{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ghost)}
 
+/* 판정 — 읽는 자리에서 그대로 답한다.
+   액센트는 «조치할 자리»에만 쓴다는 이 화면의 규칙 그대로, 승인 버튼 하나가 그 자리다. */
+.act{margin-top:36px;padding-top:22px;border-top:1px solid var(--ink)}
+.act-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:16px;
+          font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.act-form{display:grid;gap:12px;max-width:760px}
+.act-bind{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;align-items:center}
+.act-bind>span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost)}
+.act select,.act input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--rule);background:var(--paper);
+  color:var(--ink);font-family:var(--sans);font-size:14px;border-radius:0}
+.act select:focus,.act input[type=text]:focus{outline:0;border-color:var(--ink)}
+.act select[disabled]{background:var(--inset);color:var(--muted)}
+/* 규칙 칸은 판례를 고르면 잠긴다. 왜 잠겼는지가 옆에 적혀야 «고장」으로 안 읽힌다. */
+.act-rule{display:block;min-width:0}
+.act-rule small{display:block;margin-top:6px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.04em;color:var(--faint)}
+.act-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+.act button{padding:12px 18px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.act button:hover{background:var(--ink);color:var(--paper)}
+.act button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.go:hover{background:#B01D00;border-color:#B01D00}
+.act button[disabled]{opacity:.45;cursor:default}
+.act button[disabled]:hover{background:var(--paper);color:var(--ink)}
+.act .out{font-family:var(--mono);font-size:11.5px;line-height:1.6;letter-spacing:.02em;color:var(--muted);
+  padding:12px 14px;background:var(--inset);overflow-wrap:anywhere}
+.act .out.bad{background:var(--accent-soft);color:#8C1800}
+/* 이미 답한 건. 폼을 지우고 무엇을 언제 답했는지만 남긴다 — 두 번 누를 자리를 없앤다. */
+.act.settled{border-top-color:var(--rule)}
+.act .stamp-done{display:grid;gap:6px;padding:14px 16px;background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink);overflow-wrap:anywhere}
+.act .stamp-done b{font-size:12px;letter-spacing:.06em}
+.act .stamp-done .held{color:var(--accent)}
+/* 서버 없이 파일로 열었을 때. 버튼을 그려 놓고 안 눌리는 것보다 왜 안 되는지 적는 편이 낫다. */
+.act .offline{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--faint);
+  padding:12px 14px;border:1px dashed var(--rule)}
+
 /* 증거판 — 인용된 장면이 먼저 온다 */
 .plate{margin-top:34px}
 .plate-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
@@ -682,6 +719,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .plate .seen.male b{color:#1449b8}
 .plate .seen.female b{color:#c0134a}
 .plate .seen.none{color:var(--ghost);font-style:italic}
+/* 인용하지 않았는데 판독기가 무언가 적어 둔 장면. 근거로 채택된 것과 같은 무게로 보이면
+   안 되지만, 숨기면 반증이 사라진다 — 실행의 주장과 어긋나는 기록이 여기 있었다. */
+.plate .seen.aside{background:rgba(255,255,255,.9);border-top:1px dashed var(--rule)}
+.plate figure:not(.cited) .frame{outline:1px dashed var(--rule);outline-offset:-1px}
 .plate .frame.missing{position:relative;aspect-ratio:2/3;display:grid;place-items:center;
   border:1px dashed var(--rule);background:var(--inset);padding:14px;text-align:center}
 .plate .frame.missing .seen{position:static;background:none;border:0;text-align:center}
@@ -1019,11 +1060,15 @@ function shot(item){
   // 빈 액자는 "근거가 없다"로 읽히고, 그건 사실이 아니다.
   // 인용된 장면에는 «여기서 무엇을 봤는가»를 사진 위에 얹는다. 인용해 놓고 기록이 없으면
   // 그 사실을 적는다 — 빈칸은 «볼 게 없었다»로 읽히지만 실제로는 «적지 않았다»이고, 둘은 다르다.
+  // **판독기가 적은 것은 인용 여부와 무관하게 보여준다.** 전에는 인용된 장면의 기록만
+  // 실었는데, 그 자리가 정확히 반증이 숨는 자리였다 — 실행이 「여성 모델만 착용」이라
+  // 주장한 상품에서 판독기 자신이 다른 장면에 「남성 · 대상 상품 아님」을 적어 두었고,
+  // 그 남성이 실제로는 대상 상품을 들고 있었다. 인용 안 했다는 이유로 접힌 채였다.
+  // 인용하지 않은 장면의 기록이 주장과 어긋날 때가 가장 중요하다. 그때 접으면 못 본다.
   const tone = /남성/.test(item.note||'') ? 'male' : /여성/.test(item.note||'') ? 'female' : '';
-  const seen = item.cited
-    ? (item.note ? `<span class="seen ${tone}">판독기가 본 것 <b>${esc(item.note)}</b></span>`
-                 : `<span class="seen none">인용했지만 이 장면의 판독 기록이 없다</span>`)
-    : '';
+  const seen = item.note
+    ? `<span class="seen ${tone}${item.cited?'':' aside'}">판독기가 본 것 <b>${esc(item.note)}</b></span>`
+    : (item.cited ? `<span class="seen none">인용했지만 이 장면의 판독 기록이 없다</span>` : '');
   // 인용했는데 원본조차 못 찾은 장면. 빈자리로 접으면 «근거가 없었다»로 읽히지만
   // 사실은 «사진을 못 구했다»이다. 자리를 남기고 그렇게 적는다.
   if(item.absent) return `<figure class="cited absent"><div class="frame missing">`
@@ -1046,12 +1091,16 @@ function plate(row){
   // 대표 사진이 여러 장인 상품이 있다. 전부 앞에 깔면 인용된 장면이 맨 뒤로 밀려,
   // 사람이 제일 먼저 봐야 할 사진을 제일 나중에 보게 된다. 대표는 한 장만 세우고
   // 나머지는 접는다 — 무엇을 반박해야 하는지가 먼저 보여야 한다.
+  // **판독기가 기록을 남긴 장면은 접지 않는다.** 인용하지 않았어도 무언가 적었다는 것은
+  // 그 장면을 실제로 봤다는 뜻이고, 그 기록이 주장과 어긋날 때가 사람이 가장 먼저 봐야 할
+  // 자리다. 접어 두면 «인용 1장»만 보고 주장이 서 있다고 읽는다.
   const firstTarget=all.find(x=>x.role==='TARGET');
-  const lead=all.filter(x=>x===firstTarget||x.cited);
+  const lead=all.filter(x=>x===firstTarget||x.cited||x.note);
   const rest=all.filter(x=>lead.indexOf(x)<0);
   const cited=all.filter(x=>x.cited).length;
+  const noted=all.filter(x=>x.note&&!x.cited).length;
   return `<div class="plate">
-    <div class="plate-head"><span>증거</span><span>${cited?`인용 ${fmt(cited)}장`:'인용 표시 없음'} · 전체 ${fmt(all.length)}장 · 클릭하면 확대</span></div>
+    <div class="plate-head"><span>증거</span><span>${cited?`인용 ${fmt(cited)}장`:'인용 표시 없음'}${noted?` · 인용 안 한 판독 기록 ${fmt(noted)}장`:''} · 전체 ${fmt(all.length)}장 · 클릭하면 확대</span></div>
     <div class="shots">${lead.map(shot).join('')}</div>
     ${rest.length?`<details><summary>판독기에 함께 들어간 나머지 ${fmt(rest.length)}장 보기</summary><div class="shots">${rest.map(shot).join('')}</div></details>`:''}
   </div>`;
@@ -1082,6 +1131,165 @@ function ruling(row){
 
 function say(label, text, muted, extra){
   return `<div class="fx-say${muted?' mut':''}"><b>${esc(label)}</b><p>${esc(text)}${extra||''}</p></div>`;
+}
+
+/* ── 판정 ──────────────────────────────────────────────────────────────────
+   이 화면은 "이 GT가 틀렸다"는 주장 열 건을 늘어놓는다. 답할 자리가 없으면 사람은
+   터미널을 열고 상품 키를 옮겨 적어야 했고, 그래서 답이 안 쌓였다. 답은 여기서 한다.
+
+   승인은 라벨만으로 서지 않는다. **어느 정책 경계 위에 선 판정인가**를 함께 고른다.
+   그 규격은 화면이 정하지 않는다 — 서버의 기록기가 정하고, 어긴 요청은 문장으로 돌아온다. */
+const ONLINE = location.protocol === 'http:' || location.protocol === 'https:';
+const PROFILE = (data.profile||{}).id||'';
+const PRECEDENTS = data.precedents||[];
+const RULES = data.rules||[];
+const answered = p => String(p&&p.status||'') === 'DECIDED';
+let ledger = {};   /* 상품 → 지금 유효한 판정 */
+let waiting = {};  /* 상품 → 이 판정을 붙잡고 있는 미결 판례 */
+let reviewer = '';
+try{ reviewer = localStorage.getItem('catalog-os-reviewer')||''; }catch(err){}
+
+async function pullDecided(){
+  if(!ONLINE) return;
+  try{
+    const answer = await fetch('/decided?a='+encodeURIComponent(PROFILE), {headers:{Accept:'application/json'}});
+    if(!answer.ok) return;
+    const body = await answer.json();
+    /* 원장은 이력이라 한 상품에 여러 줄이 쌓인다. 화면이 보일 것은 마지막 하나다. */
+    ledger = {};
+    for(const entry of (body.decisions||[])) ledger[entry.productKey] = entry;
+    waiting = body.waiting||{};
+  }catch(err){}
+}
+
+function precedentField(row){
+  const blocked = (row.verdict&&row.verdict.blockedBy)||[];
+  /* 심판이 «이 건은 이 판례가 답해야 한다»고 본 것이 있으면 그것을 미리 세운다.
+     코드를 외워서 고르게 두면 아무거나 고르고, 그 순간 매핑은 장식이 된다. */
+  const preferred = blocked[0]||'';
+  const options = PRECEDENTS.map(p=>{
+    const q = (p.question||'').replace(/\s+/g,' ').trim();
+    const head = p.id+' · '+(answered(p)?'답한 판례':'미결 — 답할 때까지 GT에 반영 안 됨');
+    return `<option value="${esc(p.id)}"${p.id===preferred?' selected':''}>${esc(q?head+' — '+q:head)}</option>`;
+  }).join('');
+  return `<option value=""${preferred?'':' selected'}>— 근거가 된 판례를 고른다 —</option>${options}`
+    + `<option value="NONE">해당 판례 없음 — 새 판례가 필요하다</option>`;
+}
+
+/* 판정이 선 정책 규칙. 판례를 고르면 판례가 알려 주므로 잠긴다 — 두 곳에서 고르게 하면
+   서로 어긋난 판정이 원장에 들어온다. 「판례 없음」일 때만 사람이 직접 고르고, 그때
+   이 값이 곧 «이 규칙에 판례가 필요하다»는 신호로 남는다. */
+function ruleField(row){
+  const options = RULES.map(r=>{
+    const s=(r.summary||'').replace(/\s+/g,' ').trim();
+    return `<option value="${esc(r.id)}">${esc(r.id + (s?' — '+s:''))}</option>`;
+  }).join('');
+  return `<option value="">— 어느 규칙 위의 판단인가 —</option>${options}`;
+}
+
+function ruleOf(precedentId){
+  const found = PRECEDENTS.find(p=>p.id===precedentId);
+  return (found && (found.rules||[])[0]) || '';
+}
+
+/* 판례 선택이 바뀌면 규칙 칸을 따라오게 한다. 판례가 규칙을 갖고 있으면 그 값으로 잠그고,
+   「판례 없음」이면 풀어서 사람이 고르게 한다. */
+function syncRule(panel){
+  const pick = panel.querySelector('[data-role=precedent]').value;
+  const rule = panel.querySelector('[data-role=rule]');
+  const hint = panel.querySelector('[data-role=rule-hint]');
+  if(pick && pick!=='NONE'){
+    const bound = ruleOf(pick);
+    rule.value = bound; rule.disabled = true;
+    hint.textContent = bound ? '판례가 걸린 규칙이다' : '이 판례는 특정 규칙 위에 서지 않는다';
+  }else{
+    rule.disabled = false;
+    hint.textContent = pick==='NONE' ? '판례가 없으므로 규칙이 유일한 정책 앵커다' : '';
+  }
+}
+
+function settledPanel(row){
+  const d = ledger[row.productKey]; if(!d) return '';
+  const held = waiting[row.productKey]||'';
+  const what = d.decision==='GOLDEN_CORRECTION_NEEDED'
+    ? `${esc(row.referenceLabel)||'—'} → ${esc(d.correctedLabel)||'—'}로 정정`
+    : d.decision==='GOLDEN_CONFIRMED' ? `현재 GT «${esc(d.goldLabelAtDecision)||'—'}»가 맞다`
+    : esc(d.decision);
+  const bind = d.precedentId
+    ? `근거 판례 ${esc(d.precedentId)}${d.policyRuleId?' · 규칙 '+esc(d.policyRuleId):''}`
+    : `걸리는 판례 없음 · 규칙 ${esc(d.policyRuleId)||'—'} — 이 규칙에 판례가 필요하다`;
+  return `<div class="act settled" data-key="${esc(row.productKey)}"><div class="act-head"><span>판정됨</span></div>
+    <div class="stamp-done"><b>${what}</b>
+      <span>${bind}${d.policyQuestionId?' · 질문 '+esc(d.policyQuestionId):''}</span>
+      <span>${esc(d.reviewer)||'—'} · ${esc(String(d.reviewedAt||'').slice(0,19).replace('T',' '))}</span>
+      <span>${esc(d.reason)||''}</span>
+      ${held?`<span class="held">${esc(held)} — 이 판례가 답할 때까지 GT에 반영되지 않는다. 판례를 닫으면 기다리던 건이 한꺼번에 나간다.</span>`
+            :'<span>GT 원장으로 나갔다.</span>'}
+    </div>
+    <div class="act-buttons"><button type="button" data-act="redo">판정 바꾸기</button></div></div>`;
+}
+
+function actPanel(row, force){
+  if(ledger[row.productKey] && !force) return settledPanel(row);
+  if(!ONLINE) return `<div class="act"><div class="act-head"><span>판정</span></div>
+    <p class="offline">파일로 직접 열면 판정을 기록할 수 없다. <b>./serve.sh start</b> 뒤 로컬 서버 주소로 연다.</p></div>`;
+  const keep = esc(row.referenceLabel)||'—', to = esc(row.fix.proposed)||'';
+  /* 판정을 바꿀 때는 이전 판정을 지우지 않고 덮는다. 원장은 이력이라 «무엇을 왜 뒤집었나»가
+     남아야 하고, 그래서 이전 decisionId를 함께 보낸다. */
+  const prior = ledger[row.productKey];
+  return `<div class="act" data-key="${esc(row.productKey)}"${prior?` data-supersedes="${esc(prior.decisionId)}"`:''}>
+    <div class="act-head"><span>판정</span><span>${prior?'이전 판정을 덮는다 — 지우지 않고 이력으로 남는다':'어느 경계 위에 선 판정인지 함께 남긴다'}</span></div>
+    <div class="act-form">
+      <label class="act-bind"><span>근거 판례</span><select data-role="precedent">${precedentField(row)}</select></label>
+      <label class="act-bind"><span>정책 규칙</span><span class="act-rule"><select data-role="rule">${ruleField(row)}</select><small data-role="rule-hint"></small></span></label>
+      <label class="act-bind"><span>사유</span><input type="text" data-role="reason" placeholder="무엇을 보고 그렇게 판단했는가"></label>
+      <label class="act-bind"><span>판정자</span><input type="text" data-role="reviewer" value="${esc(reviewer)}" placeholder="이름"></label>
+      <div class="act-buttons">
+        ${to&&!row.fix.unchanged?`<button type="button" class="go" data-act="fix">${to}로 정정 승인</button>`:''}
+        <button type="button" data-act="keep">현재 GT «${keep}»가 맞다</button>
+      </div>
+      <div class="out" data-role="out" hidden></div>
+    </div></div>`;
+}
+
+async function submit(panel, kind){
+  const key = panel.dataset.key, row = rows.find(r=>r.productKey===key);
+  const pick = panel.querySelector('[data-role=precedent]').value;
+  const rule = panel.querySelector('[data-role=rule]').value;
+  const reason = panel.querySelector('[data-role=reason]').value.trim();
+  const who = panel.querySelector('[data-role=reviewer]').value.trim();
+  const out = panel.querySelector('[data-role=out]');
+  const show = (text, bad) => {out.hidden=false; out.textContent=text; out.classList.toggle('bad',!!bad);};
+  if(!pick) return show('근거가 된 판례를 고른다. 걸리는 것이 없다면 «해당 판례 없음»을 고른다.', true);
+  if(pick==='NONE'&&!rule) return show('판례가 없다면 어느 규칙 위의 판단인지는 고른다. 그래야 «이 규칙에 판례가 필요하다»가 남는다.', true);
+  if(!reason) return show('사유가 필요하다. 라벨만 남으면 다음 사람이 되짚지 못한다.', true);
+  if(!who) return show('판정자가 필요하다.', true);
+  try{ localStorage.setItem('catalog-os-reviewer', who); }catch(err){}
+  reviewer = who;
+
+  panel.querySelectorAll('button').forEach(b=>b.disabled=true);
+  show('기록하는 중…');
+  const body = {attribute:PROFILE, productKey:key, reviewer:who, reason,
+    decision: kind==='fix'?'GOLDEN_CORRECTION_NEEDED':'GOLDEN_CONFIRMED',
+    precedentId: pick==='NONE'?null:pick, noPrecedent: pick==='NONE',
+    ruleId: rule||null,
+    supersedes: panel.dataset.supersedes||null};
+  if(kind==='fix') body.correctedLabel = row.fix.proposed; else body.confirmedLabel = row.referenceLabel;
+  try{
+    const answer = await fetch('/decide', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const result = await answer.json();
+    if(!result.ok){
+      panel.querySelectorAll('button').forEach(b=>b.disabled=false);
+      /* 거절 문장은 서버가 준 것을 그대로 쓴다. 화면이 다시 쓰면 규격을 고쳐도 안내는 옛말을 한다. */
+      return show(result.error||'기록하지 못했다.', true);
+    }
+    ledger[key] = result.decision;
+    if(result.waitingOn) waiting[key] = result.waitingOn; else delete waiting[key];
+    panel.outerHTML = settledPanel(row);
+  }catch(err){
+    panel.querySelectorAll('button').forEach(b=>b.disabled=false);
+    show('서버에 닿지 못했다: '+err, true);
+  }
 }
 
 function line(row, ordinal){
@@ -1116,6 +1324,7 @@ function line(row, ordinal){
       ${ruling(row)}
       ${said}
       ${plate(row)}
+      ${actPanel(row)}
     </div>
   </article>`;
 }
@@ -1147,7 +1356,28 @@ document.getElementById('search').addEventListener('input',ev=>{query=ev.target.
 const put=(id,n)=>{const el=document.getElementById(id); if(el) el.textContent=fmt(n);};
 put('report-count',rows.length);
 document.getElementById('viewer').addEventListener('click',e=>{if(e.target.id==='viewer')e.target.close()});
-renderTabs();renderList();
+// 판정 버튼은 목록이 다시 그려질 때마다 새로 생긴다. 목록에 한 번만 걸어 둔다.
+document.getElementById('fixes').addEventListener('click',ev=>{
+  const button=ev.target.closest('button[data-act]'); if(!button) return;
+  const panel=button.closest('.act'); if(!panel) return;
+  if(button.dataset.act==='redo'){
+    // 한 번 누르면 끝인 화면은 오누름을 되돌릴 길이 없다. 폼을 다시 연다.
+    const row=rows.find(r=>r.productKey===panel.dataset.key);
+    if(row){ panel.outerHTML=actPanel(row, true); syncAll(); }
+    return;
+  }
+  submit(panel, button.dataset.act);
+});
+// 판례를 바꾸면 규칙 칸이 따라온다. 두 곳에서 고르게 하면 어긋난 판정이 원장에 들어온다.
+document.getElementById('fixes').addEventListener('change',ev=>{
+  if(!ev.target.matches('[data-role=precedent]')) return;
+  const panel=ev.target.closest('.act'); if(panel) syncRule(panel);
+});
+function syncAll(){document.querySelectorAll('.act[data-key] [data-role=rule]').forEach(el=>syncRule(el.closest('.act')));}
+renderTabs();renderList();syncAll();
+// 이미 답한 건은 폼 대신 판정 자국을 보여준다. 원장을 읽고 나서 한 번 더 그린다 —
+// 안 그러면 새로고침할 때마다 답한 건에 다시 «승인» 버튼이 뜬다.
+pullDecided().then(()=>{renderList();syncAll();});
 """
 
 
@@ -1217,17 +1447,28 @@ def main() -> int:
         for item in (policy_index.get("precedents") or [])
         if isinstance(item, dict)
     }
+    question_precedents = policy_index.get("questionPrecedents", {}) if isinstance(policy_index, dict) else {}
+    # 판례가 **무엇을 묻는 판례인지**. 승인 화면에서 사람은 `BG-0001`이라는 코드가 아니라
+    # 그 코드가 그은 경계를 보고 골라야 한다. 코드만 있으면 아무거나 고르게 된다.
+    question_of_precedent: dict[str, str] = {}
+    question_text = {text(item.get("id")): text(item.get("question")) for item in questions if isinstance(item, dict)}
+    for question_id, linked in question_precedents.items():
+        for pid in linked:
+            question_of_precedent.setdefault(str(pid), question_text.get(text(question_id), ""))
     precedents = [
         {
             "id": text(item.get("id")),
             "status": text(item.get("status")),
             "href": link_from(report_dir, text(item.get("path"))),
+            "question": question_of_precedent.get(text(item.get("id")), ""),
+            "answers": [text(value) for value in (item.get("answers") or [])],
+            # 이 판례가 걸린 규칙. 승인 화면의 규칙 칸이 이 값으로 따라온다.
+            "rules": [text(value) for value in (item.get("rules") or [])],
         }
         for item in (policy_index.get("precedents") or [])
         if isinstance(item, dict)
     ]
     precedent_href = {item["id"]: item["href"] for item in precedents}
-    question_precedents = policy_index.get("questionPrecedents", {}) if isinstance(policy_index, dict) else {}
     linked_questions = [
         {
             **item,
@@ -1311,6 +1552,8 @@ def main() -> int:
                 "lanes": LANES,
                 "grades": FIX_GRADES,
                 "precedents": precedents,
+                # 승인이 「어느 규칙 위의 판단인가」를 고를 목록. 정책이 이름 붙인 것만 온다.
+                "rules": (policy_index.get("owned") or {}).get("rules") or [],
                 "signals": signal_meta,
                 "evidenceHref": REPORTS["gt"]["file"],
                 "rows": [fix_line(row, gallery, profile_labels) for row in selected],
