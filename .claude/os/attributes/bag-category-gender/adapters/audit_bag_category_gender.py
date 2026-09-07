@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,13 @@ def _find_project_root() -> Path:
 
 
 PROJECT_ROOT = _find_project_root()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from label_precondition_rules import (  # noqa: E402
+    category_value,
+    load as load_preconditions,
+    match_tokens,
+    near_miss,
+)
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / ".claude" / "os" / "runs" / "bag-category-gender"
 
 
@@ -92,6 +100,106 @@ def evidence_contradicts_prediction(row: dict[str, Any]) -> bool:
     if prediction == "MALE":
         return "여성" in evidence and "남성" not in evidence
     return False
+
+
+def label_precondition_findings(
+    gt_rows: list[dict[str, Any]],
+    evaluation_by_key: dict[str, dict[str, Any]],
+    preconditions: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """실행을 거치지 않고 **GT를 정책과 직접** 대조한다.
+
+    지금까지 감사는 «실행이 낸 값 ↔ GT»만 비교했다. 거기엔 두 개의 사각이 있다.
+
+    1. **동조** — 실행이 GT와 같은 값을 내면 신호가 없다. 둘 다 정책을 어겨도 조용하다.
+    2. **커버리지** — 실행이 평가한 적 없는 상품은 비교 자체가 일어나지 않는다.
+
+    실측으로 확인했다. 정책이 「상식만으로 UNISEX가 아니다」로 명시한 계열에 UNISEX GT가
+    붙은 건 중 절반 가까이가 **어떤 큐에도 없었다.** 잡히지 않은 이유는 판정이 어려워서가
+    아니라 **아무도 그 질문을 하지 않아서**다.
+
+    그래서 여기서는 실행을 보지 않는다. GT 원장을 통째로 훑고 라벨과 카테고리만 본다.
+    확정하지 않는다 — 카테고리 낱말로 훑는 것이라 «의심할 자리»를 지목할 뿐이다.
+    """
+    rules = {str(rule.get("label")): rule for rule in preconditions.get("rules") or []}
+
+    def verdict(label: Any, value: str) -> str:
+        """이 라벨을 이 자리에 붙일 수 있는가. 규칙이 없는 라벨은 이 검사의 대상이 아니다."""
+        rule = rules.get(str(label or ""))
+        if not rule:
+            return "PASS"
+        if match_tokens(rule.get("allow"), value):
+            return "PASS"
+        if match_tokens(rule.get("deny"), value):
+            return "DENY"
+        return "SILENT"
+    violations: list[dict[str, Any]] = []
+    silent: list[dict[str, Any]] = []
+    for row in gt_rows:
+        rule = rules.get(str(row.get("goldLabel") or ""))
+        if not rule:
+            continue
+        value = category_value(row, rule)
+        if not value:
+            continue
+        if verdict(row.get("goldLabel"), value) == "PASS":
+            continue
+        matched = match_tokens(rule.get("deny"), value)
+
+        # 진 계보에 이 자리를 통과하는 라벨이 있었는가. 있으면 **원장의 순위 규칙이
+        # 정책을 어기는 쪽을 골랐다**는 뜻이고, 그건 이 건의 GT를 의심할 가장 강한 근거다.
+        # 진 값이 「판정 못 함」인 것과 「다른 확정 라벨」인 것은 성격이 다르므로 갈라 적는다.
+        alternatives = [
+            {"label": other.get("goldLabel"), "lineage": other.get("lineage")}
+            for other in row.get("otherLineages") or []
+            if other.get("goldLabel")
+            and other.get("goldLabel") != row.get("goldLabel")
+            and verdict(other.get("goldLabel"), value) == "PASS"
+        ]
+        decided = [item for item in alternatives if item["label"] not in {"UNDETERMINED", "UNCLASSIFIED"}]
+        evaluation = evaluation_by_key.get(str(row.get("productKey")))
+        # 실행이 이 상품을 본 적이 있는지를 함께 남긴다. «실행도 같은 값을 냈다»와
+        # «실행이 본 적도 없다»는 사람이 할 일이 서로 다르다.
+        observed = str((evaluation or {}).get("productGender") or "") or "NOT_EVALUATED"
+        item = {
+            "productKey": row.get("productKey"),
+            "productName": row.get("productName"),
+            "referenceLabel": row.get("goldLabel"),
+            "observedLabel": observed,
+            "categoryValue": value,
+            "policyQuote": rule.get("quote"),
+            "evaluated": evaluation is not None,
+            # 원장이 이 라벨을 어떻게 정했는가. 계보가 갈렸다면 어느 규칙이 골랐는가.
+            "goldLineage": row.get("goldLineage"),
+            "resolvedBy": row.get("resolvedBy"),
+            "lineageAlternatives": alternatives,
+            "lineageAlternativeKind": (
+                "DECIDED_LABEL" if decided else ("UNDETERMINED_ONLY" if alternatives else "NONE")
+            ),
+        }
+        if matched:
+            violations.append(
+                {
+                    **item,
+                    "signal": "GOLDEN_LABEL_PRECONDITION",
+                    "reason": str(rule.get("denyReason") or ""),
+                    "matchedToken": matched,
+                }
+            )
+        else:
+            # 정책 낱말이 마지막 마디 **밖**에 있으면 정책 한 줄이면 갈리는 자리다.
+            # 공백을 뭉뚱그리지 않고 먼저 물을 것으로 표시한다.
+            hint = near_miss(row, rule)
+            silent.append(
+                {
+                    **item,
+                    "signal": "POLICY_LABEL_SILENT",
+                    "reason": str(rule.get("silentReason") or ""),
+                    "nearMiss": hint,
+                }
+            )
+    key = lambda item: str(item["productKey"])  # noqa: E731
+    return sorted(violations, key=key), sorted(silent, key=key)
 
 
 def queue_item(row: dict[str, Any], signal: str, reason: str, **extra: Any) -> dict[str, Any]:
@@ -370,7 +478,20 @@ def main() -> int:
                 )
             )
 
+    # GT를 실행과 무관하게 정책과 대조한다. **전체 GT 원장**을 훑으므로
+    # 실행이 평가하지 않은 상품도 여기서는 검사된다.
+    preconditions = load_preconditions()
+    label_violations, label_silent = label_precondition_findings(
+        canonical_rows, evaluation_by_key, preconditions
+    )
+
     queue_counts = {
+        "goldenLabelPrecondition": write_jsonl(
+            queue_dir / "golden-label-precondition.jsonl", label_violations
+        ),
+        "policyLabelSilent": write_jsonl(
+            queue_dir / "policy-label-silent.jsonl", label_silent
+        ),
         "imageCollectionRecovered": write_jsonl(
             queue_dir / "image-collection-recovered.jsonl", image_collection_recoveries
         ),
@@ -561,6 +682,23 @@ def main() -> int:
             else None
         ),
         "goldenSourceBreakdown": dict(sorted(golden_conflict_kinds.items())),
+        # 실행을 거치지 않은 GT×정책 대조. 실행이 본 적 없는 건이 몇인지 따로 센다 —
+        # 그 숫자가 «감사가 닿지 않던 자리»의 크기다.
+        "labelPrecondition": {
+            "goldRows": len(canonical_rows),
+            "violations": len(label_violations),
+            "violationsNotEvaluated": sum(
+                1 for item in label_violations if not item["evaluated"]
+            ),
+            "policySilent": len(label_silent),
+            "policySilentNotEvaluated": sum(1 for item in label_silent if not item["evaluated"]),
+            # 정책 낱말이 분류의 상위 마디나 상품명에 있는 공백. 먼저 물을 자리다.
+            "policySilentNearMiss": sum(1 for item in label_silent if item.get("nearMiss")),
+            # 원장이 정책을 어기는 쪽을 골랐고, 진 계보에 통과하는 라벨이 있던 건.
+            "violationsWithPassingLineage": sum(
+                1 for item in label_violations if item["lineageAlternativeKind"] != "NONE"
+            ),
+        },
         "artifacts": {
             "auditReport": str(report_path.relative_to(PROJECT_ROOT)),
             "policyQuestions": str(question_path.relative_to(PROJECT_ROOT)),

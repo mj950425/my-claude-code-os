@@ -28,7 +28,7 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-06T08:38:02.641932+00:00",
+  "generatedAt": "2026-09-07T00:08:29.479231+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 44,
     "UNCLASSIFIED_TO_LABELED": 7
@@ -45,6 +45,15 @@
     "retainedTiles": 6571
   },
   "input": ".claude/os/runs/bag-category-gender/golden/bag-policy-evaluation.jsonl",
+  "labelPrecondition": {
+    "goldRows": 500,
+    "policySilent": 72,
+    "policySilentNearMiss": 7,
+    "policySilentNotEvaluated": 0,
+    "violations": 32,
+    "violationsNotEvaluated": 0,
+    "violationsWithPassingLineage": 6
+  },
   "policy": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md",
   "policyLayer": {
     "blockingViolations": 0,
@@ -75,11 +84,12 @@
     "adjudicatedProducts": 0,
     "adjudicationRate": 0.0,
     "deferredProducts": 0,
-    "pendingProducts": 320,
-    "queuedProducts": 320
+    "pendingProducts": 386,
+    "queuedProducts": 386
   },
   "signals": {
     "evidencePipelineRecovered": 4,
+    "goldenLabelPrecondition": 32,
     "goldenPolicyViolationCandidate": 12,
     "goldenSourceConflict": 51,
     "goldenUnsupportedAgreement": 20,
@@ -89,6 +99,7 @@
     "modelPolicyContradiction": 1,
     "policyGoldenConflict": 12,
     "policyGoldenGap": 28,
+    "policyLabelSilent": 72,
     "policyRuntimeContradiction": 48
   },
   "spotlightFinding": {

@@ -8,7 +8,19 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
+
+
+def _find_project_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".claude").is_dir():
+            return parent
+    raise RuntimeError("프로젝트 루트(.claude를 가진 폴더)를 찾지 못했습니다.")
+
+
+PROJECT_ROOT = _find_project_root()
 
 
 STRONG = "STRONG"
@@ -77,6 +89,18 @@ def _no_evidence(row: dict[str, Any]) -> bool:
     )
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from label_precondition_rules import load as load_preconditions, verdict  # noqa: E402
+
+# 감사와 **같은 함수**를 쓴다. 각자 적으면 갈라지고, 갈라지면 지적이 덮인다.
+_PRECONDITIONS = load_preconditions()
+_RULES_BY_LABEL = {str(rule.get("label")): rule for rule in _PRECONDITIONS.get("rules") or []}
+
+
+def _category_denies(label: str, row: dict[str, Any]) -> bool:
+    return verdict(label, row, _RULES_BY_LABEL) == "DENY"
+
+
 def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
     """정책만 보고 이 상품의 답을 낸다. 골든셋과 실행 결과는 보지 않는다."""
     direct = _direct_text_label(str(row.get("productName") or ""))
@@ -103,11 +127,23 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
     if row.get("detailStatus") == "OK" and evidence_type in {"HUMAN", "TEXT", "MIXED"}:
         evidence_text = str(row.get("detailEvidence") or "")
         if _mixed_wearer(evidence_text):
+            # 「남녀가 모두 착용」은 문자로 확인할 수 없는 주장이다. 한 문장이 두 가지를
+            # 함께 주장하기 때문이다 — **두 성별이 관측됐다**는 것과 **그들이 대상과 같은
+            # 가방을 들었다**는 것. 정규식은 어느 쪽도 보지 못하고 낱말만 본다.
+            #
+            # 2순위 결합 디자인을 «문자로 판정할 수 없다»로 둔 것과 같은 이유이고,
+            # 여기서는 근거가 더 있다 — 이 주장으로 사람 GT를 뒤집자고 한 건을 사진으로
+            # 되짚었더니 **6건 전부 무너졌다**(다른 컬러웨이, 가방 없는 배너, 반대로 읽힌 성별).
+            # 그래서 STRONG을 주지 않는다. 지우지도 않는다 — 사진으로 보면 설 수도 있다.
             return {
-                "label": "UNISEX",
-                "strength": STRONG,
+                "label": UNRESOLVABLE,
+                "strength": WEAK,
                 "rule": "P3_MIXED_WEARER",
-                "note": "남성과 여성이 같은 가방을 모두 착용했다. 두 성별이 함께 관측된 것은 공용의 적극적 근거다.",
+                "note": (
+                    "실행이 「남녀가 모두 착용」이라 적었다. 그 문장은 두 성별 관측과 "
+                    "대상 동일성을 함께 주장하는데 문자로는 어느 쪽도 확인할 수 없다. "
+                    "이미지로 되짚어야 한다."
+                ),
                 "blockedBy": [],
             }
         label = _evidence_label(evidence_text)
@@ -135,6 +171,22 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
             "rule": "P2_COMBINED_DESIGN",
             "note": "2순위 결합 디자인은 두 묶음 이상이 겹치는지 이미지로 봐야 한다. 문자로 판정할 수 없다.",
             "blockedBy": [],
+        }
+
+    # 순위를 다 밟고도 답이 없을 때, 정책이 **아무 말도 안 한 것은 아니다.**
+    # 「일반 토트·숄더·크로스백은 남녀 모두 쓸 수 있다는 상식만으로 UNISEX가 아니다」는
+    # 이 자리에 대한 정책의 답이다. 이걸 빼 두면 GT와 실행이 나란히 UNISEX일 때
+    # 심판이 «충돌 없음»을 내고, 둘이 함께 정책을 어긴 사실이 조용히 지나간다.
+    if _category_denies("UNISEX", row):
+        return {
+            "label": UNDETERMINED,
+            "strength": STRONG,
+            "rule": "P0_CATEGORY_NOT_UNISEX",
+            "note": (
+                "정책이 이 계열을 «상식만으로 UNISEX가 아니다»로 명시했고, "
+                "공용이라는 적극적 근거가 이 스냅샷에 없다."
+            ),
+            "blockedBy": ["BG-0002"],
         }
 
     return {

@@ -3,8 +3,8 @@
   "adjudicationRate": 0.0,
   "decisionCounts": {},
   "deferredProducts": 0,
-  "generatedAt": "2026-09-06T08:38:02.832812+00:00",
-  "pendingProducts": 320,
+  "generatedAt": "2026-09-07T00:08:49.801192+00:00",
+  "pendingProducts": 386,
   "pendingSample": [
     {
       "productKey": "EGOOCM:2970320",
@@ -16,6 +16,18 @@
       "productKey": "EGOOCM:2970324",
       "signals": [
         "INTERACTION_POLICY_RECOVERED"
+      ]
+    },
+    {
+      "productKey": "EGOOCM:3398259",
+      "signals": [
+        "POLICY_LABEL_SILENT"
+      ]
+    },
+    {
+      "productKey": "EGOOCM:3398514",
+      "signals": [
+        "POLICY_LABEL_SILENT"
       ]
     },
     {
@@ -80,6 +92,12 @@
       ]
     },
     {
+      "productKey": "EGOOCM:3403458",
+      "signals": [
+        "POLICY_LABEL_SILENT"
+      ]
+    },
+    {
       "productKey": "EGOOCM:3403687",
       "signals": [
         "INTERACTION_POLICY_RECOVERED"
@@ -108,28 +126,8 @@
       "signals": [
         "INTERACTION_POLICY_RECOVERED"
       ]
-    },
-    {
-      "productKey": "EGOOCM:3407206",
-      "signals": [
-        "GOLDEN_POLICY_VIOLATION_CANDIDATE",
-        "GOLDEN_SOURCE_CONFLICT",
-        "INVALID_TEXT_EVIDENCE_DROPPED"
-      ]
-    },
-    {
-      "productKey": "EGOOCM:3408876",
-      "signals": [
-        "INTERACTION_POLICY_RECOVERED"
-      ]
-    },
-    {
-      "productKey": "EGOOCM:3410402",
-      "signals": [
-        "INTERACTION_POLICY_RECOVERED"
-      ]
     }
   ],
-  "queuedProducts": 320,
+  "queuedProducts": 386,
   "staleDecisionProductKeys": []
 }

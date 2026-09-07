@@ -2,7 +2,7 @@
   "basedOn": {
     "arbiterVerdicts": ".claude/os/runs/bag-category-gender/review/verdicts.jsonl",
     "file": ".claude/os/runs/bag-category-gender/run-summary.json",
-    "generatedAt": "2026-09-06T08:38:02.641932+00:00"
+    "generatedAt": "2026-09-06T10:00:55.890214+00:00"
   },
   "excluded": [
     {

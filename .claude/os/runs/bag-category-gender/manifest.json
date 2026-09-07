@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T08:38:02.264490+00:00",
+  "generatedAt": "2026-09-06T10:00:55.269274+00:00",
   "goldenLineages": {
     "reviewSheet": {
       "datasetVersion": "2026-09-03",
@@ -129,7 +129,7 @@
     },
     "policy": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md"
   },
-  "sourceCommit": "f1467597dbb2f42d5f385b2429d9dd7d4cc7cf22",
+  "sourceCommit": "de4cf28f81f279604064c14dd4e0e5a50e075424",
   "sourceDirty": true,
   "sourceRepository": "/Users/mj/musinsa/dev/core-catalog-platfom",
   "sources": {

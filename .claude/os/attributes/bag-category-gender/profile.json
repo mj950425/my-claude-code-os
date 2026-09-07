@@ -107,6 +107,16 @@
       "label": "근거 없는 일치",
       "description": "결과와 정답은 같지만 정책 근거가 없어 우연히 맞았을 수 있습니다.",
       "priority": 11
+    },
+    "GOLDEN_LABEL_PRECONDITION": {
+      "label": "정책이 배제한 자리의 GT 라벨",
+      "description": "정책이 «이 계열은 그 라벨이 아니다»로 명시했는데 GT가 그 라벨입니다. 실행을 거치지 않고 GT를 정책과 직접 대조해 찾습니다.",
+      "priority": 12
+    },
+    "POLICY_LABEL_SILENT": {
+      "label": "정책이 말하지 않은 자리의 GT 라벨",
+      "description": "GT가 그 라벨인데 정책이 이 계열을 허용에도 배제에도 넣지 않았습니다. 건이 아니라 정책의 공백입니다.",
+      "priority": 13
     }
   },
   "references": [

@@ -128,11 +128,23 @@ class BagPolicyPredicateTest(unittest.TestCase):
         self.assertEqual("WEAK", result["strength"])
         self.assertIn("BG-0001", result["blockedBy"])
 
-    def test_mixed_gender_evidence_is_unisex(self) -> None:
-        """정책 v2: 남녀가 같은 가방을 모두 착용했으면 UNISEX다.
+    def test_mixed_gender_evidence_cannot_be_settled_by_text(self) -> None:
+        """「남녀가 모두 착용」은 **문자로 확인할 수 없는 주장**이다.
 
-        한쪽만 보이는 것은 촬영 컷 선택으로도 설명되지만 둘 다 보이는 것은 그렇지 않다.
-        그래서 단일 성별 착용자(WEAK)와 달리 STRONG이고 BG-0001에 막히지 않는다.
+        정책 문장 자체는 그대로다 — 남녀가 같은 가방을 모두 착용했으면 UNISEX이고,
+        한쪽만 보이는 것은 촬영 컷 선택으로 설명되지만 둘 다 보이는 것은 그렇지 않다.
+        바뀐 것은 **그 조건이 성립하는지를 이 자리에서 알 수 있는가**다.
+
+        한 문장이 두 가지를 함께 주장한다 — 두 성별이 관측됐다는 것과, 그들이
+        **대상과 같은 가방**을 들었다는 것. 정규식은 어느 쪽도 보지 못하고 낱말만 본다.
+
+        2026-09-07에 이 주장으로 사람 GT를 뒤집자고 한 건 6개를 전부 사진으로 되짚었더니
+        **6건 다 무너졌다** — 셋은 착용자가 다른 컬러웨이를 들었고, 하나는 인용한 배너에
+        가방이 아예 없었으며, 셋은 「남성」이라 적힌 인물이 반대로 읽혔다. 판독 12건에서
+        MASCULINE 관측은 0이었다.
+
+        그래서 STRONG을 주지 않는다. 지우지도 않는다 — 사진으로 보면 설 수도 있다.
+        2순위 결합 디자인을 「문자로 판정할 수 없다」로 둔 것과 같은 처리다.
         """
         for evidence in (
             "남녀 모델이 함께 착용한 이미지가 확인됨.",
@@ -147,10 +159,11 @@ class BagPolicyPredicateTest(unittest.TestCase):
                         "detailEvidence": evidence,
                     }
                 )
-                self.assertEqual("UNISEX", result["label"])
-                self.assertEqual("STRONG", result["strength"])
+                self.assertEqual("UNRESOLVABLE", result["label"])
+                self.assertEqual("WEAK", result["strength"])
+                # 규칙 이름은 남긴다. 어느 주장이 이 자리에 왔는지 세려면 이름이 필요하다.
                 self.assertEqual("P3_MIXED_WEARER", result["rule"])
-                self.assertEqual([], result["blockedBy"])
+                self.assertIn("이미지로 되짚어야", result["note"])
 
     def test_single_gender_wearer_still_weak(self) -> None:
         """혼재 규칙이 단일 성별 착용자 경로를 삼키지 않는지 지킨다."""
