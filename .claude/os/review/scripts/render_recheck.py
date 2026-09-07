@@ -118,10 +118,17 @@ def main() -> int:
             f'<td class="{"value" if model.get("observed") else "value off"}">'
             f'{esc(model.get("observed")) or "판독 안 함"}</td>'
             f'<td>{esc(model.get("targetContact")) or "—"}</td>'
-            f'<td>{esc(model.get("faceVisibility")) or "—"}'
+            f'<td>{esc(model.get("presence") or model.get("faceVisibility")) or "—"}'
             + (f' · {esc(model.get("confidence"))}' if model.get("confidence") else "")
             + "</td>"
             f'<td class="scene">{esc(" ".join(model.get("scenes") or [])) or "—"}'
+            # 축별 관찰. 값만 보이면 「왜 그렇게 읽었나」를 되짚을 수 없다 —
+            # 한 축으로 확정한 판독이 화면에서 확정으로만 보이는 것이 그 사고였다.
+            + "".join(
+                f'<span class="note">{esc(axis)} · {esc(text)}</span>'
+                for axis, text in sorted((model.get("observations") or {}).items())
+                if text
+            )
             + (f'<span class="note">기준 {esc(model.get("readFrom"))}</span>' if model.get("readFrom") else "")
             + (f'<span class="agree">{esc(model.get("agreement"))}</span>' if model.get("agreement") else "")
             + (f'<span class="note">{esc(model.get("note"))}</span>' if model.get("note") else "")

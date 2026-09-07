@@ -1,6 +1,6 @@
 # 가방 성별 정책·골든셋 감사 정책 레이어 상태
 
-- 소유 정책: [.claude/os/attributes/bag-category-gender/policy/policy.md](../../../attributes/bag-category-gender/policy/policy.md) (v2, 2026-09-06)
+- 소유 정책: [.claude/os/attributes/bag-category-gender/policy/policy.md](../../../attributes/bag-category-gender/policy/policy.md) (v3, 2026-09-07)
 - 허용값: `MALE`, `FEMALE`, `UNISEX`, `UNDETERMINED`
 - 판례: 3건 (확정 0건 · 열림 3건)
 - 정책 질문: 3건 (판례 연결 3건 · 사람이 확정 0건)

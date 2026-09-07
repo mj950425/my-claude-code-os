@@ -15,6 +15,7 @@
     "queueDirectory": ".claude/os/runs/bag-category-gender/queue",
     "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md",
     "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json",
+    "ruleBriefs": ".claude/os/runs/bag-category-gender/policy/rule-briefs/index.json",
     "suspectGtReport": ".claude/os/runs/bag-category-gender/reports/suspect-gt.html"
   },
   "completed": true,
@@ -25,10 +26,11 @@
     "GT 오류 후보와 실행 오류 분리",
     "상세 근거 이미지 큐 생성",
     "소유 정책 레이어",
+    "규칙 브리프",
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-07T00:08:29.479231+00:00",
+  "generatedAt": "2026-09-07T07:43:24.313966+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 44,
     "UNCLASSIFIED_TO_LABELED": 7
@@ -70,7 +72,12 @@
     "questionsResolved": 0,
     "questionsWithPrecedent": 3,
     "untrackedReviewViolations": 0,
-    "version": "2"
+    "version": "3"
+  },
+  "precedentBriefs": {
+    "readersCanLearnFrom": 0,
+    "rules": 9,
+    "rulesWithPrecedent": 3
   },
   "primaryFinding": {
     "count": 12,

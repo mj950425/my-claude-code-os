@@ -176,6 +176,43 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .fx-say.mut p{color:var(--muted)}
 .fx-say .src{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ghost)}
 
+/* 판정 — 읽는 자리에서 그대로 답한다.
+   액센트는 «조치할 자리»에만 쓴다는 이 화면의 규칙 그대로, 승인 버튼 하나가 그 자리다. */
+.act{margin-top:36px;padding-top:22px;border-top:1px solid var(--ink)}
+.act-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:16px;
+          font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.act-form{display:grid;gap:12px;max-width:760px}
+.act-bind{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;align-items:center}
+.act-bind>span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost)}
+.act select,.act input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--rule);background:var(--paper);
+  color:var(--ink);font-family:var(--sans);font-size:14px;border-radius:0}
+.act select:focus,.act input[type=text]:focus{outline:0;border-color:var(--ink)}
+.act select[disabled]{background:var(--inset);color:var(--muted)}
+/* 규칙 칸은 판례를 고르면 잠긴다. 왜 잠겼는지가 옆에 적혀야 «고장」으로 안 읽힌다. */
+.act-rule{display:block;min-width:0}
+.act-rule small{display:block;margin-top:6px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.04em;color:var(--faint)}
+.act-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+.act button{padding:12px 18px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.act button:hover{background:var(--ink);color:var(--paper)}
+.act button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.go:hover{background:#B01D00;border-color:#B01D00}
+.act button[disabled]{opacity:.45;cursor:default}
+.act button[disabled]:hover{background:var(--paper);color:var(--ink)}
+.act .out{font-family:var(--mono);font-size:11.5px;line-height:1.6;letter-spacing:.02em;color:var(--muted);
+  padding:12px 14px;background:var(--inset);overflow-wrap:anywhere}
+.act .out.bad{background:var(--accent-soft);color:#8C1800}
+/* 이미 답한 건. 폼을 지우고 무엇을 언제 답했는지만 남긴다 — 두 번 누를 자리를 없앤다. */
+.act.settled{border-top-color:var(--rule)}
+.act .stamp-done{display:grid;gap:6px;padding:14px 16px;background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink);overflow-wrap:anywhere}
+.act .stamp-done b{font-size:12px;letter-spacing:.06em}
+.act .stamp-done .held{color:var(--accent)}
+/* 서버 없이 파일로 열었을 때. 버튼을 그려 놓고 안 눌리는 것보다 왜 안 되는지 적는 편이 낫다. */
+.act .offline{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--faint);
+  padding:12px 14px;border:1px dashed var(--rule)}
+
 /* 증거판 — 인용된 장면이 먼저 온다 */
 .plate{margin-top:34px}
 .plate-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
@@ -213,6 +250,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .plate .seen.male b{color:#1449b8}
 .plate .seen.female b{color:#c0134a}
 .plate .seen.none{color:var(--ghost);font-style:italic}
+/* 인용하지 않았는데 판독기가 무언가 적어 둔 장면. 근거로 채택된 것과 같은 무게로 보이면
+   안 되지만, 숨기면 반증이 사라진다 — 실행의 주장과 어긋나는 기록이 여기 있었다. */
+.plate .seen.aside{background:rgba(255,255,255,.9);border-top:1px dashed var(--rule)}
+.plate figure:not(.cited) .frame{outline:1px dashed var(--rule);outline-offset:-1px}
 .plate .frame.missing{position:relative;aspect-ratio:2/3;display:grid;place-items:center;
   border:1px dashed var(--rule);background:var(--inset);padding:14px;text-align:center}
 .plate .frame.missing .seen{position:static;background:none;border:0;text-align:center}
@@ -368,9 +409,9 @@ footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
 <body>
 <div class="wrap">
   <header class="masthead">
-    <div class="masthead-top"><p class="kicker">Catalog OS · bag-category-gender · 의심 원장</p><p>생성 2026-09-07T00:08:29.479231+00:00 · 원본 de4cf28f <span class="dirty">미커밋 변경 있음</span></p></div>
+    <div class="masthead-top"><p class="kicker">Catalog OS · bag-category-gender · 의심 원장</p><p>생성 2026-09-07T07:43:24.313966+00:00 · 원본 e9344a9c <span class="dirty">미커밋 변경 있음</span></p></div>
     <h1><small>가방 상품 · 대상 고객 성별</small>가방 성별 정책·골든셋 감사</h1>
-    <dl class="runbar"><div><dt>평가 상품</dt><dd>500</dd></div><div><dt>표면 정확도</dt><dd>82.6%</dd></div><div><dt>사람 판정</dt><dd>0 / 386</dd></div><div><dt>정책</dt><dd>v2</dd></div><div><dt>판례</dt><dd>3 · 확정 0</dd></div><div><dt>미추적 정책 공백</dt><dd>0</dd></div></dl>
+    <dl class="runbar"><div><dt>평가 상품</dt><dd>500</dd></div><div><dt>표면 정확도</dt><dd>82.6%</dd></div><div><dt>사람 판정</dt><dd>0 / 386</dd></div><div><dt>정책</dt><dd>v3</dd></div><div><dt>판례</dt><dd>3 · 확정 0</dd></div><div><dt>미추적 정책 공백</dt><dd>0</dd></div></dl>
   </header>
   <section class="lanes" aria-label="의심 대상 두 갈래">
     <div class="lane"><div class="lane-head"><span class="mark GT" aria-hidden="true"></span><h2>의심되는 GT</h2><small>건 단위</small></div><p class="lane-count"><span class="num" id="count-GT">0</span><span>상품</span></p><div id="groups-GT"></div><a class="lane-open" href="gt-fixes.html" style="margin-right:8px">GT 정정 후보 열기 →</a><a class="lane-open" href="suspect-gt.html" style="margin-right:8px">의심되는 GT 찾기 열기 →</a></div>

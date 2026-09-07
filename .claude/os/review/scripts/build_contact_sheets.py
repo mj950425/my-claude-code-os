@@ -33,6 +33,9 @@ from typing import Any
 
 # 외부 파이프라인이 상세 접촉 시트를 만들 때 쓰는 값과 같다. 다르게 잡으면
 # 「모델이 실제로 본 그림」과 「우리가 되짚는 그림」이 갈라져서, 되짚는 의미가 줄어든다.
+# 사람이 있을 법한지는 픽셀로만 재고, 그 규칙은 한 곳에만 둔다.
+from tile_triage import triage as triage_tiles
+
 CELL_PX = 384
 CELLS_PER_SHEET = 4
 JPEG_QUALITY = 85
@@ -103,6 +106,11 @@ def main() -> int:
     parser.add_argument(
         "--per-sheet", type=int, default=CELLS_PER_SHEET, help="시트 한 장에 붙일 셀 수"
     )
+    parser.add_argument(
+        "--keep-all-tiles",
+        action="store_true",
+        help="사람이 없을 것이 확실한 타일도 캐스팅 시트에 남긴다",
+    )
     args = parser.parse_args()
 
     if args.cell < 64 or args.per_sheet < 1:
@@ -165,6 +173,28 @@ def main() -> int:
             skipped.append({"artifact": product_key, "reason": "열 수 있는 타일이 없다"})
             continue
 
+        # 사람이 없을 것이 거의 확실한 타일은 시트에서 뺀다. 이 시트의 일은 **캐스팅**이고,
+        # 「이 사람과 저 사람이 같은 사람인가」는 인물이 나란히 놓여야 풀린다. 스펙표와
+        # 흰 배경 제품컷이 칸을 먹으면 인물이 시트마다 하나씩 흩어져, 이을 근거가 사라진다.
+        #
+        # **뺀다고 잃지 않는다.** 이 타일들은 1순위·2순위 판독에서 그대로 쓰이고,
+        # 무엇을 왜 뺐는지 아래 `omitted`에 남는다. 픽셀이 가를 수 있는 것은
+        # 「사람이 없다」쪽뿐이라 그 방향으로만 뺀다 — 자세한 이유는 tile_triage.py에 있다.
+        omitted: list[dict[str, Any]] = []
+        if not args.keep_all_tiles:
+            judged = triage_tiles([item["path"] for item in cells])
+            if judged["usable"]:
+                staying = []
+                for item in cells:
+                    mark = judged["tiles"].get(str(item["path"]), {})
+                    if mark.get("personLikely") == "NO":
+                        omitted.append({"sceneId": item["sceneId"], **mark})
+                    else:
+                        staying.append(item)
+                # 전부 빠지는 일은 `usable`이 막지만, 한 장도 안 남으면 그대로 둔다.
+                if staying:
+                    cells = staying
+
         sheets: list[dict[str, Any]] = []
         for offset in range(0, len(cells), args.per_sheet):
             group = cells[offset : offset + args.per_sheet]
@@ -213,6 +243,9 @@ def main() -> int:
                 "sourceMaxWidth": product.get("maxWidth"),
                 "sceneCount": sum(len(sheet["cells"]) for sheet in sheets),
                 "sheets": sheets,
+                # 캐스팅 시트에서 뺀 타일. **버린 것이 아니다** — 1순위·2순위는 이걸 그대로 본다.
+                # 목록으로 남기는 이유는, 잘못 빠진 장면을 사람이 되짚을 수 있어야 하기 때문이다.
+                "omitted": omitted,
             }
         )
 

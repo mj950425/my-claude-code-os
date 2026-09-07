@@ -59,6 +59,15 @@ def normalize(entry: dict[str, Any]) -> dict[str, Any]:
                 # 다른 변형을 든 사람을 세면 「두 종류 관측」이 거짓으로 성립한다.
                 "targetContact": str(model.get("targetContact") or ""),
                 "observed": str(model.get("observed") or ""),
+                # 사람이 있는가 — `NONE` · `WORN` · `VISIBLE`. **얼굴 유무가 아니다.**
+                # 얼굴이 없어도 신체 윤곽과 자세로 사람을 확인할 수 있고, 그때도 값이 선다.
+                "presence": str(model.get("presence") or ""),
+                # 무엇을 보고 그렇게 읽었나. 축마다 따로 적는다 — 값 하나만 남으면
+                # 그 값이 무엇 위에 섰는지 알 수 없어 심사가 되짚을 것이 없다.
+                "observations": {
+                    axis: str((model.get("observations") or {}).get(axis) or "")
+                    for axis in ("face", "hair", "build", "styling")
+                },
                 "faceVisibility": str(model.get("faceVisibility") or ""),
                 "readFrom": str(model.get("readFrom") or ""),
                 "confidence": str(model.get("confidence") or ""),
