@@ -25,6 +25,7 @@ PROJECT_ROOT = _find_project_root()
 SCRIPTS = PROJECT_ROOT / ".claude/os/engine/scripts"
 ADAPTERS = PROJECT_ROOT / ".claude/os/attributes/bag-category-gender/adapters"
 RUN_ROOT = PROJECT_ROOT / ".claude/os/runs/bag-category-gender"
+POLICY_ROOT = PROJECT_ROOT / ".claude/os/attributes/bag-category-gender/policy"
 
 
 def load(name: str, directory: Path = SCRIPTS):
@@ -115,7 +116,14 @@ class BagPolicyPredicateTest(unittest.TestCase):
     def test_female_token_is_not_shadowed_by_men_substring(self) -> None:
         self.assertEqual("FEMALE", bag.policy_answer({"productName": "Women's Tote Bag"})["label"])
 
-    def test_wearer_evidence_is_weak_and_blocked_by_precedent(self) -> None:
+    def test_wearer_evidence_is_weak_and_names_the_rule_it_stands_on(self) -> None:
+        """어댑터는 **규칙 이름까지만** 답한다. 어느 판례가 이 규칙을 막고 있는지는 모른다.
+
+        전에는 여기서 `blockedBy`에 `BG-0001`이 들어 있는지 봤다. 그러면 판례 ID가 코드에
+        박혀, 판례를 새로 써도 심판은 모르고 판례를 닫아도 코드를 고쳐야 했다.
+        지금은 판례 파일이 `rule: P3_WEARER`로 스스로 걸리고, 엔진이 그 대조로 막는다 —
+        **판례를 더하는 것만으로 다음 실행이 달라진다.** 그 이음은 `test_arbitrate.py`가 본다.
+        """
         result = bag.policy_answer(
             {
                 "productName": "세이프선데이 스트랩 숄더백",
@@ -126,7 +134,7 @@ class BagPolicyPredicateTest(unittest.TestCase):
         )
         self.assertEqual("FEMALE", result["label"])
         self.assertEqual("WEAK", result["strength"])
-        self.assertIn("BG-0001", result["blockedBy"])
+        self.assertEqual("P3_WEARER", result["rule"])
 
     def test_mixed_gender_evidence_cannot_be_settled_by_text(self) -> None:
         """「남녀가 모두 착용」은 **문자로 확인할 수 없는 주장**이다.
@@ -190,7 +198,8 @@ class BagPolicyPredicateTest(unittest.TestCase):
             }
         )
         self.assertEqual("UNDETERMINED", result["label"])
-        self.assertIn("BG-0002", result["blockedBy"])
+        # 판례 ID가 아니라 규칙 이름을 본다. 이 규칙에 어느 판례가 걸리는지는 정책 레이어의 몫이다.
+        self.assertEqual("P0_NO_EVIDENCE", result["rule"])
 
     def test_combined_design_cannot_be_judged_from_text(self) -> None:
         result = bag.policy_answer(
@@ -225,6 +234,34 @@ class ArbiterOutputTest(unittest.TestCase):
         for verdict in self.verdicts:
             if verdict["owner"] == "NONE":
                 self.assertEqual([], verdict["blockedBy"], verdict["productKey"])
+
+    def test_every_blocking_precedent_declared_itself(self) -> None:
+        """판례 ID는 코드에 없다. **판례 파일이 스스로 걸었기 때문에** 여기 나타난다.
+
+        전에는 어댑터가 `blockedBy: ["BG-0001"]`처럼 판례 이름을 코드에 적었다. 그러면
+        판례를 새로 써도 심판은 모르고, 판례를 닫아도 코드를 고쳐야 했다 — 판례가
+        자산이 아니라 상수였다. 지금은 판례가 `rule:`과 `signals:`로 걸고 엔진이 읽는다.
+
+        그래서 이 시험은 「어느 판례가 걸렸나」가 아니라 **「걸린 판례가 전부 스스로
+        선언한 것인가」**를 본다. 코드가 몰래 더한 이름이 하나라도 있으면 깨진다.
+        """
+        declared: set[str] = set()
+        for path in sorted((POLICY_ROOT / "precedents").glob("*.md")):
+            meta = path.read_text(encoding="utf-8").split("---")[1]
+            for line in meta.splitlines():
+                key, _, value = line.partition(":")
+                if key.strip() in ("rule", "signals") and value.strip():
+                    declared.add(path.stem)
+        seen = {pid for verdict in self.verdicts for pid in verdict["blockedBy"]}
+        self.assertTrue(seen, "막힌 건이 하나도 없다 — 이 시험이 아무것도 안 본다")
+        self.assertLessEqual(seen, declared, "판례 파일이 걸지 않은 ID가 판정에 들어왔다")
+
+    def test_the_adapter_names_no_precedent(self) -> None:
+        """어댑터 코드에 판례 ID가 남아 있으면 정책 레이어와 조용히 갈린다."""
+        source = (
+            POLICY_ROOT.parent / "adapters" / "arbiter_bag_category_gender.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn('"BG-', source)
 
 
 if __name__ == "__main__":

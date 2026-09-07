@@ -120,7 +120,7 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
             "strength": STRONG,
             "rule": "P0_NO_EVIDENCE",
             "note": "근거가 없다. 정책은 근거 부족을 UNISEX로 대신하지 않는다.",
-            "blockedBy": ["BG-0002"],
+            "blockedBy": [],
         }
 
     evidence_type = row.get("detailEvidenceType")
@@ -160,8 +160,8 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
                 "label": label,
                 "strength": WEAK,
                 "rule": "P3_WEARER",
-                "note": "3순위 착용자 근거뿐이다. BG-0001은 이 근거를 약한 것으로 본다.",
-                "blockedBy": ["BG-0001"],
+                "note": "3순위 착용자 근거뿐이다. 이 근거만으로 골든셋을 뒤집을지는 판례가 답한다.",
+                "blockedBy": [],
             }
 
     if evidence_type == "PRODUCT_ONLY":
@@ -186,7 +186,7 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
                 "정책이 이 계열을 «상식만으로 UNISEX가 아니다»로 명시했고, "
                 "공용이라는 적극적 근거가 이 스냅샷에 없다."
             ),
-            "blockedBy": ["BG-0002"],
+            "blockedBy": [],
         }
 
     return {
@@ -198,10 +198,12 @@ def policy_answer(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# 큐 신호가 미결 판례에 걸려 있으면 심판이 그 사실을 함께 올린다.
-SIGNAL_PRECEDENTS: dict[str, str] = {
-    "GOLDEN_SOURCE_CONFLICT": "BG-0003",
-    "GOLDEN_POLICY_VIOLATION_CANDIDATE": "BG-0001",
-    "POLICY_RUNTIME_CONTRADICTION": "BG-0002",
-    "GOLDEN_UNSUPPORTED_AGREEMENT": "BG-0002",
-}
+# 큐 신호가 미결 판례에 걸려 있으면 심판이 그 사실을 함께 올린다. **여기는 비어 있다.**
+#
+# 전에는 이 표에 판례 ID가 적혀 있었다. 그러면 판례를 새로 써도 심판은 모르고, 판례를
+# 닫아도 코드를 고쳐야 했다 — 판례가 자산이 아니라 코드의 상수였다. 지금은 판례 파일이
+# `rule:`과 `signals:`로 스스로 걸리고, 엔진이 그 선언을 읽어 막는다.
+#
+# 이 자리를 지우지 않고 비워 두는 이유는, 어댑터가 **속성만 아는 이음**을 넣을 수 있어야
+# 하기 때문이다. 정책 문장으로 표현되지 않는 이음이 생기면 여기 적는다.
+SIGNAL_PRECEDENTS: dict[str, str] = {}

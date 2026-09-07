@@ -76,6 +76,26 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
+    # 사람이 확정한 판정을 GT가 읽을 수 있는 모양으로 내보낸다. 결정 원장만 읽으므로
+    # 외부 저장소가 없어도 돈다 — 실제로 GT를 덮는 일은 `build_gt.py`가 따로 한다.
+    run(
+        sys.executable,
+        str(PROJECT_ROOT / ".claude/os/engine/scripts/build_gt_decisions.py"),
+        "--profile",
+        str(profile_path),
+        "--output-root",
+        str(root),
+    )
+    # 규칙마다 브리프 한 장. 다음 실행의 판독자가 정책과 판례를 손 안 대고 받는 자리다.
+    # 판정 원장을 파생한 **뒤에** 돈다 — 판례에 걸린 확정 사례가 브리프에 실려야 하기 때문이다.
+    run(
+        sys.executable,
+        str(PROJECT_ROOT / ".claude/os/engine/scripts/build_precedent_brief.py"),
+        "--profile",
+        str(profile_path),
+        "--output-root",
+        str(root),
+    )
     run(
         sys.executable,
         str(PROJECT_ROOT / ".claude/os/engine/scripts/build_review_progress.py"),

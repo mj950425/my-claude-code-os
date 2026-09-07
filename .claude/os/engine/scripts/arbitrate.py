@@ -139,6 +139,22 @@ def main() -> int:
     policy_cfg = profile.get("policy") or {}
     precedents = read_precedents(project_path(str(policy_cfg.get("precedents") or "")))
     open_ids = {pid for pid, meta in precedents.items() if meta.get("status", "OPEN").upper() == "OPEN"}
+    # 어느 규칙 위의 판단이 어느 판례에 막히는가. **판례 파일이 스스로 선언한다.**
+    # 전에는 어댑터가 판례 ID를 코드에 박아 두었고, 그래서 판례를 새로 써도 심판은 몰랐다.
+    # 판례가 자산이 되려면 판례를 더하는 것만으로 다음 실행이 달라져야 한다.
+    #
+    # 판례는 두 축으로 걸린다. `rule:`은 「어느 정책 규칙 위의 판단인가」, `signals:`는
+    # 「어느 큐 신호가 이 판례를 기다리는가」다. 규칙으로 안 걸리는 판례가 있기 때문이다 —
+    # 「두 GT 소스 중 무엇이 정본인가」는 어떤 근거 규칙 위에도 서지 않는다.
+    rule_precedents: dict[str, list[str]] = {}
+    signal_declared: dict[str, list[str]] = {}
+    for pid, meta in precedents.items():
+        for rule_id in (item.strip() for item in (meta.get("rule") or "").split(",")):
+            if rule_id:
+                rule_precedents.setdefault(rule_id, []).append(pid)
+        for signal in (item.strip() for item in (meta.get("signals") or "").split(",")):
+            if signal:
+                signal_declared.setdefault(signal, []).append(pid)
 
     merged = merge_queue(root / "queue")
     verdicts: list[dict[str, Any]] = []
@@ -154,6 +170,10 @@ def main() -> int:
         if owner != "NONE":
             blocked = {pid for pid in answer.get("blockedBy", []) if pid in open_ids}
             blocked |= {signal_precedents[s] for s in signals if signal_precedents.get(s) in open_ids}
+            # 어댑터가 이름을 대지 않아도, 판례가 스스로 건 자리에서 막힌다.
+            blocked |= {pid for pid in rule_precedents.get(answer["rule"], []) if pid in open_ids}
+            for signal in signals:
+                blocked |= {pid for pid in signal_declared.get(signal, []) if pid in open_ids}
         verdicts.append(
             {
                 "productKey": key,

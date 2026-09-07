@@ -25,9 +25,20 @@ from catalog_profile import (
 INDEX_SCHEMA = "catalog-policy-index-v1"
 REQUIRED_SECTIONS = ("허용값", "근거 우선순위", "판정 불가 조건", "판례")
 PRECEDENT_STATUSES = {"OPEN", "DECIDED", "SUPERSEDED"}
+# 판례가 누구에게 가는가. 「무엇이 근거인가」의 경계는 판독자에게 가고, 「근거가 이러할 때
+# 무엇으로 정할 것인가」의 경계는 가지 않는다 — 값을 정하는 규칙을 판독자가 읽으면,
+# 무엇이 보이는지 답해야 할 눈이 무엇이 답인지 먼저 정한다.
+PRECEDENT_AUDIENCES = {"EVIDENCE", "RULING"}
+DEFAULT_AUDIENCE = "RULING"
 DECIDED_FIELDS = ("decision", "decidedBy", "decidedAt")
 SECTION = re.compile(r"^##\s+(.+?)\s*$")
 LABEL_LINE = re.compile(r"^-\s+`([A-Z][A-Z0-9_]*)`")
+# 규칙 줄. 허용값과 **같은 모양**이고 있는 자리가 다르다 — 허용값 섹션의 것은 라벨,
+# 그 밖의 것은 규칙이다. 번호 목록도 받는다: 근거 우선순위는 순서가 뜻을 갖기 때문이다.
+RULE_LINE = re.compile(r"^(?:-|\d+\.)\s+`([A-Z][A-Z0-9_]*)`\s*(?:—|-|·)?\s*(.*)$")
+# 규칙을 읽는 섹션. 계약이 이름을 정한 넷 중 허용값(라벨)과 판례(목차)를 뺀 나머지다.
+# 계약 밖의 자유 섹션은 훑지 않는다 — 훑으면 「근거 유형」 같은 값 목록이 규칙으로 둔갑한다.
+RULE_SECTIONS = tuple(name for name in REQUIRED_SECTIONS if name not in ("허용값", "판례"))
 
 
 def sha256(path: Path) -> str:
@@ -68,6 +79,34 @@ def sections(body: str) -> dict[str, str]:
     if title is not None:
         found[title] = "\n".join(buffer)
     return found
+
+
+def read_rules(found: dict[str, str]) -> list[dict[str, Any]]:
+    """정책이 이름 붙인 규칙들. 판례·심판·판독기가 같은 이름으로 같은 규칙을 가리키게 한다.
+
+    이름이 없으면 「어느 규칙의 판례인가」를 물을 수 없고, 물을 수 없으면 다음 실행이
+    그 판례를 골라 읽을 수 없다. 그때 판례는 문서로만 남고 자산이 되지 못한다.
+
+    한 줄에서 첫 백틱 토큰만 읽는다. 뒤에 오는 문장은 그 규칙이 무엇인지 사람이 읽을 몫이라
+    구조를 강요하지 않는다 — 규칙 본문을 형식으로 묶으면 정책이 형식에 맞춰 얇아진다.
+    """
+    rules: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for name in RULE_SECTIONS:
+        block = found.get(name, "")
+        for line in block.splitlines():
+            match = RULE_LINE.match(line.strip())
+            if not match or match.group(1) in seen:
+                continue
+            seen.add(match.group(1))
+            rules.append({
+                "id": match.group(1),
+                "section": name,
+                # 규칙 한 줄 요약. 강조 표시는 걷어낸다 — 프롬프트로 나갈 문장이라
+                # 마크다운 기호가 그대로 실리면 판독기가 그것도 지시로 읽는다.
+                "summary": match.group(2).replace("**", "").strip(),
+            })
+    return rules
 
 
 def violation(code: str, severity: str, detail: str) -> dict[str, Any]:
@@ -118,6 +157,7 @@ def read_owned(path: Path, profile_id: str, violations: list[dict[str, Any]]) ->
         "owner": meta.get("owner"),
         "updatedAt": meta.get("updatedAt"),
         "labels": labels,
+        "rules": read_rules(found),
         "sections": sorted(found),
     }
 
@@ -141,6 +181,9 @@ def read_precedents(directory: Path | None, profile_id: str, violations: list[di
             missing = [field for field in DECIDED_FIELDS if not meta.get(field)]
             if missing:
                 problems.append(f"DECIDED인데 {', '.join(missing)}가 비어 있습니다")
+        audience = (meta.get("applies") or DEFAULT_AUDIENCE).strip().upper()
+        if audience not in PRECEDENT_AUDIENCES:
+            problems.append(f"applies `{audience}`는 {sorted(PRECEDENT_AUDIENCES)} 중 하나여야 합니다")
         for problem in problems:
             violations.append(
                 violation("PRECEDENT_MALFORMED", "BLOCKING", f"{path.name}: {problem}")
@@ -150,6 +193,10 @@ def read_precedents(directory: Path | None, profile_id: str, violations: list[di
                 "id": identifier or path.stem,
                 "path": relative_or_absolute(path),
                 "status": status,
+                # 이 판례가 어느 규칙의 경계를 묻는가. 다음 실행에서 그 규칙을 쓰는
+                # 판독기가 자기 판례만 받아 보게 하는 열쇠다.
+                "rules": as_list(meta.get("rule")),
+                "applies": audience,
                 "answers": as_list(meta.get("answers")),
                 "acknowledges": as_list(meta.get("acknowledges")),
                 "decision": meta.get("decision") or None,
@@ -208,6 +255,33 @@ def main() -> int:
                 )
             )
 
+    # 규칙 ↔ 판례. 이 대조가 루프의 마지막 고리다 — 이것이 있어야 다음 실행에서
+    # 그 규칙을 쓰는 판독기에게 자기 판례만 골라 줄 수 있다.
+    rule_ids = [str(rule["id"]) for rule in owned.get("rules", [])]
+    rule_precedents: dict[str, list[str]] = {}
+    for precedent in precedents:
+        # 규칙을 요구하는 것은 **판독자에게 갈 판례뿐**이다. 규칙 없이는 그 판례가 어느
+        # 브리프에도 실리지 않아 다음 실행에 영원히 닿지 못한다. 판정 경계 판례는 다르다 —
+        # 「두 GT 소스 중 무엇이 정본인가」처럼 어떤 근거 규칙 위에도 서지 않는 질문이 있다.
+        if precedent["applies"] == "EVIDENCE" and not precedent["rules"]:
+            violations.append(
+                violation(
+                    "PRECEDENT_WITHOUT_RULE",
+                    "REVIEW",
+                    f"{precedent['id']}는 판독자에게 갈 판례인데 규칙을 밝히지 않아 어느 브리프에도 실리지 않습니다.",
+                )
+            )
+        for rule_id in precedent["rules"]:
+            rule_precedents.setdefault(rule_id, []).append(precedent["id"])
+            if rule_id not in rule_ids:
+                violations.append(
+                    violation(
+                        "UNKNOWN_RULE",
+                        "REVIEW",
+                        f"{precedent['id']}가 정책에 없는 규칙 `{rule_id}`를 가리킵니다.",
+                    )
+                )
+
     questions_path = root / "reports" / "policy-questions.json"
     questions = json.loads(questions_path.read_text(encoding="utf-8")) if questions_path.is_file() else []
     question_ids = [str(item.get("id")) for item in questions if isinstance(item, dict)]
@@ -264,6 +338,8 @@ def main() -> int:
             else None
         ),
         "precedents": precedents,
+        # 규칙 하나에 걸린 판례들. 다음 실행이 규칙으로 판례를 찾는 입구다.
+        "rulePrecedents": {key: sorted(rule_precedents[key]) for key in sorted(rule_precedents)},
         "questionPrecedents": dict(sorted(answered.items())),
         "questionsWithoutPrecedent": sorted(
             item for item in question_ids if item not in answered

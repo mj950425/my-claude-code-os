@@ -86,11 +86,22 @@ Q&A로 남는다. 이미 있는 ADR은 덮어쓰지 않는다.
 파일 수정은 사용자 승인 뒤에 한다. 옮긴 뒤 스캐너를 다시 돌려 슬롯이 `FILLED`로 바뀌는지 본다.
 안 바뀌었으면 그 답은 아직 문장이 아니다.
 
+**판례를 만들 때 `applies`와 `rule`을 반드시 채운다.** 이 둘이 판례를 다음 실행에 잇는
+유일한 끈이다. `applies: EVIDENCE`(무엇이 근거인가)면 그 판례는 규칙 브리프에 실려
+다음 판독기에게 가고, `RULING`(무엇으로 정할 것인가)이면 가지 않는다. 비워 두면 `RULING`이
+되어 **답을 적어도 다음 판독은 영원히 그것을 모른다.** 틀은
+[templates/precedent.md](../../../engine/templates/precedent.md), 계약은
+[policy-layer.md](../../../engine/contracts/policy-layer.md)에 있다.
+
+새 규칙을 만들었으면 정책에도 **대문자 토큰 이름**을 붙인다. 이름 없는 규칙에는 판례를
+걸 수 없고, 걸 수 없으면 그 규칙 위의 판단은 매번 처음부터 다시 한다.
+
 ## 완료 조건
 
 1. `<outputRoot>/interview/slots.json`의 `empty`가 0
 2. 남은 `THIN`마다 `OPEN` 판례가 하나씩 있다
 3. `RESOLVED`로 기록된 답마다 `appliesTo` 파일에 실제 문장이 들어갔다
-4. `build_policy_index.py`의 `BLOCKING` 위반이 0
+4. `build_policy_index.py`의 `BLOCKING` 위반이 0이고, `PRECEDENT_WITHOUT_RULE`이 없다 —
+   판독기에게 갈 판례가 규칙을 안 걸면 어느 브리프에도 안 실려 다음 실행에 못 닿는다
 5. 목표 슬롯의 판정 한 문장으로 상품 하나를 실제로 판정해봤고, 두 사람이 같은 답을 냈다
 6. 세션의 ADR이 렌더됐고, 반례로 든 큐 상품이 다음 사이클에서 큐에서 빠졌다
