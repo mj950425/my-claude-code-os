@@ -15,8 +15,7 @@
     "queueDirectory": ".claude/os/runs/bag-category-gender/queue",
     "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md",
     "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json",
-    "ruleBriefs": ".claude/os/runs/bag-category-gender/policy/rule-briefs/index.json",
-    "suspectGtReport": ".claude/os/runs/bag-category-gender/reports/suspect-gt.html"
+    "ruleBriefs": ".claude/os/runs/bag-category-gender/policy/rule-briefs/index.json"
   },
   "completed": true,
   "cycle": [
@@ -30,7 +29,7 @@
     "사람 판정 진행률",
     "HTML 보고서"
   ],
-  "generatedAt": "2026-09-07T07:43:24.313966+00:00",
+  "generatedAt": "2026-09-07T12:24:10.562011+00:00",
   "goldenSourceBreakdown": {
     "LABEL_TO_LABEL": 44,
     "UNCLASSIFIED_TO_LABELED": 7

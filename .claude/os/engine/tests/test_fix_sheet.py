@@ -164,19 +164,36 @@ class FixSheetTest(unittest.TestCase):
         self.assertIn('id="grade-tabs"', markup)
         self.assertEqual(re.findall(r'id="grade-tabs"[^>]*>\s*<button', markup), [])
 
-    def test_every_line_can_open_its_case_card(self) -> None:
-        """정정 후보에서 «근거 펼쳐 보기»로 넘어간 앵커가 사례 보고서에 실제로 있어야 한다."""
-        sheet = self.sheet.read_text(encoding="utf-8")
-        self.assertIn("suspect-gt.html", unpack(self.sheet)["evidenceHref"])
-        for page in (sheet, (self.run / "reports/suspect-gt.html").read_text(encoding="utf-8")):
-            self.assertIn("const anchor=k=>", page)
-        self.assertIn('id="${esc(anchor(row.productKey))}"',
-                      (self.run / "reports/suspect-gt.html").read_text(encoding="utf-8"))
+    def test_the_gt_lane_has_exactly_one_screen(self) -> None:
+        """같은 것을 담는 두 화면은 고를 것이 없는데 고르게 만든다.
 
-    def test_the_sheet_and_the_case_report_show_the_same_products(self) -> None:
-        sheet = {row["productKey"] for row in unpack(self.sheet)["rows"]}
-        cases = {row["productKey"] for row in unpack(self.run / "reports/suspect-gt.html")["rows"]}
-        self.assertEqual(sheet, cases)
+        전에는 「의심되는 GT 찾기」가 한 장 더 있었고, 이 자리의 시험은 **두 장이 같은
+        상품을 보여야 한다**고 요구했다. 중복을 요구사항으로 못 박고 있었던 셈이다.
+        필터가 글자 그대로 같았으니(`lanes:["GT","OPEN"]`) 늘 같은 11건이었는데,
+        딱지는 「제안 단위」와 「건 단위」로 서로 다른 척했다.
+
+        서버 홈에서 카드 메뉴를 없앤 이유가 정확히 그 겹침이었다. 보고서와 표지 링크가
+        남아 있었으므로 그 수정은 절반만 된 것이었고, 여기서 나머지 절반을 못 박는다.
+        """
+        rendered = {path.name for path in (self.run / "reports").glob("*.html")}
+        self.assertEqual(rendered, {"catalog-audit.html", "gt-fixes.html", "policy-gaps.html"})
+
+        # 레인마다 목적지가 하나여야 한다. 둘이면 그 둘이 무엇이 다른지 사람이 매번 묻는다.
+        specs = render.REPORTS
+        by_lane: dict[tuple[str, ...], list[str]] = {}
+        for key, spec in specs.items():
+            by_lane.setdefault(tuple(spec["lanes"]), []).append(key)
+        for lanes, keys in by_lane.items():
+            self.assertEqual(len(keys), 1, f"같은 필터를 가진 화면이 둘이다: {lanes} → {keys}")
+
+    def test_a_retired_screen_takes_its_declaration_with_it(self) -> None:
+        """선언은 «이번 실행이 무엇을 냈는가»다. 지난 실행의 흔적이 남으면 심사가 없는 파일을 찾는다."""
+        summary = json.loads((self.run / "run-summary.json").read_text(encoding="utf-8"))
+        declared = summary.get("artifacts") or {}
+        self.assertNotIn("suspectGtReport", declared)
+        for key, value in declared.items():
+            if key in render.OWNED_ARTIFACTS:
+                self.assertTrue(Path(value).exists() or (PROJECT_ROOT / value).exists(), key)
 
 
 if __name__ == "__main__":
@@ -230,3 +247,23 @@ class ReaderNotesAreNeverFoldedTest(unittest.TestCase):
     def test_the_note_is_drawn_even_when_the_scene_was_not_cited(self) -> None:
         source = RENDERER.read_text(encoding="utf-8")
         self.assertIn("const seen = item.note", source)
+
+
+class TileCropFollowsTheMintingRuleTest(unittest.TestCase):
+    """화면의 CSS 자르기는 고정 절단 판에서만 맞다. 다른 판이면 자르지 않고 원본을 통째로 보인다."""
+
+    def plate(self, version: str | None) -> list[dict]:
+        sys.path.insert(0, str(PROJECT_ROOT / ".claude/os/engine/scripts"))
+        from render_catalog_report import fix_plate
+
+        row = {"productKey": "K:1", "evidence": {"sceneIds": ["D01T02"]}}
+        gallery = {"K:1": {"tileRule": {"version": version} if version else None, "details": [
+            {"sceneId": "D01T01", "url": "https://x/1.jpg"}, {"sceneId": "D01T02", "url": "https://x/1.jpg"}]}}
+        return [item for item in fix_plate(row, gallery) if item["role"] == "DETAIL"]
+
+    def test_fixed_cut_is_cropped(self) -> None:
+        self.assertEqual(sorted(item["tile"] for item in self.plate("v0-fixed")), [1, 2])
+
+    def test_pixel_rules_and_undeclared_are_not_cropped(self) -> None:
+        for version in ("v2-band-then-seam", "v1-background-band", None):
+            self.assertTrue(all(item["tile"] == 0 for item in self.plate(version)), version)

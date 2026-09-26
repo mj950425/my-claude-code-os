@@ -219,6 +219,7 @@
 ```
 review    ──▶  runs/<프로필ID>/run-summary.json   (산출물만 안다)
 review    ──▶  요약이 artifacts로 선언한 경로        (갤러리·큐·심판 판정)
+review    ──▶  common                            (타일 규칙 — 번호를 매긴 판으로 자른다)
 review    ──✗  engine                            (코드를 부르지 않는다)
 review    ──✗  attributes/<프로필ID>              (프로필도 어댑터도 읽지 않는다)
 engine    ──✗  review                            (엔진은 심사를 모른다)

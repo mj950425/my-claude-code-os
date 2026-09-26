@@ -75,7 +75,10 @@ JSON
 python3 .claude/os/engine/scripts/render_improvements.py --profile '<profile.json>'
 ```
 
-`improvements.json`과 `improvements.md`가 나온다. 판정과 반증이 만나 상태 하나가 된다.
+`improvements.json`·`improvements.md`·`improvements.html`이 나온다. 판정과 반증이 만나 상태 하나가 된다.
+
+서버(`./serve.sh`)에서는 표지의 **개선 포인트 열기**로 닿는다. 스윕은 `run-summary.json`에 선언하지 않으므로,
+표지가 열릴 때 `improvements.json`을 직접 찾아 있으면 링크를 띄우고, 다른 실행 위에 선 것이면 그렇다고 적는다.
 
 | 상태 | 다음에 할 일 |
 |---|---|

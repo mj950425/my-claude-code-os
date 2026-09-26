@@ -12,7 +12,7 @@
 | 출처 manifest | 원본 경로·커밋·dirty 여부·SHA-256으로 재현 가능성 기록 |
 | 사람 판정 원장 | AI 추천과 사람 확정을 분리하고, `supersedes`로 변경 이력 보존 |
 | `build_review_progress.py` | 여러 큐의 같은 상품을 한 건으로 합쳐 진행률 계산 |
-| `render_catalog_report.py` | 속성명과 신호 정의를 프로필에서 읽어 정적 HTML 세 장 생성 — 표지, 의심되는 GT 찾기, 빈 정책 찾기 |
+| `render_catalog_report.py` | 속성명과 신호 정의를 프로필에서 읽어 정적 HTML 세 장 생성 — 표지, GT 정정 후보, 빈 정책 찾기 |
 | `build_policy_index.py` | 소유 정책·판례의 계약 검증과 정책 공백의 추적 여부 판정 |
 
 공통 코어에는 `성별`, `MALE`, `가방` 같은 도메인 규칙을 넣지 않는다.
@@ -36,6 +36,23 @@ import 어댑터 → audit 어댑터 → build_policy_index → build_review_pro
 
 정책 인덱스가 audit 뒤에 오는 이유는, audit이 만든 `reports/policy-questions.json`을 읽어
 "이 질문에 답할 판례가 있는가"를 판정해야 하기 때문이다.
+
+## 두 갈래 — 감사 사이클 팩과 GT 개선 전용 팩
+
+속성 팩이 서는 방법은 둘이다.
+
+| | 감사 사이클 팩 | GT 개선 전용 팩 |
+|---|---|---|
+| 예 | 정책·판례가 있는 상품 속성 | 메타데이터 관찰 칸 GT, 감사 사이클 없는 상품 속성 GT — 실제 목록은 `gt_review.py tasks` |
+| 선언 | `gt`·`policy`·`adapters`(import·audit·arbiter)·`signals` | `gtTask` 하나(+ `definitions.md`, 필요하면 실행 결과 어댑터) |
+| 경계 문서 | `policy/policy.md` + 판례 | `definitions.md`(필드마다 절). 판례 없음 |
+| 판정 원장 | `runs/<id>/review/decisions.json` | `.claude/gt/<id>/gt-review/decisions.json` |
+| 단위 | 상품 하나에 라벨 하나 | (키, 필드) 한 칸 |
+| 사람이 여는 화면 | GT 정정 후보(`/`) | GT 개선 화면(`/gt/<id>`) |
+
+정책과 판례를 쌓을 만큼 경계가 흔들리는 속성은 사이클 팩으로, 정답을 빨리 고치는 것이 먼저인 속성(메타데이터
+관찰 칸 같은)은 전용 팩으로 시작한다. 한 GT에 둘을 함께 달 수는 없다 — 원장이 둘이 된다. 계약은
+[gt-task.md](gt-task.md)에 있다.
 
 ## 새 속성 추가 체크리스트
 

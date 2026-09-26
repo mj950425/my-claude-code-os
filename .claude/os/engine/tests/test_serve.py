@@ -177,7 +177,10 @@ class ProcessTest(unittest.TestCase):
     def test_start_is_idempotent_and_the_root_redirects(self) -> None:
         serve = PROJECT_ROOT / "serve.sh"
         port = "7519"
-        env = {"CATALOG_OS_PORT": port, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+        # PATH를 좁혀 셸 환경에 기대지 않게 하되, 인터프리터는 테스트를 돌리는 그것으로 못박는다.
+        # 좁은 PATH의 python3는 시스템 3.9라 엔진 import에서 죽는다 — 그건 serve.sh의 결함이 아니다.
+        env = {"CATALOG_OS_PORT": port, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+               "CATALOG_OS_PYTHON": sys.executable}
 
         def run(*args: str) -> subprocess.CompletedProcess[str]:
             return subprocess.run(

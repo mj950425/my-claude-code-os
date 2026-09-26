@@ -24,7 +24,8 @@
     },
     "accessoriesProductGt": {
       "count": 500,
-      "path": ".claude/os/runs/accessories-category-gender/golden/accessories-product-gt.jsonl"
+      "copied": false,
+      "note": "정답은 사본을 두지 않는다 — sources.gt의 경로와 해시가 읽은 판이다"
     },
     "asset": {
       "bytes": 1306000234,
@@ -46,8 +47,10 @@
       "sha256": "b319b089974fb554ea138c9045e651987991021d2e2de00c13052d0955dace73"
     },
     "gt": {
-      "path": "tool/image-gender/gt-harness/data/accessories-product-gt-20260902.jsonl",
-      "sha256": "a5dcf2fbf2d10dd57bbbcfa5928754759e619a6058b1cb0ba86332f183df3f4f"
+      "path": "tool/image-gender/gt-harness/data/accessories-product-gt-20260903.jsonl",
+      "sha256": "3e24b9051e46cffef71325654b962712cc0317921eb1523443c700d6abdd4865"
     }
-  }
+  },
+  "gtRefreshedAt": "2026-09-26T09:42:46.033261+00:00",
+  "note": "GT 항목은 gtRefreshedAt에, 나머지(색인·실행 스냅샷·정합성)는 generatedAt에 만들었다."
 }

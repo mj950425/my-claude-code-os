@@ -1,7 +1,7 @@
 {
   "schemaVersion": "catalog-data-profile-v1",
   "id": "accessories-category-gender",
-  "displayName": "잡화 성별 골든셋 스냅샷",
+  "displayName": "잡화 대상 고객 성별 GT",
   "attributeName": "대상 고객 성별",
   "subjectName": "잡화 상품",
   "outputRoot": ".claude/os/runs/accessories-category-gender",
@@ -16,5 +16,133 @@
   ],
   "adapters": {
     "import": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py"
+  },
+  "gtTask": {
+    "schemaVersion": "gt-task-v1",
+    "unit": "상품",
+    "keyField": "productKey",
+    "groupField": "standardCategory",
+    "titleField": "productName",
+    "definitions": ".claude/os/attributes/accessories-category-gender/definitions.md",
+    "gt": {
+      "path": "tool/image-gender/gt-harness/data/accessories-product-gt-20260903.jsonl",
+      "root": "source",
+      "sourceField": "goldLabelSource",
+      "upstream": {
+        "kind": "sheet",
+        "note": "D/O 검수 시트의 «최종 검수 GT» 열",
+        "refresh": "refresh_product_gt_from_google_sheet.py가 시트에서 이 파일을 다시 만든다(개발자가 돌린다)",
+        "acceptsEmpty": false,
+        "mirrorFields": [
+          "finalReviewLabel"
+        ],
+        "locatorFields": [
+          "sourceSheet",
+          "sheetRow",
+          "sourceCell"
+        ],
+        "rowCheck": {
+          "row": "sheetRow",
+          "cell": "sourceCell",
+          "sheet": "sourceSheet",
+          "rowSheet": "9/1 의류/잡화/가방/스포츠"
+        },
+        "columns": {
+          "targetGender": "최종 검수 GT"
+        },
+        "headerNames": {
+          "productKey": "상품 키",
+          "sourceSheet": "시트 탭",
+          "sheetRow": "시트 행",
+          "sourceCell": "시트 칸",
+          "reviewer": "이름",
+          "reason": "검수 근거"
+        }
+      },
+      "supersededBy": {
+        "glob": "*.provenance.json",
+        "baseField": "baseGt",
+        "markerSuffix": ".provenance.json"
+      }
+    },
+    "authority": {
+      "trusted": [
+        "^FINAL_",
+        "^USER_",
+        "_MANUAL_REVIEW"
+      ],
+      "reference": [
+        "FALLBACK"
+      ]
+    },
+    "correctionSourcePrefix": "USER_GT_REVIEW",
+    "fields": [
+      {
+        "id": "targetGender",
+        "name": "대상 고객 성별",
+        "gtField": "goldLabel",
+        "labels": [
+          "MALE",
+          "FEMALE",
+          "UNISEX",
+          "UNDETERMINED"
+        ],
+        "labelNames": {
+          "MALE": "남성",
+          "FEMALE": "여성",
+          "UNISEX": "공용",
+          "UNDETERMINED": "판단 불가"
+        },
+        "fillMissing": false,
+        "unknownLabel": "UNDETERMINED"
+      }
+    ],
+    "images": {
+      "path": ".claude/os/runs/accessories-category-gender/golden/accessories-image-index.jsonl",
+      "root": "project",
+      "keyField": "goodsNo",
+      "joinField": "goodsNo",
+      "listField": "images",
+      "fileField": "file",
+      "fileRoot": "output",
+      "idField": "imageId",
+      "roleField": "role",
+      "roles": [
+        "THUMBNAIL",
+        "DETAIL_TILE"
+      ],
+      "maxImages": 16,
+      "preTiledRoles": [
+        "DETAIL_TILE"
+      ],
+      "preTiledRule": {
+        "name": "ccp-batch-image-composer-tile-ranges",
+        "version": "v0-fixed",
+        "by": "gt-harness collect_product_detail_images.py (work/current-detail-accessories-20260831)",
+        "decoder": "harness-pillow"
+      },
+      "contextFields": [
+        "standardCategory"
+      ],
+      "roleNames": {
+        "THUMBNAIL": "대표 썸네일",
+        "DETAIL_TILE": "상세 조각"
+      }
+    },
+    "limit": 6,
+    "prerequisite": {
+      "adapter": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py",
+      "note": "사진 색인·실행 결과·사진 사본(runs/ 아래)은 이 가져오기가 만든다. 지워졌으면 다시 돌린다."
+    },
+    "evidence": {
+      "textFields": [
+        "productName"
+      ]
+    },
+    "titleAsEvidence": true,
+    "columnNames": {
+      "standardCategory": "표준 카테고리",
+      "productName": "상품명"
+    }
   }
 }

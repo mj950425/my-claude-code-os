@@ -30,18 +30,27 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-# 긴 상세 원본을 폭×1.5 높이로 자르는 타일 경계 규칙. 이 값을 여기 적는 것은
-# 산출물이 `D01T06`이라고만 말하고 그것이 어느 픽셀인지는 말하지 않기 때문이다.
-# 규칙이 갈라지면 다른 조각을 보게 되므로, 계산한 타일 수가 산출물이 참조한
-# 최대 타일 번호를 담지 못하면 그 원본은 자르지 않고 건너뛴다(_tile_ranges 참조).
-TILE_ASPECT = 1.5
-MIN_TILE_PX = 64
+# 타일 경계 규칙은 `common/tile_rule.py` 하나다 — 운영 `BatchImageComposer.tileRanges`의 이식이다.
+# 산출물은 `D01T06`이라고만 말하고 그것이 어느 픽셀인지는 말하지 않는다. 그 번호는 **그 번호를 매긴
+# 실행의 규칙**으로 잘라야 같은 사진이 된다 — 최신 규칙이 아니다. 운영 규칙은 고정 절단에서 배경 띠,
+# 사진 이음매로 바뀌어 왔고, 옛 실행의 T03을 새 규칙으로 자르면 다른 사진을 보고 동의하거나 반박한다.
+# 그래서 갤러리가 상품마다 `tileRule`(판)을 선언하고, 선언이 없으면 자르지 않는다.
+# 계산한 타일 수가 산출물이 참조한 최대 타일 번호를 담지 못해도 그 원본은 자르지 않고 건너뛴다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "common"))
+import tile_rule  # noqa: E402
+
 # 대표 사진 후보를 몇 개까지 받아 볼 것인가. 전부 받으면 상품마다 목록 전체를 내려받게 된다.
 REFERENCE_CANDIDATES = 4
 # 대상의 정의가 이보다 작으면 경고한다. 색·프린트 대조가 이 아래에서 흔들린 사례가 있다.
 REFERENCE_MIN_LONG_SIDE = 400
 
-SCENE_ID = re.compile(r"^D(\d+)T(\d+)$")
+# 운영 DetailTileId처럼 0번 자리는 없다. D00·T00은 풀지 않는다(T00이 ranges[-1], 마지막 조각으로 새지 않게).
+# 끝은 `\Z` — `$`는 끝의 줄바꿈을 받아 «D01T01\n»도 통과시키지만 운영(Java Matcher.matches)은 거절한다.
+SCENE_ID = re.compile(r"^D(0*[1-9]\d*)T(0*[1-9]\d*)\Z")
+TILE_SHAPE = re.compile(r"^D\d+T\d+\Z")
+# 운영 DetailTileId의 인용 문법(CITATION) — 모델이 인용한 이름은 두 자리 이상이어야 한다. «D1T3»은 화면에 없던 이름이라
+# 운영이 근거로 세지 않는다. 서버가 매긴 이름(갤러리 · LAYOUT 문법)만 한 자리를 D01T03으로 편다.
+CITATION = re.compile(r"^D(\d{2,})T(\d{2,})\Z")
 Image = None  # main()에서 Pillow를 늦게 들여온다
 USER_AGENT = "catalog-data-os-review/1.0"
 
@@ -61,17 +70,33 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _tile_ranges(width: int, height: int) -> list[tuple[int, int]]:
-    """원본 하나가 몇 개의 타일로 갈라지는가. 외부 파이프라인의 경계 규칙과 같다."""
-    tile_height = max(MIN_TILE_PX, round(width * TILE_ASPECT))
-    if height <= tile_height * 1.25:
-        return [(0, height)]
-    ranges: list[tuple[int, int]] = []
-    for top in range(0, height, tile_height):
-        bottom = min(top + tile_height, height)
-        if bottom - top >= MIN_TILE_PX:
-            ranges.append((top, bottom))
-    return ranges
+def _tile_ranges(image: "Image.Image", version: str = tile_rule.CURRENT) -> list[tuple[int, int]]:
+    """원본 하나가 몇 개의 타일로 갈라지는가. `version`은 그 번호를 매긴 판이다."""
+    return tile_rule.tile_ranges(image, version)
+
+
+def _open_rgb(path: Path, decoder: str) -> "Image.Image":
+    """번호를 매긴 구현이 읽은 것처럼 읽는다. 경계는 행의 밝기로 정하므로 같은 밝기로 읽어야 한다.
+    그 디코드를 재현하지 못하는 파일은 UnsupportedDecode 그대로 올린다 — 손상·내려받기 실패(OSError)와 이유 문구를 가른다.
+    운영의 품질 문턱(64px) 밑의 원본도 같다 — 운영은 그런 원본에 타일 번호를 매기지 않았다. 여기서 자르면
+    운영에 없던 D0xT01..이 생기고 판독자가 그것을 운영 근거로 인용한다."""
+    image = tile_rule.decode(path, decoder)
+    if not tile_rule.usable(image):
+        raise OSError(f"64px 미만({image.size[0]}x{image.size[1]}) — 운영은 이 원본에 타일을 매기지 않았다")
+    return image
+
+
+def canonical_scene(scene_id: str) -> str:
+    """서버가 매긴 이름(갤러리 · 운영 LAYOUT 문법)의 «D1T3»·«D001T03»을 D01T03 모양으로. 장면 좌표가 아니면 그대로.
+    모델이 인용한 이름은 먼저 `refused_citation`으로 운영 CITATION 문법을 거친다."""
+    match = SCENE_ID.match(scene_id)
+    return tile_rule.scene_id(int(match.group(1)), int(match.group(2))) if match else scene_id
+
+
+def refused_citation(scene_id: str) -> bool:
+    """조각 이름 모양(DxxTyy)인데 운영 인용 문법을 못 지난 인용 — 두 자리 미만이거나 0번 자리(D00T01·D01T00). 운영
+    parseCitation은 둘 다 근거로 세지 않는다. 좌표 모양이 아닌 이름(TARGET_REFERENCE 같은)만 대표 사진으로 풀린다."""
+    return bool(TILE_SHAPE.match(scene_id)) and not (CITATION.match(scene_id) and SCENE_ID.match(scene_id))
 
 
 def safe_name(product_key: str) -> str:
@@ -188,7 +213,10 @@ def download(url: str, target: Path) -> None:
 
 
 def carry_over(
-    index_path: Path, fresh: list[dict[str, Any]], based_on: Any
+    index_path: Path,
+    fresh: list[dict[str, Any]],
+    based_on: Any,
+    declared_rules: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """직전 색인에서 이번에 다시 받지 않은 상품을 그대로 이어 붙인다.
 
@@ -209,10 +237,22 @@ def carry_over(
     if previous.get("basedOn") != based_on:
         return []
     refetched = {product.get("productKey") for product in fresh}
+
+    def same_rule(product: dict[str, Any]) -> bool:
+        if declared_rules is None:
+            # 갤러리가 없어 이번에 아무것도 새로 자르지 않았다. 섞일 새 조각이 없으니 지난 색인을 그대로 둔다.
+            return True
+        # 옛 색인의 조각이 지금 갤러리가 선언한 판으로 잘린 것이 아니면 잇지 않는다.
+        # 판이 다른 조각을 한 색인에 두면 이름표와 내용이 어긋난다.
+        # 판만이 아니라 디코더도 같아야 같은 조각이다(같은 v0라도 하네스·운영 디코드는 다른 밝기로 읽는다).
+        was = product.get("tileRule") or {}
+        now = declared_rules.get(product.get("productKey")) or {}
+        return bool(was.get("version")) and (was.get("version"), was.get("decoder")) == (now.get("version"), now.get("decoder"))
+
     return [
         product
         for product in (previous.get("products") or [])
-        if product.get("productKey") not in refetched
+        if product.get("productKey") not in refetched and same_rule(product)
     ]
 
 
@@ -376,6 +416,15 @@ def main() -> int:
         if not details:
             skipped.append({"artifact": product_key, "reason": "갤러리에 상세 타일이 없다"})
             continue
+        try:
+            version = tile_rule.rule_named(images.get("tileRule"))
+            decoder = tile_rule.decoder_named(images.get("tileRule"))
+        except ValueError:
+            skipped.append({
+                "artifact": product_key,
+                "reason": "갤러리가 타일 규칙 판(tileRule)을 선언하지 않았다 — 어느 규칙으로 번호를 매겼는지 모르면 자르지 않는다",
+            })
+            continue
 
         # 대표 판매 사진. **이것이 «대상 상품»의 정의다.**
         # 지금까지 판독자에게는 상품명만 넘어갔고, 그래서 «펠라인 = 표범»을 이름으로 추측해야 했다.
@@ -405,9 +454,10 @@ def main() -> int:
                         continue
                     if not probe.exists():
                         probe.write_bytes(local.read_bytes())
-                with Image.open(probe) as candidate:
-                    candidate.load()
-                    width, height = candidate.size
+                # 대표 사진도 보기용 디코드(EXIF 회전·ICC → sRGB·투명은 흰 바탕)로 — 원장 사진과 같은 길. 바이트를 그대로
+                # 옮기면 EXIF를 무시하는 뷰어에서 기준 사진이 누운 채 대조에 쓰이고, 크기도 회전 전 값이 적힌다.
+                decoded = tile_rule.decode_for_display(probe)
+                width, height = decoded.size
             except OSError as error:
                 skipped.append({"artifact": url, "reason": f"대표 사진을 받지 못했다: {error}"})
                 continue
@@ -415,7 +465,7 @@ def main() -> int:
                 continue
             best_area = width * height
             product_dir.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(probe.read_bytes())
+            decoded.save(target, "JPEG", quality=95)
             # 어느 해상도에서 대조했는지 남긴다. 작은 대표 사진에서 나온 `MATCH`는
             # 큰 것에서 뒤집힐 수 있고, 그 사실은 크기를 적어 두지 않으면 알 수 없다.
             reference = {
@@ -424,10 +474,18 @@ def main() -> int:
                 "size": [width, height],
             }
 
+        # 장면 이름은 들어오는 자리에서 한 모양(D01T03)으로 — «D1T3»으로 인용된 것과 갤러리의 D01T03이 같은 조각이다.
+        # 원래 표기는 citedSceneIds 원문에 그대로 남는다.
+        # 모델이 인용한 이름은 운영 인용 문법으로 먼저 거른다 — 운영이 버린 «D1T3»을 여기서 D01T03으로 펴서 «심판이 인용함»으로
+        # 보이면, 운영이 근거로 세지 않은 조각을 사람이 근거로 읽는다. 거른 것은 못 푼 장면(unresolved)으로 이유와 함께 남긴다.
         scene_notes = row.get("sceneNotes") if isinstance(row.get("sceneNotes"), dict) else {}
+        raw_cited = [str(value) for value in (row.get("policyEvidenceSceneIds") or [])] + [str(key) for key in scene_notes]
+        refused_citations = sorted({value for value in raw_cited if refused_citation(value)})
+        scene_notes = {canonical_scene(str(key)): value for key, value in scene_notes.items() if not refused_citation(str(key))}
         cited = list(
             dict.fromkeys(
-                [str(value) for value in (row.get("policyEvidenceSceneIds") or [])]
+                [canonical_scene(str(value)) for value in (row.get("policyEvidenceSceneIds") or [])
+                 if not refused_citation(str(value))]
                 + [str(key) for key in scene_notes]
             )
         )
@@ -439,7 +497,7 @@ def main() -> int:
         # 넣으면 실행이 인용한 이름(`TARGET_REFERENCE`처럼 타일 좌표가 아닌 것)이 통째로 빠지고,
         # **하필 그 자리가 되짚어야 할 유일한 근거인 건**이 있었다. 합집합으로 둔다.
         wanted = (
-            list(dict.fromkeys([str(image.get("sceneId")) for image in details] + cited))
+            list(dict.fromkeys([canonical_scene(str(image.get("sceneId"))) for image in details] + cited))
             if args.all_scenes
             else cited
         )
@@ -452,13 +510,13 @@ def main() -> int:
             match = SCENE_ID.match(str(image.get("sceneId") or ""))
             url = str(image.get("url") or "")
             if match and url.startswith("http"):
-                url_by_source.setdefault(f"D{match.group(1)}", url)
+                url_by_source.setdefault(f"D{int(match.group(1)):02d}", url)
 
-        unresolved: list[str] = []
+        unresolved: list[str] = []  # 거른 인용은 원장으로 되살리지 않는다 — 아래 출력에서만 더한다
         by_source: dict[str, list[str]] = {}
         for scene_id in dict.fromkeys(wanted):
             match = SCENE_ID.match(scene_id)
-            url = url_by_source.get(f"D{match.group(1)}") if match else None
+            url = url_by_source.get(f"D{int(match.group(1)):02d}") if match else None  # D1과 D01은 같은 원본
             if not url:
                 # 타일 좌표가 아닌 이름(`TARGET_REFERENCE` 등)이거나 원본을 모른다.
                 unresolved.append(scene_id)
@@ -503,12 +561,14 @@ def main() -> int:
                         skipped.append({"artifact": url, "reason": f"내려받지 못했다: {error}"})
                         continue
                 try:
-                    probe = Image.open(source_file)
-                    probe.load()
+                    probe = _open_rgb(source_file, decoder)
+                except tile_rule.UnsupportedDecode as error:
+                    skipped.append({"artifact": url, "reason": f"운영 디코드를 재현하지 못해 자르지 않았다: {error}"})
+                    continue
                 except OSError as error:
                     skipped.append({"artifact": url, "reason": f"이미지를 열지 못했다: {error}"})
                     continue
-                total = len(_tile_ranges(*probe.size))
+                total = len(_tile_ranges(probe, version))
                 by_source[url] = [f"{source}T{index:02d}" for index in range(1, total + 1)]
         for url, scene_ids in by_source.items():
             indexes = [SCENE_ID.match(scene) for scene in scene_ids]
@@ -525,13 +585,15 @@ def main() -> int:
                     skipped.append({"artifact": url, "reason": f"내려받지 못했다: {error}"})
                     continue
             try:
-                image = Image.open(source_file)
-                image.load()
+                image = _open_rgb(source_file, decoder)
+            except tile_rule.UnsupportedDecode as error:
+                skipped.append({"artifact": url, "reason": f"운영 디코드를 재현하지 못해 자르지 않았다: {error}"})
+                continue
             except OSError as error:
                 skipped.append({"artifact": url, "reason": f"이미지를 열지 못했다: {error}"})
                 continue
             width, height = image.size
-            ranges = _tile_ranges(width, height)
+            ranges = _tile_ranges(image, version)
             max_index = max(int(SCENE_ID.match(scene).group(2)) for scene in scene_ids)
             if max_index > len(ranges):
                 # 타일 규칙이 산출물과 어긋난다. 다른 조각을 보여주느니 보여주지 않는다.
@@ -556,12 +618,16 @@ def main() -> int:
                         "path": str(target.relative_to(run_root)),
                         "sourceUrl": url,
                         "source": "ARTIFACT",
+                        # 번호를 매길 때의 원본과 지금 받은 원본이 같은지 확인할 길이 없다(갤러리에 크기·해시가 없다).
+                        # 조각 수가 맞아도 CDN이 사진을 바꿨을 수 있다 — 확인하지 못했다고 적어 둔다.
+                        "sourceVerified": False,
                         "crop": {"top": top, "bottom": bottom, "width": width},
                         "citedByJudge": scene_id in cited,
                         "judgeSceneNote": scene_notes.get(scene_id),
                     }
                 )
 
+        known_sources = dict(url_by_source)
         for scene_id, url in ledger_urls.items():
             source_file = source_cache / f"{safe_name(product_key)}-{safe_name(scene_id)}.jpg"
             if not source_file.exists():
@@ -571,24 +637,24 @@ def main() -> int:
                     skipped.append({"artifact": url, "reason": f"원장 이미지를 받지 못했다: {error}"})
                     continue
             try:
-                image = Image.open(source_file)
-                image.load()
+                # 원장 사진은 자르지 않고 통째로 둔다 — 경계를 재현할 일이 없으니 번호를 매긴 디코드로 읽지 않는다.
+                # 그 디코드는 CMYK·WebP·작은 대표 사진을 거절해, 대상 상품의 기준 사진이 조용히 빠진다.
+                image = tile_rule.decode_for_display(source_file)
             except OSError as error:
                 skipped.append({"artifact": url, "reason": f"원장 이미지를 열지 못했다: {error}"})
                 continue
             width, height = image.size
             match = SCENE_ID.match(scene_id)
-            if match:
-                ranges = _tile_ranges(width, height)
-                position = int(match.group(2))
-                if position > len(ranges):
-                    skipped.append(
-                        {"artifact": url, "reason": f"원장 원본이 T{position:02d}를 담지 못한다"}
-                    )
-                    continue
-                top, bottom = ranges[position - 1]
-            else:
-                top, bottom = 0, height
+            # 원장의 상세 목록은 번호를 매긴 실행의 원본 목록과 다른 출처다. 원장에 묻는 것은 갤러리에 그 D가
+            # 없을 때뿐이므로, D번째 원장 사진이 그 실행의 D번째 원본이라는 것은 **늘** 추측이다. 통째로 두고
+            # «자리 추측»이라 적는다. 원장 사진이 갤러리의 **다른** D와 같으면 자리가 어긋났다는 증거라 쓰지 않는다.
+            if match and url in known_sources.values():
+                other = next(d for d, known in known_sources.items() if known == url)
+                skipped.append({"artifact": scene_id,
+                                "reason": f"원장의 D{match.group(1)}은 갤러리 {other}와 같은 사진 — 자리가 어긋났다"})
+                continue
+            guessed = bool(match)
+            top, bottom = 0, height
             product_dir.mkdir(parents=True, exist_ok=True)
             target = product_dir / f"{safe_name(scene_id)}.jpg"
             save_tile(image.crop((0, top, width, bottom)), target, args.max_width)
@@ -598,6 +664,7 @@ def main() -> int:
                     "path": str(target.relative_to(run_root)),
                     "sourceUrl": url,
                     "source": "LEDGER",
+                    "positionGuessed": guessed,
                     "crop": {"top": top, "bottom": bottom, "width": width},
                     "citedByJudge": scene_id in cited,
                     "judgeSceneNote": scene_notes.get(scene_id),
@@ -639,6 +706,8 @@ def main() -> int:
                 # 다투는 상품만 크게 다시 받는 것이 이 스크립트의 사용법이기 때문이다.
                 # 색인 전체의 `selector.maxWidth` 하나로는 그 사실을 말할 수 없다.
                 "maxWidth": args.max_width,
+                # 이 상품의 타일을 어느 판으로 잘랐는가. 판이 다른 조각끼리 한 색인에 섞이지 않게 한다.
+                "tileRule": tile_rule.rule(version, decoder),
                 "reference": reference,
                 "goldLabel": verdict.get("goldLabel") or row.get("goldLabel"),
                 "observedLabel": verdict.get("observedLabel") or row.get("observedLabel"),
@@ -649,13 +718,16 @@ def main() -> int:
                 "judgeClaim": row.get("detailEvidence"),
                 "judgeSceneNotes": scene_notes,
                 "citedSceneIds": cited,
-                "unresolvedSceneIds": sorted(set(unresolved)),
+                "unresolvedSceneIds": sorted(set(unresolved) | set(refused_citations)),
+                # 운영 인용 문법(두 자리 이상)을 못 지나 근거로 세지 않은 인용 — 운영도 세지 않는다.
+                "refusedCitations": refused_citations,
                 "scenes": sorted(scenes, key=lambda item: item["sceneId"]),
             }
         )
 
+    declared_rules = {key: (row.get("tileRule") or {}) for key, row in gallery.items()}
     carried = (
-        carry_over(out_dir / "index.json", products, summary.get("generatedAt"))
+        carry_over(out_dir / "index.json", products, summary.get("generatedAt"), declared_rules)
         if args.product
         else []
     )
@@ -674,7 +746,9 @@ def main() -> int:
             "ledger": args.ledger,
             "fanout": args.fanout,
         },
-        "tileRule": {"aspect": TILE_ASPECT, "minTilePx": MIN_TILE_PX},
+        # 판은 상품마다 갤러리가 선언한다. 색인 전체에는 이번에 쓴 판들만 적는다.
+        "tileRules": sorted({f'{(product.get("tileRule") or {}).get("version") or "undeclared"}/'
+                             f'{(product.get("tileRule") or {}).get("decoder") or "undeclared"}' for product in products}),
         "products": products,
         "skipped": skipped,
     }
@@ -717,7 +791,9 @@ def main() -> int:
                 # 대상이 무엇인지는 이름이 아니라 이 사진이 말한다.
                 "reference": (product.get("reference") or {}).get("path"),
                 "scenes": [
-                    {"sceneId": scene["sceneId"], "path": scene["path"]}
+                    # 자리를 추측한 원장 사진이면 판독자도 알아야 한다 — «이 장면이 그 번호의 사진»이라고 믿지 않게.
+                    {"sceneId": scene["sceneId"], "path": scene["path"],
+                     **({"positionGuessed": True} if scene.get("positionGuessed") else {})}
                     for scene in product["scenes"]
                 ],
             }

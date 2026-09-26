@@ -20,6 +20,8 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 3. 구조는 세 층이다. `engine/`과 `review/`는 공통이고 어떤 속성이 있는지 모른다.
    `attributes/<id>/`는 속성 팩이고 profile.json이 유일한 플러그다. `runs/<id>/`는 산출물이라 지워도 된다.
    엔진에 성별, 가방 같은 도메인 규칙을 넣지 않는다.
+   `common/`은 어느 패키지도 모르는 순수 함수의 자리다(운영 타일 규칙). 누구나 import할 수 있고, 심사(`review/`)가
+   import하는 저장소 코드는 이것뿐이다.
 4. **판례는 자산이다.** 정책의 각 규칙에 이름이 있고(`P1_DIRECT_TEXT` 같은 대문자 토큰),
    판례는 `rule:`·`signals:`로 **자기가 어디에 걸리는지 스스로 선언한다.** 판례 ID를 코드에
    적지 않는다 — 적으면 판례를 새로 써도 심판이 모르고, 닫아도 코드를 고쳐야 한다.
@@ -27,7 +29,13 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
    다음 판독기에게 가고, `RULING`(무엇으로 정할 것인가)은 가지 않는다 — 판정 규칙을 읽은
    판독기는 「무엇이 보이는가」 대신 「무엇이 답인가」를 먼저 정한다.
    손으로 쓴 정책과 판례는 `attributes/<id>/policy/`에만 둔다. `runs/` 안의 정책은 가져온 읽기 전용 스냅샷이다.
-   골든셋도 같다 — 정답은 `.claude/gt/<id>/gt.jsonl` **한 곳에만** 있다. 계보가 여럿이면
+   GT 개선 전용 팩(`gtTask`)의 경계 문서는 `attributes/<id>/definitions.md`다 — 판례 없이 필드마다 절 하나.
+   골든셋도 같다 — 정답은 `.claude/gt/<id>/gt.jsonl` **한 곳에만** 있다(GT 개선 전용 팩은 예외 — 정답은 `gtTask.gt`가
+   가리키는 원본 파일 하나다. 이 레포 안(`.claude/gt/<id>/gt.jsonl`)이면 GitHub에서 관리하고 판정을 넣은 뒤 `publish`가 PR로 올린다.
+   외부 레포에 있을 수도 있다. 원본을 가진 쪽이 그 파일을 소유하므로 여기에 사본을 두면 답이 둘이 된다.
+   이 저장소에는 판정 원장(`decisions.json`)과 건넨 목록의 기록(`handed-out.jsonl` — «반영해줘»로 만든 상류 목록에 무엇을 실었는지, 덧붙이기만 한다. 미리 보기는 적지 않는다),
+   그리고 그 둘의 파생물(정정·확인 목록, 마지막 목록의 표지 `export.json`)만 `.claude/gt/<id>/gt-review/`에 둔다. 원장과 건넨 기록은
+   지우지 않는다 — 다시 만들 수 없다. 파생물은 지워도 «반영해줘»가 다시 만든다). 계보가 여럿이면
    `build_gt.py`가 순위로 합치고 진 라벨을 이력으로 남긴다. 정답이 두 파일에 있으면 화면마다
    다른 답을 그린다. 계약은 [gt-layer.md](.claude/os/engine/contracts/gt-layer.md)에 있다.
 5. IMPORTANT: 사람 판정 원장 `runs/<id>/review/decisions.json`에는 사용자가 명시적으로 확정한 결정만
@@ -42,12 +50,19 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
    가리킨 판례가 아직 `OPEN`이면 그 판정은 원장에 남되 GT에는 안 나가고 기다린다.
    경계가 열려 있는데 개별 건을 확정하면 그 건들이 곧 답이 되어 버리기 때문이다.
    계약은 [gt-layer.md](.claude/os/engine/contracts/gt-layer.md)에 있다.
+   **GT 개선 과제(`gtTask`)의 원장은 따로 있다** — `.claude/gt/<id>/gt-review/decisions.json`. 같은 규칙을
+   지킨다(사람이 화면에서 누르거나 말로 명시한 판정만 — 말로 받은 판정도 누가·무엇을 보고 답했는지(`--reviewer`·`--expect`) 필수,
+   유지도 결정, 덮어쓰지 않음). 다른 점은 둘이다. 이 과제에는 판례가 없어 경계는
+   정의 문서의 그 필드 절이고, 판정마다 `basis: definitions#<필드>`가 저절로 붙는다. 그리고 원장을 `runs/`가
+   아닌 GT 옆에 둔다 — `runs/`는 지워도 되지만 사람의 답은 아니다(사이클 원장도 같은 이유로 옮길 대상이다).
+   **한 GT에 원장은 하나다.** 사이클 원장(`gt` 블록)을 가진 프로필은 `gtTask`를 선언할 수 없다.
+   계약은 [gt-task.md](.claude/os/engine/contracts/gt-task.md)에 있다.
 6. 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`, 에이전트를 `.claude/agents/`에서만 읽는다.
    실체는 각 패키지의 `skills/`·`agents/`에 두고, 그 자리에는 심볼릭 링크만 둔다.
    에이전트 링크는 `.claude/agents/<패키지>/<이름>.md`로 소속을 드러낸다. 하네스가 재귀로 읽고
    정체는 `name`이 정하므로 호출 이름은 그대로다. 에이전트는 `Read`·`Grep`·`Glob`만 갖는다 —
    판단은 하되 기록하지 않는다. 목록과 나눈 이유는 [PACKAGES.md](.claude/os/PACKAGES.md)에 있다.
-7. 엔진이 낸 결과를 심사하는 `review/`는 **읽기만 한다.** 엔진을 import하지 않고 프로필도 읽지
+7. 엔진이 낸 결과를 심사하는 `review/`는 **읽기만 한다.** 엔진을 import하지 않고(`common`만 예외) 프로필도 읽지
    않으며, 자기 결과를 `runs/<id>/run-review/`에만 쓴다. 읽는 쪽이 원본을 고치면 다음 사람은
    어느 숫자가 원본인지 알 수 없다. 인계는 산출물 한 장이다 —
    [handoff.md](.claude/os/review/contracts/handoff.md).
@@ -61,6 +76,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 
 | 하려는 일 | 여는 문서 |
 |---|---|
+| **GT를 고친다 (데이터 운영팀의 단일 진입점)** | 스킬 `gt-improve` — «GT 개선해줘». 계약 [gt-task.md](.claude/os/engine/contracts/gt-task.md) |
 | 사이클을 돌린다 | 스킬 `catalog-data-os` → 속성 스킬 (`bag-category-gender-os`) |
 | 산출물을 브라우저에서 본다 | `./serve.sh start` → http://127.0.0.1:7391 |
 | GT 정정 후보를 승인한다 | 위 화면의 각 조서 아래 **판정** 칸. 근거 판례·정책 규칙을 함께 고른다 |
@@ -69,7 +85,8 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 다음에 무엇을 고칠지 고른다 (GT·정책 개선 포인트) | 스킬 `catalog-improvement-sweep` |
 | 판독기가 든 근거가 사진과 맞는지 되짚는다 | 스킬 `catalog-evidence-recheck` |
 | 정책과 GT 중 어느 쪽이 틀렸는지 가른다 | [engine/goal.md](.claude/os/engine/goal.md)의 판정표 |
-| 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) |
+| 새 속성을 추가한다 | [customization-boundary.md](.claude/os/engine/contracts/customization-boundary.md) · GT 개선만 붙일 때는 [gt-task.md](.claude/os/engine/contracts/gt-task.md) |
+| 상세 이미지를 타일로 자른다 | [common/tile_rule.py](.claude/os/common/tile_rule.py) — 운영 `BatchImageComposer.tileRanges`의 이식. 따로 만들지 않는다 |
 | 정책·판례 파일을 만들거나 고친다 | [policy-layer.md](.claude/os/engine/contracts/policy-layer.md) |
 | 골든셋 계보를 합치거나 GT를 고친다 | [gt-layer.md](.claude/os/engine/contracts/gt-layer.md) |
 | 정의가 비어 있어 질문부터 만든다 | [interview-protocol.md](.claude/os/interview/contracts/interview-protocol.md) |
@@ -80,15 +97,16 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 
 ```
 serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 engine/scripts/serve_reports.py
-.claude/gt/<id>/  골든셋 원장. 상품 하나에 라벨 하나  gt.jsonl  lineage.json
+.claude/gt/<id>/  감사 사이클 GT: gt.jsonl·lineage.json·from-decisions/ · GT 개선 과제: gt-review/(원장·건넨 기록과 그 파생물 — 규칙 4)와, 원본이 이 레포에 있으면 gt.jsonl
 .claude/os/
   engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ workflows/ templates/ tests/
   review/       엔진 산출물을 심사한다. 읽기만 한다  contracts/ scripts/ skills/ agents/ tests/
   interview/    정의가 비어 있을 때 채우는 절차  contracts/ scripts/ skills/ agents/ tests/
+  common/       어느 패키지도 모르는 순수 함수. 운영 타일 규칙
   attributes/<id>/  속성 팩. profile.json이 유일한 플러그
                     policy/ ← 유일한 진실   adapters/ skills/ goal.md run.sh
-  runs/<id>/    산출물. 지워도 된다            golden/ queue/ review/ reports/ run-review/(심사) improvements/(개선 포인트) policy/(스냅샷) asset/(이미지)
-  DESIGN.md     설계 근거 §1~§16
+  runs/<id>/    산출물. 지워도 된다            golden/ queue/ review/ reports/ run-review/(심사) improvements/(개선 포인트) gt-review/(GT 개선 화면) policy/(스냅샷) asset/(이미지)
+  DESIGN.md     설계 근거(절 목록은 문서 머리)
 ```
 
 의존은 한 방향이다 — **속성은 엔진을 알고, 엔진은 속성을 모른다.** 합격 기준은 하나다.
@@ -105,7 +123,7 @@ serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 eng
 ```
 
 ```bash
-python3 -m pytest .claude/os/engine/tests .claude/os/review/tests .claude/os/interview/tests .claude/os/attributes/bag-category-gender/tests -q
+python3 -m pytest .claude/os/engine/tests .claude/os/review/tests .claude/os/interview/tests .claude/os/common/tests .claude/os/attributes/bag-category-gender/tests .claude/os/attributes/accessories-category-gender/tests -q
 ```
 
 ## 지금 도는 것 — 가방 상품 대상 성별
@@ -113,14 +131,14 @@ python3 -m pytest .claude/os/engine/tests .claude/os/review/tests .claude/os/int
 첫 동작 프로필이다. 정책은 `core-catalog-platfom`의 가방 Judge 프롬프트, 골든셋은 상품 단위
 가방 GT를 쓴다. `run.sh` 한 번이 정책·GT 스냅샷 → 감사 큐 → 정책 질문서 → 사람 판정 진행률 →
 HTML 보고서까지 돌고, 그 뒤에 심사가 이어진다. 결과는
-`runs/bag-category-gender/reports/`의 네 장(`catalog-audit.html` 표지 · `gt-fixes.html` GT 정정 후보 ·
-`suspect-gt.html` 의심되는 GT 찾기 · `policy-gaps.html` 빈 정책 찾기)과 `runs/bag-category-gender/run-review/`.
-사례 보고서는 상품마다 판단기가 본 대표 이미지와 상세 타일을 밀집해 싣는다. 정정 후보는 한 제안이
+`runs/bag-category-gender/reports/`의 세 장(`catalog-audit.html` 표지 · `gt-fixes.html` GT 정정 후보 ·
+`policy-gaps.html` 빈 정책 찾기)과 `runs/bag-category-gender/run-review/`.
+**레인마다 화면이 하나다** — GT를 묻는 자리도 하나다. 정정 후보는 한 제안이
 한 장의 조서다 — `현재 GT → 제안`과 GT 출처, 판독기·리뷰어의 문장, 그리고 **판독기가 인용한 사진**이
 한 화면에 있다. "이 GT가 틀렸다"는 주장이라 사진 없이는 반박도 동의도 못 하기 때문이다.
 조서 끝에 **판정** 칸이 있다 — 보고 나서 그 자리에서 답한다.
 
-GT를 묻는 두 장(`gt-fixes`·`suspect-gt`)에는 **실행 품질 지표를 싣지 않는다.** 표면 정확도·처리 건수·
+GT를 묻는 `gt-fixes`에는 **실행 품질 지표를 싣지 않는다.** 표면 정확도·처리 건수·
 정책 버전은 "이 GT가 틀렸나"에 답을 주지 않으면서, 옆에 있으면 판단에 섞인다. 실행 건강은 표지의 일이다.
 형태의 기준과 아직 못 따라간 것은 [samples/README.md](.claude/os/attributes/bag-category-gender/samples/README.md)에 있다.
 
@@ -140,6 +158,17 @@ GT를 묻는 두 장(`gt-fixes`·`suspect-gt`)에는 **실행 품질 지표를 �
 비교하는 쪽은 다섯 신호로 나뉜다 — 골든셋 소스 간 라벨 충돌, 정책과 실행 변환의 직접 모순, 근거 없이
 GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT의 충돌. 신호별 정의와 어느 목록으로
 접히는지는 [engine/goal.md](.claude/os/engine/goal.md) §6에 있다.
+
+## GT 개선 하네스 — 요청 한 번
+
+데이터 운영팀은 «GT 개선해줘»라고만 말한다. 스킬 `gt-improve`가 과제를 고르고(프로필의 `gtTask`),
+볼 칸을 고르고, **GT를 모르는 판독**과 **GT 편 반론**을 워크플로우로 따로 받은 뒤, 사진·제안·판정 버튼이
+있는 화면을 크롬으로 연다(`/gt/<과제ID>`). 버튼이 원장 `.claude/gt/<과제ID>/gt-review/decisions.json`에
+남기고, «반영해줘»가 운영 하네스의 사용자 정정 원장과 같은 모양의 정정 파일을 만든다.
+
+단위는 (키, 필드) 한 칸이라 상품 성별(필드 하나)과 썸네일 관찰 메타데이터(필드 여럿)가 같은 코드로 돈다.
+워크플로우 `gt-review.js`는 과제를 모른다 — 필드·허용값·정의·사진은 전부 프로필이 가리키는 파일에 있다.
+한 GT에 원장은 하나다 — 감사 사이클의 원장(`gt` 블록)을 가진 프로필에는 `gtTask`를 선언할 수 없다.
 
 ## 루프 — 사람이 답한 경계가 다음 실행으로 돌아온다
 
@@ -185,14 +214,23 @@ GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT�
 「재판독 판정」은 위 둘과 한 건도 겹치지 않으면서 «위 보고서»를 가리켰다.
 **고를 것이 없는데 고르게 만드는 화면**이었다.
 
+그 수정은 절반이었다. 메뉴만 없앴을 뿐 보고서 두 장과 표지 링크는 남아 있었고,
+둘의 필터는 글자 그대로 같아서(`lanes:["GT","OPEN"]`) 늘 같은 상품을 담았다.
+그래서 「의심되는 GT 찾기」를 지웠다 — **레인마다 목적지는 하나여야 한다.**
+`test_fix_sheet.py`가 같은 필터를 가진 화면이 둘이 되는 것을 막는다.
+
 **서버는 아무 화면도 그리지 않는다.** 그래서 숫자를 만들 자리 자체가 없다 —
 세는 일은 보고서가 하고 서버는 리다이렉트만 한다. `test_serve.py`가 그것을 확인한다.
 
-**쓰는 자리는 하나뿐이다 — 승인.** 「GT 정정 후보」의 각 조서에 판정 칸이 있어서, 읽던
+**쓰는 자리는 원장마다 하나, 둘이다 — 승인.** 감사 사이클은 `POST /decide` → `runs/<id>/review/decisions.json`,
+GT 개선 과제는 `POST /gt-decide` → `.claude/gt/<id>/gt-review/decisions.json`. 둘 다 CLI와 같은 기록 함수
+(`record_review_decision.record` · `gt_decisions.record`)를 지난다. 읽는 문은 `/decided`·`/gt-decided`, 과제 화면은 `/gt/<과제ID>`다.
+
+아래는 감사 사이클의 문에 대한 이야기다. 「GT 정정 후보」의 각 조서에 판정 칸이 있어서, 읽던
 자리에서 그대로 답한다. 전에는 터미널을 열고 상품 키를 옮겨 적어야 했고, 그래서 답이
 안 쌓였다. 버튼은 `POST /decide`로 가고 그 요청은 CLI와 **같은 기록 함수**를 지난다 —
 문이 둘이면 규격도 둘이 되고, 원장에 검증된 줄과 안 된 줄이 섞인다.
-서버는 판정 원장 말고는 아무것도 쓰지 않는다. 보고서도 GT도 정책도 건드리지 않는다.
+서버는 두 판정 원장 말고는 아무것도 쓰지 않는다. 보고서도 GT도 정책도 건드리지 않는다.
 
 재판독 판정(`run-review/recheck.html`)은 심사 산출물이라 요약의 `artifacts`에 없다.
 메뉴가 사라져 링크로는 닿지 않으므로 주소로 연다 —

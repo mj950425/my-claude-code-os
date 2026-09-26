@@ -36,7 +36,10 @@ DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / ".claude" / "os" / "runs" / "accessories-ca
 DEFAULT_SOURCE_REPO = PROJECT_ROOT.parent / "core-catalog-platfom"
 
 HARNESS = Path("tool/image-gender/gt-harness")
-GT_SOURCE = HARNESS / "data/accessories-product-gt-20260902.jsonl"
+# GT 경로는 프로필(gtTask.gt.path) 한 곳에만 적는다. 여기 따로 적으면 새 판이 와서 프로필만 고쳤을 때
+# 이 가져오기가 옛 판의 해시·키 차이를 계속 manifest에 적는다.
+PROFILE = Path(__file__).resolve().parents[1] / "profile.json"
+GT_SOURCE = Path(json.loads(PROFILE.read_text(encoding="utf-8"))["gtTask"]["gt"]["path"])
 EVALUATION_SOURCE = (
     HARNESS
     / "results/accessories-current-refresh-2026-09-01-prompt-v11-upper-body-context"
@@ -233,6 +236,28 @@ def copy_images(wanted: dict[str, Path], target_dir: Path) -> dict[str, Any]:
     }
 
 
+def refresh_gt_entry(source_repo: Path, output_root: Path) -> int:
+    """GT 판만 바뀐 날 — 실행 결과 원본이 이 컴퓨터에 없어도 manifest의 GT 항목을 손으로 고치지 않게 한다.
+    색인·실행 스냅샷은 건드리지 않고, 그 사실(`gtRefreshedAt`과 나머지 항목의 `generatedAt`)을 따로 적는다."""
+    gt = source_repo / GT_SOURCE
+    if not gt.is_file():
+        raise SystemExit(f"missing source file: {gt}")
+    path = output_root / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    manifest.setdefault("sources", {})["gt"] = {"path": str(GT_SOURCE), "sha256": sha256_file(gt)}
+    manifest.setdefault("snapshots", {})["accessoriesProductGt"] = {
+        "count": sum(1 for line in gt.read_text(encoding="utf-8").split("\n") if line.strip()),
+        "copied": False,
+        "note": "정답은 사본을 두지 않는다 — sources.gt의 경로와 해시가 읽은 판이다",
+    }
+    manifest["gtRefreshedAt"] = datetime.now(UTC).isoformat()
+    manifest.pop("patchedBy", None)
+    manifest["note"] = "GT 항목은 gtRefreshedAt에, 나머지(색인·실행 스냅샷·정합성)는 generatedAt에 만들었다."
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(manifest["sources"]["gt"], ensure_ascii=False))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-repo", type=Path, default=DEFAULT_SOURCE_REPO)
@@ -240,11 +265,18 @@ def main() -> int:
     parser.add_argument(
         "--skip-asset",
         action="store_true",
-        help="이미지 바이트 복사 없이 GT와 이미지 색인만 갱신한다",
+        help="이미지 바이트 복사 없이 이미지 색인과 실행 스냅샷만 갱신한다(GT는 원본을 직접 읽는다)",
+    )
+    parser.add_argument(
+        "--gt-only",
+        action="store_true",
+        help="GT 판만 바뀌었을 때 manifest의 GT 항목(경로·해시·건수)만 다시 적는다 — 실행 결과가 없어도 된다",
     )
     args = parser.parse_args()
     source_repo = args.source_repo.resolve()
     output_root = args.output_root.resolve()
+    if args.gt_only:
+        return refresh_gt_entry(source_repo, output_root)
     harness_root = source_repo / HARNESS
 
     sources = {"gt": source_repo / GT_SOURCE, "evaluation": source_repo / EVALUATION_SOURCE}
@@ -276,7 +308,9 @@ def main() -> int:
     gt_keys = {str(row["productKey"]) for row in gt_rows}
     index_keys = {str(row["productKey"]) for row in index_rows}
     golden = output_root / "golden"
-    gt_count = write_jsonl(golden / "accessories-product-gt.jsonl", gt_rows)
+    # GT는 사본을 두지 않는다(CLAUDE.md 규칙 4) — gtTask.gt가 외부 원본을 직접 읽는다. 사본이 있으면 시트를
+    # 새로 고친 뒤에도 옛 답이 이 저장소에 남아, 같은 상품 키에 라벨이 둘이 된다. 읽은 판은 manifest의 해시가 가리킨다.
+    gt_count = len(gt_rows)
     index_count = write_jsonl(golden / "accessories-image-index.jsonl", index_rows)
     evaluation_count = write_jsonl(
         golden / "accessories-policy-evaluation.jsonl", evaluation_snapshot
@@ -304,7 +338,8 @@ def main() -> int:
         "snapshots": {
             "accessoriesProductGt": {
                 "count": gt_count,
-                "path": str((golden / "accessories-product-gt.jsonl").relative_to(PROJECT_ROOT)),
+                "copied": False,
+                "note": "정답은 사본을 두지 않는다 — sources.gt의 경로와 해시가 읽은 판이다",
             },
             "accessoriesPolicyEvaluation": {
                 "count": evaluation_count,

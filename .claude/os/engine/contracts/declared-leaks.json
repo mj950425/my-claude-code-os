@@ -1,5 +1,15 @@
 {
   "schemaVersion": "engine-declared-leak-v1",
   "note": "엔진에 아직 남아 있는 도메인 지식. 여기 선언되지 않은 누수는 test_package_boundary가 막는다.",
-  "leaks": []
+  "leaks": [
+    {
+      "file": "engine/scripts/render_catalog_report.py",
+      "terms": [
+        "남성",
+        "여성"
+      ],
+      "reason": "감사 사이클 보고서가 판독 메모의 성별 낱말로 사진 테두리 색(tone)을 고른다. 주석 몇 줄도 성별 사례를 든다. GT 개선 하네스와는 무관하고 이 작업 전부터 있던 분기다.",
+      "followUp": "tone을 프로필(보고서 강조 규칙)이나 속성 어댑터가 넘기는 표지로 옮긴다 — 그때 이 선언을 지운다."
+    }
+  ]
 }

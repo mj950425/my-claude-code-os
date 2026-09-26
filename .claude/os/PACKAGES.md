@@ -1,6 +1,6 @@
 # 패키지 목록
 
-이 OS는 여섯 패키지로 나뉜다. 패키지를 가르는 기준은 두 개뿐이다.
+이 OS는 아래 표의 패키지로 나뉜다. 패키지를 가르는 기준은 두 개뿐이다.
 
 1. **함께 바뀌는가** — 하나를 고칠 때 늘 같이 고치는 것들은 한 패키지다.
 2. **따로 쓰일 수 있는가** — 다른 맥락에서 혼자 쓰이면 별도 패키지다.
@@ -9,31 +9,44 @@
 |---|---|---|
 | [engine](engine/package.md) | `.claude/os/engine/` | 속성이 무엇인지 모른 채 사이클을 돌리는 공통 코어 |
 | [bag-category-gender](attributes/bag-category-gender/package.md) | `.claude/os/attributes/bag-category-gender/` | 가방 상품의 대상 고객 성별만 아는 **속성 팩의 첫 인스턴스** |
-| [accessories-category-gender](attributes/accessories-category-gender/package.md) | `.claude/os/attributes/accessories-category-gender/` | 잡화 상품의 대상 고객 성별 골든셋과 근거 이미지만 아는 속성 팩. 아직 가져오기 한 단계뿐이다 |
+| [accessories-category-gender](attributes/accessories-category-gender/package.md) | `.claude/os/attributes/accessories-category-gender/` | 잡화 상품의 대상 고객 성별 골든셋과 근거 이미지만 아는 속성 팩. 가져오기와 GT 개선 과제(`gtTask`)가 있다 |
 | [review](review/package.md) | `.claude/os/review/` | 엔진이 낸 run 하나를 심사한다 — 이 결과로 사람이 판정을 시작해도 되는가 |
 | [interview](interview/package.md) | `.claude/os/interview/` | 모호한 요구를 판정 가능한 문장으로 바꾸는 절차 |
 | [dev-workflow](dev-workflow/package.md) | `.claude/os/dev-workflow/` | 엔진·속성·인터뷰와 무관한 개발 워크플로우 — GitHub 절차와 요청 횟수 훅 |
+| [common](common/package.md) | `.claude/os/common/` | 어느 패키지도 모르는 순수 함수. 운영 타일 규칙의 이식이 여기 있다 |
+| [clothing-thumbnail-observation](attributes/clothing-thumbnail-observation/package.md) | `.claude/os/attributes/clothing-thumbnail-observation/` | 의류 썸네일 한 장의 관찰 칸(사람·구도·얼굴·방향·노출) GT. 정책 없이 GT 개선 과제로만 선다 |
 
-여섯 줄이 같은 종류는 아니다. `engine`·`review`·`interview`·`dev-workflow`는 **역할** 이름이라 늘어나지
-않고, `attributes/` 아래는 속성이 늘 때마다 옆으로 늘어나는 **인스턴스**다. 그래서 새 속성을
-추가하는 일은 이 표에 줄을 하나 더 붙이는 일이지, 구조를 바꾸는 일이 아니다.
+표의 줄이 같은 종류는 아니다. 세 가지다.
+
+- **역할** — `engine`·`review`·`interview`·`dev-workflow`. 이름이 곧 일이라 늘어나지 않는다.
+- **인스턴스** — `attributes/` 아래. 속성이 늘 때마다 옆으로 늘어난다. 그래서 새 속성을 추가하는 일은
+  이 표에 줄을 하나 더 붙이는 일이지, 구조를 바꾸는 일이 아니다.
+- **공유** — `common`. 역할도 인스턴스도 아니다. 두 역할이 **같은 계산**을 해야 하지만 서로를 import하면
+  안 될 때(심사는 엔진을 import하지 않는다) 그 계산만 둘 다 모르는 자리로 뺀다. 저장소의 어느 패키지도 import하지 않는다.
 
 ## 의존 방향
 
 ```
 bag-category-gender  ──▶  engine        (속성은 엔진을 안다)
 bag-category-gender  ──▶  review        (run.sh가 사이클 뒤에 심사를 잇는다)
+bag-category-gender  ──▶  common        (가져오기가 갤러리에 타일 규칙 판을 적는다)
+accessories-category-gender · clothing-thumbnail-observation  ──▶  engine   (gtTask 선언과 어댑터만. 엔진이 읽는다)
+accessories-category-gender  ··▶  bag-category-gender   (정의 문서를 옮겨 온 원문. 해시만 대 본다 — import 없음)
 interview   ──▶  engine        (프로필 해석기를 그대로 쓴다)
-review      ──▶  runs/<프로필ID>/run-summary.json   (코드가 아니라 산출물만 안다)
-engine      ──✗  bag-category-gender    (엔진은 속성을 모른다)
+review      ──▶  runs/<프로필ID>/run-summary.json   (엔진 코드가 아니라 산출물만 안다)
+engine      ──▶  common        (타일 규칙)
+review      ──▶  common        (타일 규칙 — 엔진을 거치지 않고 같은 함수를 쓴다)
+common      ──✗  전부           (아무것도 import하지 않는다)
+engine      ──✗  attributes/*  (속성 팩 전부 — 엔진은 속성을 모르고 profile.json으로만 읽는다)
 engine      ──✗  interview     (엔진은 인터뷰를 모른다)
 engine      ──✗  review        (엔진은 심사를 모른다)
 review      ──✗  engine · attributes    (import하지 않고 프로필도 읽지 않는다)
 dev-workflow ──✗ 전부           (독립)
 ```
 
-`review`만 화살표가 패키지가 아니라 **파일**을 가리킨다. 심사가 엔진 코드를 부르면
-엔진의 오해가 심사에도 그대로 들어가서, 다시 세는 의미가 없어지기 때문이다.
+`review`는 엔진을 향한 화살표가 패키지가 아니라 **파일**을 가리킨다. 심사가 엔진 코드를 부르면
+엔진의 오해가 심사에도 그대로 들어가서, 다시 세는 의미가 없어지기 때문이다. 심사가 import하는 코드는
+`common`의 순수 함수(타일 규칙)뿐이다 — 판단이 아니라 «운영이 자른 픽셀 범위»라는 사실을 계산할 뿐이다.
 계약은 [handoff.md](review/contracts/handoff.md)에 있다.
 
 `interview`가 속성이 아니라 별도 패키지인 이유는 시점이다. 엔진은 데이터가 있어야 돌지만
@@ -47,13 +60,16 @@ dev-workflow ──✗ 전부           (독립)
 **속성 패키지를 통째로 지워도 엔진이 그대로 돈다.**
 
 사람이 매번 확인할 수 없으므로 [test_package_boundary.py](engine/tests/test_package_boundary.py)가
-확인한다. 이 테스트는 네 가지를 본다.
+확인한다. 이 테스트는 아래를 본다.
 
 | 검사 | 막는 것 |
 |---|---|
-| 엔진 코드에 도메인 어휘가 없다 | `가방`·`MALE`·`29CM`이 공통 코어에 스며드는 것 |
+| 엔진 코드(워크플로우 `*.js` 포함)에 도메인 어휘가 없다 | `가방`·`MALE`·`29CM`이 공통 코어에 스며드는 것 |
+| GT 개선 하네스(코드·워크플로우·에이전트·계약·서버·common)에 과제 프로필의 어휘가 없다 | 새 과제에 맞춰 하네스가 휘는 것. 어휘는 모든 과제 프로필에서 저절로 모은다 |
 | 선언된 누수가 실제로 존재한다 | 고쳐 놓고 선언만 남아 목록이 거짓말이 되는 것 |
 | 엔진이 `attributes/` 경로를 가리키지 않는다 | 특정 속성에 대한 하드코딩 |
+| `gtTask`·`images`의 새 선언 키는 어휘 수집에 넣을지 심사된 것만 쓴다 | 새 키의 값(과제 어휘)이 어휘 검사를 조용히 비켜 가는 것 |
+| `engine/package.md`의 소유 표가 실제 scripts·contracts·workflows·agents·skills와 맞다 | 누가 왜 가졌는지 모르는 엔진 파일 |
 | 낯선 속성 하나로 사이클 후반부가 돈다 | 엔진이 가방 데이터에 의존하는 것 |
 
 ## 아직 남은 누수
@@ -94,6 +110,7 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 ```
 .claude/agents/engine/                       ← 역할. 한 겹
 .claude/agents/interview/                    ← 역할. 한 겹
+.claude/agents/review/                       ← 역할. 한 겹
 .claude/agents/attributes/<프로필ID>/         ← 인스턴스. 두 겹. 지금은 비어 있다
 ```
 
@@ -104,7 +121,14 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 진짜 구조인지 다음 사람이 알 수 없다.
 
 스킬은 `.claude/skills/<이름>/SKILL.md`가 하네스 규격이라 나눌 수 없어 평평하게 둔다.
-그 자리에서는 접두사(`catalog-` · `bag-`)가 소속을 대신 말한다.
+그 자리에서는 접두사(`catalog-` · `bag-`)가 소속을 대신 말한다. 예외 하나 — 데이터 운영팀의 단일 진입점 `gt-improve`는
+패키지가 아니라 **요청**의 이름을 따른다(운영팀이 부르는 말이 이름이다). 소속은 engine이고, engine/package.md의 소유 표가 적는다.
+
+**GT 개선의 두 눈이 왜 review의 판독자가 아니라 engine에 있는가.** review의 판독자들은 **실행이 남긴
+주장**을 되짚는 눈이라 정책의 근거 순위(문구·디자인·착용자)대로 쪼개져 있고, 속성 하나(대상 고객)에 맞춰
+있다. GT 개선의 두 눈은 주장이 아니라 **GT 한 칸**을 본다. 필드가 무엇이든 정의 문서의 한 절만 읽으면 되므로
+하나의 판독자로 모든 과제를 맡는다. 그리고 판독과 반론을 둘로 나눈 이유는 하나다 — 정답을 모르는 눈이
+먼저 봐야 틀린 GT가 근거를 얻지 못하고, 그 제안을 낸 눈이 스스로를 검토하면 검증이 아니기 때문이다.
 
 **워크플로우 스크립트에는 진입점 링크를 두지 않는다.** `Workflow` 도구는 이름 대신 `scriptPath`로
 부를 수 있어서, 패키지 안의 실체를 그대로 가리키면 된다. 링크를 걸 이유가 없는데 걸면
@@ -114,6 +138,8 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 |---|---|---|
 | engine | `catalog-golden-adjudicator` | 큐의 **한 건**이 정책 공백인가 GT 오류인가 실행 오류인가 |
 | engine | `catalog-policy-cluster-scout` | 같은 이유로 막힌 **군집 하나**가 어떤 정책 결함인가 |
+| engine | `gt-blind-reader` | GT 개선 과제의 **한 건**을 정답도 모델 값도 모른 채 증거와 정의만으로 읽는다 |
+| engine | `gt-defender` | 판독이 GT와 갈린 칸에서 **GT를 지킬 근거**를 찾는다. 못 찾으면 그렇다고 답한다 |
 | review | `catalog-run-reviewer` | run **하나**가 사람 판정의 근거가 될 수 있는가. 상품은 판정하지 않는다 |
 | review | `catalog-scene-cast-tagger` | 이 장면이 **어떤 종류**이고 여기 나온 사람은 **누구**인가. 값은 정하지 않는다 |
 | review | `catalog-target-match-reader` | **사람 없는 컷**의 물건이 파는 그 물건인가 |
@@ -181,4 +207,6 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 훅의 세 겹(settings → 링크 → 실체)도 같은 테스트가 검사한다.
 
 플러그인은 여전히 선택지다. 플러그인은 자기 `skills/`·`agents/`를 링크 없이 직접 선언하지만,
-스킬 이름에 네임스페이스가 붙고 마켓플레이스 등록이 필요하다. 속성이 둘 이상이 되면 그때 검토한다.
+스킬 이름에 네임스페이스가 붙고 마켓플레이스 등록이 필요하다. 세 번째 팩(clothing-thumbnail-observation)을 붙일 때 검토했고 **미룬다** — 운영팀의 진입점
+이름(«GT 개선해줘» → `gt-improve`)이 네임스페이스로 바뀌면 부르는 말이 길어지고, 팩은 아직 한 저장소 안에서만 쓰인다.
+다른 저장소가 팩을 가져다 쓰게 되면 그때 다시 본다.

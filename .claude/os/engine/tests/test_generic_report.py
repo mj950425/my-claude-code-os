@@ -90,14 +90,18 @@ class GenericReportTest(unittest.TestCase):
             index = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
             self.assertIn("대표 소재", index)
             self.assertIn("혼용률 정책 공백", index)
+            # 개선 포인트는 사이클 뒤에 스윕이 만든다. 표지는 그 자리를 알되 기본은 숨긴다 —
+            # 스윕이 안 돈 run에서 링크가 보이면 없는 화면으로 보낸다.
+            self.assertIn('id="improvements-wrap" hidden', index)
+            self.assertIn('href="../improvements/improvements.html"', index)
             # 심판이 없는 속성은 귀책이 미확정이라 두 사례 보고서에 모두 나온다.
-            for name in ("suspect-gt.html", "policy-gaps.html"):
+            for name in ("policy-gaps.html",):
                 report = (run / "reports" / name).read_text(encoding="utf-8")
                 self.assertIn("혼방 니트", report, name)
                 self.assertIn("혼용률 정책 공백", report, name)
             # 정정 후보는 신호 이름을 싣지 않는다. 한 줄에 남는 것은 상품과 제안뿐이다.
             self.assertIn("혼방 니트", (run / "reports/gt-fixes.html").read_text(encoding="utf-8"))
-            for output in (index, *[(run / "reports" / n).read_text(encoding="utf-8") for n in ("gt-fixes.html", "suspect-gt.html", "policy-gaps.html")]):
+            for output in (index, *[(run / "reports" / n).read_text(encoding="utf-8") for n in ("gt-fixes.html", "policy-gaps.html")]):
                 self.assertNotIn("MALE", output)
                 self.assertNotIn("productGender", output)
 

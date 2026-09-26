@@ -74,8 +74,14 @@ def policy_layer(profile: dict[str, Any]) -> dict[str, Path] | None:
 
 
 def discover_profiles() -> list[Path]:
-    """속성 패키지가 선언한 프로필을 전부 찾는다."""
-    return sorted(ATTRIBUTES_ROOT.glob("*/profile.json"))
+    """속성 패키지가 선언한 프로필을 전부 찾는다.
+
+    테스트는 `CATALOG_OS_ATTRIBUTES_ROOT`로 다른 폴더를 가리킨다 — 가짜 프로필을 진짜 속성 층에 쓰지 않으려고.
+    """
+    import os
+
+    root = Path(os.environ["CATALOG_OS_ATTRIBUTES_ROOT"]) if os.environ.get("CATALOG_OS_ATTRIBUTES_ROOT") else ATTRIBUTES_ROOT
+    return sorted(root.glob("*/profile.json"))
 
 
 def default_profile() -> Path:

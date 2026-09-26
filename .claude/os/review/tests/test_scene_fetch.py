@@ -29,6 +29,7 @@ SCRIPT = PROJECT_ROOT / ".claude/os/review/scripts/fetch_review_scenes.py"
 
 sys.path.insert(0, str(SCRIPT.parent))
 import fetch_review_scenes  # noqa: E402
+from PIL import Image, ImageDraw  # noqa: E402
 from fetch_review_scenes import _tile_ranges, absolutize, save_tile, url_key  # noqa: E402
 
 
@@ -45,19 +46,36 @@ class TileBoundaryTest(unittest.TestCase):
 
     def test_long_detail_splits_the_way_the_scene_ids_say(self) -> None:
         # 실제 상세 원본 하나의 크기. 산출물은 이 원본에 D01T01~D01T07을 매단다.
-        ranges = _tile_ranges(750, 7026)
+        ranges = _tile_ranges(Image.new("RGB", (750, 7026), "white"))
         self.assertEqual(len(ranges), 7)
         self.assertEqual(ranges[0], (0, 1125))
         self.assertEqual(ranges[5], (5625, 6750))
         self.assertEqual(ranges[-1][1], 7026)
 
     def test_a_short_image_is_one_tile(self) -> None:
-        self.assertEqual(_tile_ranges(750, 900), [(0, 900)])
+        self.assertEqual(_tile_ranges(Image.new("RGB", (750, 900), "white")), [(0, 900)])
 
     def test_a_sliver_shorter_than_the_floor_is_not_a_tile(self) -> None:
         # 마지막 조각이 64px 미만이면 타일로 세지 않는다. 세면 번호가 하나씩 밀린다.
-        ranges = _tile_ranges(100, 320)
-        self.assertTrue(all(bottom - top >= 64 for top, bottom in ranges))
+        # 번호가 밀리는 회귀를 잡으려면 «모두 64 이상»이 아니라 정확한 자리를 못 박는다.
+        self.assertEqual(_tile_ranges(Image.new("RGB", (100, 320), "white")), [(0, 150), (150, 300)])
+
+    def test_a_source_under_the_quality_gate_gets_no_tiles(self) -> None:
+        # 운영은 64px 미만 원본에 타일 번호를 매기지 않는다(ImageQualityGate). 여기서 자르면 운영에 없던 T01이 생긴다.
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sliver.png"
+            Image.new("RGB", (63, 900), "white").save(path)
+            with self.assertRaises(OSError):
+                fetch_review_scenes._open_rgb(path, "harness-pillow")
+
+    def test_the_cut_follows_the_production_rule_not_a_fixed_height(self) -> None:
+        """사진 사이 여백(700~760)이 명목 경계(600) 근처에 있으면 그 가운데서 자른다.
+        고정 절단이었다면 T01이 600에서 끊겨 아래 사진의 머리가 T01로 넘어간다."""
+        image = Image.new("RGB", (400, 1600), (40, 40, 40))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle([150, 0, 250, 1599], fill=(230, 230, 230))
+        draw.rectangle([0, 700, 399, 759], fill="white")
+        self.assertEqual(_tile_ranges(image), [(0, 725), (725, 1325), (1325, 1600)])
 
 
 class FixtureRun:
@@ -75,6 +93,8 @@ class FixtureRun:
             json.dumps(
                 {
                     "productKey": "X:1",
+                    # 이 번호를 매긴 판. 선언이 없으면 수집기는 자르지 않는다.
+                    "tileRule": {"version": "v0-fixed", "decoder": "harness-pillow"},
                     "details": [
                         {"sceneId": "D01T01", "url": FixtureRun.SOURCE},
                         {"sceneId": "D01T02", "url": FixtureRun.SOURCE},
@@ -339,6 +359,103 @@ class WritesNothingElseTest(unittest.TestCase):
 
 
 
+class MintingRuleTest(unittest.TestCase):
+    """번호는 그 번호를 매긴 판으로 자른다. 판을 모르면 자르지 않는다."""
+
+    def test_an_undeclared_rule_is_not_guessed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = FixtureRun(Path(temporary) / "run")
+            fixture.declared_everything()
+            gallery = fixture.root / "golden" / "gallery.jsonl"
+            row = json.loads(gallery.read_text(encoding="utf-8"))
+            row.pop("tileRule")
+            gallery.write_text(json.dumps(row) + "\n", encoding="utf-8")
+            self.assertEqual(fixture.fetch().returncode, 0)
+            index = json.loads((fixture.root / "run-review/scenes/index.json").read_text(encoding="utf-8"))
+            reasons = [item["reason"] for item in index["skipped"] if item["artifact"] == "X:1"]
+            self.assertTrue(any("tileRule" in reason for reason in reasons), reasons)
+            self.assertEqual(index["products"], [])
+
+    def test_a_carried_product_cut_by_another_rule_is_dropped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            index = Path(temporary) / "index.json"
+            index.write_text(json.dumps({"basedOn": "t", "products": [
+                {"productKey": "A:1", "tileRule": {"version": "v0-fixed", "decoder": "harness-pillow"}},
+                {"productKey": "B:2", "tileRule": {"version": "v2-band-then-seam", "decoder": "harness-pillow"}},
+                {"productKey": "C:3"},
+                {"productKey": "D:4", "tileRule": {"version": "v0-fixed", "decoder": "java-imageio"}},
+            ]}), encoding="utf-8")
+            now = {"version": "v0-fixed", "decoder": "harness-pillow"}
+            kept = fetch_review_scenes.carry_over(index, [], "t", {"A:1": now, "B:2": now, "C:3": now, "D:4": now})
+            self.assertEqual([product["productKey"] for product in kept], ["A:1"], "판·디코더가 다르면 잇지 않는다")
+
+
+class LedgerGuessTest(unittest.TestCase):
+    """원장 사진은 번호를 매긴 실행의 원본 목록과 다른 출처다. D번째 원장 사진을 그 D로 믿고 자르지 않는다."""
+
+    def run_with_ledger(self, ledger_detail: list[str]) -> dict:
+        from PIL import Image as Pillow
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = FixtureRun(Path(tmp) / "run")
+            fixture.declared_everything()
+            fixture.seed_source()
+            queue = fixture.root / "queue" / "signal.jsonl"
+            row = json.loads(queue.read_text(encoding="utf-8"))
+            row["policyEvidenceSceneIds"] = ["D01T01", "D02T01"]  # D02는 갤러리에 없다
+            queue.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+            fake = Path(tmp) / "fake_ledger.py"
+            images = [{"type": "DETAIL", "image_url": url} for url in ledger_detail]
+            fake.write_text(f"import json; print(json.dumps([{{'images': {images!r}}}]))\n", encoding="utf-8")
+            cache = fixture.root / "run-review" / "scenes" / ".sources"
+            Pillow.new("RGB", (200, 900), "white").save(cache / "X-1-D02T01.jpg")
+            completed = fixture.fetch("--ledger", "--ledger-cmd", str(fake))
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            return json.loads((fixture.root / "run-review/scenes/index.json").read_text(encoding="utf-8"))
+
+    def test_a_ledger_picture_is_kept_whole_and_marked_as_a_guess(self) -> None:
+        index = self.run_with_ledger([FixtureRun.SOURCE.replace("detail-1", "a"), "https://example.invalid/ledger-2.jpg"])
+        scene = next(scene for product in index["products"] for scene in product["scenes"] if scene["sceneId"] == "D02T01")
+        self.assertTrue(scene["positionGuessed"])
+        self.assertEqual(scene["crop"]["top"], 0)
+        self.assertEqual(scene["crop"]["bottom"], 900, "추측한 자리는 T번호로 자르지 않고 통째로 둔다")
+
+    def test_a_ledger_picture_equal_to_another_d_is_refused(self) -> None:
+        index = self.run_with_ledger(["https://example.invalid/x.jpg", FixtureRun.SOURCE])
+        self.assertFalse(any(scene["sceneId"] == "D02T01" for product in index["products"] for scene in product["scenes"]))
+        self.assertTrue(any("자리가 어긋났다" in item["reason"] for item in index["skipped"]))
+
+
+class RefusalReasonTest(unittest.TestCase):
+    def test_a_policy_refusal_is_not_an_open_failure(self) -> None:
+        """운영 디코드를 재현하지 못해 안 자른 파일과 손상·내려받기 실패는 다른 이유다 — 색인의 skipped 문구가 갈린다."""
+        with tempfile.TemporaryDirectory() as temporary:
+            webp = Path(temporary) / "a.webp"
+            Image.new("RGB", (64, 200), "white").save(webp, "WEBP")
+            with self.assertRaises(fetch_review_scenes.tile_rule.UnsupportedDecode):
+                fetch_review_scenes._open_rgb(webp, "java-imageio")
+            with self.assertRaises(OSError):
+                fetch_review_scenes._open_rgb(Path(temporary) / "missing.jpg", "java-imageio")
+
+
+class ZeroCoordinateTest(unittest.TestCase):
+    def test_d00_and_t00_are_not_scene_ids(self) -> None:
+        """운영 DetailTileId처럼 0번 자리는 없다. T00이 마지막 조각으로 새지 않게 풀지 않는다."""
+        for scene in ("D01T00", "D00T01"):
+            self.assertIsNone(fetch_review_scenes.SCENE_ID.match(scene), scene)
+        self.assertIsNotNone(fetch_review_scenes.SCENE_ID.match("D01T01"))
+
+    def test_a_one_digit_citation_is_refused_like_production(self) -> None:
+        """운영 CITATION 문법은 두 자리 이상이다. 모델이 «D1T3»이라 인용하면 운영은 근거로 세지 않는다 — 여기서도 펴지 않는다."""
+        self.assertTrue(fetch_review_scenes.refused_citation("D1T3"))
+        self.assertFalse(fetch_review_scenes.refused_citation("D01T03"))
+        self.assertFalse(fetch_review_scenes.refused_citation("TARGET_REFERENCE"), "좌표가 아닌 이름은 이 문법 밖이다")
+        for zero in ("D00T01", "D01T00", "D0T0"):
+            self.assertTrue(fetch_review_scenes.refused_citation(zero), f"0번 자리는 대표 사진으로 풀리지 않고 거절된다: {zero}")
+        self.assertIsNone(fetch_review_scenes.SCENE_ID.match("D01T01\n"), "끝의 줄바꿈은 운영처럼 거절한다")
+        self.assertEqual(fetch_review_scenes.canonical_scene("D1T3"), "D01T03", "서버가 매긴 이름(갤러리)은 편다")
+
+
 class PartialRefetchTest(unittest.TestCase):
     """`--product`는 «그 상품만 다시 받는다»이지 «나머지를 잊는다»가 아니다.
 
@@ -459,6 +576,7 @@ class AllScenesUnionTest(unittest.TestCase):
             (run / "golden" / "gallery.jsonl").write_text(
                 json.dumps({
                     "productKey": "DEMO:1",
+                    "tileRule": {"version": "v0-fixed", "decoder": "harness-pillow"},
                     "thumbnails": [{"url": "asset/thumb.jpg"}],
                     "details": [{"sceneId": "D01T01", "url": "asset/detail.jpg"}],
                 }, ensure_ascii=False) + "\n",
@@ -522,6 +640,7 @@ class ReferencePickTest(unittest.TestCase):
             json.dumps(
                 {
                     "productKey": "DEMO:1",
+                    "tileRule": {"version": "v0-fixed", "decoder": "harness-pillow"},
                     "thumbnails": [{"url": url} for url in urls],
                     "details": [{"sceneId": "D01T01", "url": "detail.jpg"}],
                 },

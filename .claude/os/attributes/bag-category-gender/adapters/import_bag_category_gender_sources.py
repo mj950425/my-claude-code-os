@@ -9,6 +9,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -72,6 +73,17 @@ HARNESS_PRODUCT_RESULTS_SOURCE = Path(
     "bags-v1000-two-stage-image-complete-2026-08-31/harness-product-results.jsonl"
 )
 
+# 이 결과의 상세 타일 번호(DxxTyy)는 이 날 운영 하네스가 쓰던 타일 규칙으로 매겨졌다. 되짚는 쪽
+# (심사의 재판독, 보고서의 조각 표시)은 **최신 규칙이 아니라 이 판**으로 잘라야 같은 사진을 본다.
+# 판은 결과 폴더 이름의 날짜로 정한다 — 날짜를 손으로 옮겨 적으면 결과를 바꿀 때 조용히 어긋난다.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "common"))
+import tile_rule  # noqa: E402
+
+# 이 결과의 번호를 매긴 것은 운영 서버가 아니라 평가 하네스(Pillow)다 — 디코드도 그쪽을 따른다.
+HARNESS_TILE_RULE = tile_rule.rule(
+    tile_rule.rule_for_date(re.search(r"(\d{4}-\d{2}-\d{2})", str(HARNESS_PRODUCT_RESULTS_SOURCE)).group(1)),
+    tile_rule.HARNESS_PILLOW,
+)
 
 # 장면 주석에 쓰는 낱말. 엔진은 이 문장을 해석하지 않고 그대로 싣는다 —
 # 성별·착용 같은 도메인 낱말은 속성 팩의 것이지 엔진의 것이 아니다.
@@ -434,7 +446,8 @@ def compact_gallery(
                     "label": str(image.get("gender") or ""),
                 }
             )
-        gallery.append({"productKey": product_key, "thumbnails": thumbnails, "details": details})
+        gallery.append({"productKey": product_key, "tileRule": HARNESS_TILE_RULE,
+                        "thumbnails": thumbnails, "details": details})
     return sorted(gallery, key=lambda item: item["productKey"])
 
 

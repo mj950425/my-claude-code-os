@@ -269,7 +269,11 @@ class ImprovementSweepTest(unittest.TestCase):
         completed = self.render()
         self.assertEqual(completed.returncode, 0, completed.stderr)
         merged = json.loads((self.run / "improvements/improvements.json").read_text(encoding="utf-8"))
-        body = (self.run / "improvements/improvements.md").read_text(encoding="utf-8")
+        # 서버에서 읽는 HTML도 같은 규칙을 따른다. 두 화면이 다른 숫자를 말하면 안 된다.
+        body = "\n".join(
+            (self.run / "improvements" / name).read_text(encoding="utf-8")
+            for name in ("improvements.md", "improvements.html")
+        )
 
         def numbers(value) -> set[str]:
             if isinstance(value, bool):

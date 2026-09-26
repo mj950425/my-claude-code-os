@@ -20,7 +20,7 @@ def write_jsonl(path: Path, rows: list[dict]) -> Path:
 
 
 class BuildGtTest(unittest.TestCase):
-    def build(self, lineages, corrections=None):
+    def build(self, lineages, corrections=None, confirmations=None, extra_corrections=None):
         tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         args = [sys.executable, str(BUILD_GT), "--profile-id", "t"]
         for spec in lineages:
@@ -28,6 +28,10 @@ class BuildGtTest(unittest.TestCase):
             args += ["--lineage", json.dumps({**spec, "path": str(path)})]
         if corrections is not None:
             args += ["--corrections", str(write_jsonl(tmp / "fix.jsonl", corrections))]
+        if extra_corrections is not None:
+            args += ["--corrections", str(write_jsonl(tmp / "fix2.jsonl", extra_corrections))]
+        if confirmations is not None:
+            args += ["--confirmations", str(write_jsonl(tmp / "ok.jsonl", confirmations))]
         out, index = tmp / "gt.jsonl", tmp / "lineage.json"
         args += ["--out", str(out), "--lineage-index", str(index)]
         subprocess.run(args, check=True, capture_output=True)
@@ -80,3 +84,64 @@ class BuildGtTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HumanDecisionReachesTheLedgerTest(BuildGtTest):
+    """사람의 판정이 GT까지 가는가.
+
+    지금까지 끊겨 있던 자리다. 사람이 「고쳐라」라고 판정해도 정정은 **외부 하네스 파일**에서만
+    왔고, 「맞다」고 확인해도 GT에 흔적이 없어 다음 사이클이 같은 건을 다시 올렸다.
+    """
+
+    LINEAGE = [{"id": "hi", "rank": 1, "rows": [
+        {"productKey": "P1", "goldLabel": "UNISEX", "goldSource": "시트"},
+        {"productKey": "P2", "goldLabel": "MALE", "goldSource": "시트"},
+    ]}]
+
+    def test_a_human_correction_overrides_and_says_who(self) -> None:
+        rows, _ = self.build(
+            [dict(self.LINEAGE[0], rows=list(self.LINEAGE[0]["rows"]))],
+            corrections=[{
+                "productKey": "P1", "goldLabel": "FEMALE",
+                "goldSource": "HUMAN_DECISION:BR-1", "decisionId": "BR-1",
+                "reviewer": "mj", "reviewedAt": "2026-09-07T00:00:00+00:00",
+                "reason": "리본 + 미니 사이즈가 겹친다",
+            }],
+        )
+        self.assertEqual(rows["P1"]["goldLabel"], "FEMALE")
+        self.assertEqual(rows["P1"]["resolvedBy"], "CORRECTION")
+        # 라벨만 남으면 다음 사람이 그 값을 되짚을 수 없다.
+        self.assertEqual(rows["P1"]["correctedBy"]["decisionId"], "BR-1")
+        self.assertEqual(rows["P1"]["correctedBy"]["reviewer"], "mj")
+        self.assertIn("리본", rows["P1"]["correctedBy"]["reason"])
+
+    def test_a_confirmation_keeps_the_label_and_marks_it(self) -> None:
+        """유지는 변경이 아니다. 라벨은 그대로 두고 «사람이 봤다»만 붙는다."""
+        rows, index = self.build(
+            [dict(self.LINEAGE[0], rows=list(self.LINEAGE[0]["rows"]))],
+            confirmations=[{
+                "productKey": "P2", "goldLabel": "MALE", "decisionId": "BR-2",
+                "reviewer": "mj", "reviewedAt": "2026-09-07T00:00:00+00:00",
+                "reason": "착용 컷이 전부 다른 컬러웨이다",
+            }],
+        )
+        self.assertEqual(rows["P2"]["goldLabel"], "MALE")
+        self.assertEqual(rows["P2"]["resolvedBy"], "LINEAGE_RANK")
+        self.assertEqual(rows["P2"]["humanConfirmed"]["decisionId"], "BR-2")
+        # 무엇을 확인했는지 남는다. 나중에 라벨이 바뀌면 이 확인은 그 라벨의 것이 아니다.
+        self.assertEqual(rows["P2"]["humanConfirmed"]["label"], "MALE")
+        self.assertEqual(index["humanConfirmedProductKeys"], ["P2"])
+        self.assertNotIn("humanConfirmed", rows["P1"])
+
+    def test_our_correction_is_applied_after_the_external_one(self) -> None:
+        """정정은 여러 곳에서 온다. **사람이 확정한 값이 마지막에 이겨야** 한다."""
+        rows, index = self.build(
+            [dict(self.LINEAGE[0], rows=list(self.LINEAGE[0]["rows"]))],
+            corrections=[{"productKey": "P1", "goldLabel": "MALE", "goldSource": "외부 하네스"}],
+            extra_corrections=[{
+                "productKey": "P1", "goldLabel": "FEMALE",
+                "goldSource": "HUMAN_DECISION:BR-3", "decisionId": "BR-3",
+            }],
+        )
+        self.assertEqual(rows["P1"]["goldLabel"], "FEMALE")
+        self.assertEqual(len(index["corrections"]), 2)

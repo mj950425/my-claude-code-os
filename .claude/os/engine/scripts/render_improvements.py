@@ -18,7 +18,9 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,8 @@ from catalog_profile import (
     project_path,
     relative_or_absolute,
 )
+# 화면의 겉모양은 보고서 세 장과 같은 것을 쓴다. 같은 엔진 안이라 import해도 경계를 넘지 않는다.
+from render_catalog_report import INDEX_FILE, head
 
 SCHEMA = "catalog-improvements-v1"
 SWEEP_SCHEMA = "catalog-improvement-sweep-v1"
@@ -288,6 +292,119 @@ def render_markdown(profile: dict[str, Any], merged: dict[str, Any], worklist_pa
     return "\n".join(lines)
 
 
+def render_html(
+    profile: dict[str, Any], merged: dict[str, Any], worklist_path: Path, sweep_path: Path, back_href: str
+) -> str:
+    """서버에서 읽는 자리. 내용은 마크다운과 같고, 숫자도 같은 `merged`에서 온다.
+
+    표지가 이 파일을 선언으로 알지 않는다 — `run-summary.json`을 고치지 않기 때문이다.
+    대신 표지가 열릴 때 `improvements.json`을 찾아 보고, 있으면 링크를 띄운다.
+    """
+    esc = lambda value: html.escape("" if value is None else str(value))  # noqa: E731
+    based = merged.get("basedOn") or {}
+    title = f"개선 포인트 · {profile.get('displayName') or merged.get('profileId')}"
+    parts = [
+        '<div class="wrap">',
+        '<header class="masthead">',
+        f'<div class="masthead-top"><p class="kicker">Catalog OS · {esc(merged.get("profileId"))} · 개선 포인트</p>'
+        f'<nav><a href="{esc(back_href)}">표지 →</a></nav></div>',
+        f"<h1><small>제안 · 확정 아님</small>{esc(profile.get('displayName') or merged.get('profileId'))}</h1>",
+        '<p style="margin-top:14px;color:var(--muted)">여기 있는 것은 전부 제안이다. 확정은 사람이 하고, '
+        "원장은 <span class=\"mono\">review/decisions.json</span> 하나뿐이다.</p>",
+        '<p class="mono" style="margin-top:8px;font-size:11px;color:var(--faint)">'
+        f"기준선 {esc(based.get('file'))} · 생성 {esc(based.get('generatedAt'))}<br>"
+        f"작업 목록 {esc(relative_or_absolute(worklist_path))} · 스윕 원본 {esc(relative_or_absolute(sweep_path))}</p>",
+        "</header>",
+    ]
+
+    parts += ['<section class="sec"><div class="sec-head"><h2><small>A · 건 단위</small>부족한 GT</h2></div>']
+    if merged["gt"]:
+        parts.append(
+            '<table class="map"><thead><tr><th>id</th><th>상품</th><th>현재 GT → 제안</th>'
+            "<th>분류</th><th>반증</th><th>상태</th></tr></thead><tbody>"
+        )
+        for row in merged["gt"]:
+            refutation = row.get("refutation") or {}
+            parts.append(
+                f'<tr><td class="id">{esc(row["id"])}</td><td><span class="mono">{esc(row["productKey"])}</span> '
+                f'{esc(row.get("productName"))}</td><td class="mono">{esc(row.get("currentGoldLabel"))} → '
+                f'{esc(row.get("proposedLabel"))}</td><td>{esc(row.get("classification"))}</td>'
+                f'<td>{esc(refutation.get("verdict") or "—")}</td><td><b>{esc(row["status"])}</b><br>'
+                f'<span style="color:var(--muted)">{esc(STATUS_NOTE.get(row["status"], ""))}</span></td></tr>'
+            )
+        parts.append("</tbody></table>")
+    else:
+        parts.append('<p style="margin-top:14px;color:var(--muted)">돌아온 판정이 없다.</p>')
+    parts.append("</section>")
+
+    parts += ['<section class="sec"><div class="sec-head"><h2><small>B · 군집 단위</small>부족한 정책</h2></div>']
+    if not merged["clusters"]:
+        parts.append('<p style="margin-top:14px;color:var(--muted)">돌아온 질문이 없다.</p>')
+    for row in merged["clusters"]:
+        defect = DEFECT_LABEL.get(str(row.get("defectType")), row.get("defectType"))
+        parts += [
+            '<article style="margin-top:34px;padding-top:18px;border-top:1px solid var(--rule)">',
+            f'<p class="kicker">{esc(row["id"])} · {esc(defect)} · 영향 {esc(row.get("products"))}건 · '
+            f'귀책 {esc(row.get("owner"))}</p>',
+            f'<h3 style="margin-top:8px;font-size:1.15rem;line-height:1.45">{esc(row.get("question"))}</h3>',
+            f'<p class="mono" style="margin-top:6px;font-size:11px;color:var(--faint)">{esc(row["clusterKey"])}</p>',
+            '<table class="map" style="margin-top:16px"><thead><tr><th>선택지</th><th>바뀌는 것</th>'
+            "<th>잃는 것</th></tr></thead><tbody>",
+        ]
+        for option in row.get("options") or []:
+            parts.append(
+                f'<tr><td>{esc(option.get("choice"))}</td><td class="desc">{esc(option.get("changes"))}</td>'
+                f'<td class="desc">{esc(option.get("cost"))}</td></tr>'
+            )
+        parts += [
+            "</tbody></table>",
+            f'<p style="margin-top:14px"><b>권고</b> — {esc(row.get("recommendation"))}</p>',
+            f'<p style="margin-top:10px;color:var(--muted)"><b>결함</b> — {esc(row.get("defectReason"))}</p>',
+            f'<p style="margin-top:10px;color:var(--muted)"><b>경계</b> — {esc(row.get("boundary"))}</p>',
+            f'<p style="margin-top:10px;color:var(--muted)"><b>이미 물어본 것</b> — {esc(row.get("duplicates") or "없음")}</p>',
+        ]
+        if row.get("counterExamples"):
+            parts.append('<ul style="margin-top:10px;padding-left:18px">')
+            for example in row["counterExamples"]:
+                parts.append(
+                    f'<li><span class="mono">{esc(example.get("productKey"))}</span> '
+                    f'(GT {esc(example.get("currentGoldLabel"))} · 실행 {esc(example.get("runLabel"))}) — '
+                    f'{esc(example.get("whyDifferent"))}</li>'
+                )
+            parts.append("</ul>")
+        parts.append(
+            '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted)">근거와 못 읽은 것</summary>'
+            f'<p style="margin-top:8px;color:var(--muted)">{esc(row.get("rationale"))}</p>'
+            + (
+                '<ul style="margin-top:8px;padding-left:18px;color:var(--muted)">'
+                + "".join(f"<li>{esc(item)}</li>" for item in row.get("unread") or [])
+                + "</ul>"
+                if row.get("unread")
+                else ""
+            )
+            + "</details></article>"
+        )
+    parts.append("</section>")
+
+    parts += ['<section class="sec"><div class="sec-head"><h2><small>범위 밖</small>이 스윕이 다루지 않은 것</h2></div><ul style="margin-top:14px;padding-left:18px">']
+    for item in merged.get("handoff") or []:
+        parts.append(f'<li>귀책 <span class="mono">{esc(item["owner"])}</span> {esc(item["products"])}건 — {esc(item["note"])}</li>')
+    for item in merged.get("excluded") or []:
+        keys = item.get("nextClusterKeys") or item.get("nextProductKeys") or []
+        parts.append(
+            f'<li>{esc(item["reason"])} — {esc(item.get("products") or item.get("clusters"))}'
+            + (f'<br><span class="mono" style="font-size:11px;color:var(--faint)">{esc(" · ".join(keys))}</span>' if keys else "")
+            + "</li>"
+        )
+    for item in merged.get("unanswered") or []:
+        parts.append(
+            f'<li>답이 돌아오지 않았다 — {esc(item["id"])} <span class="mono">'
+            f'{esc(item.get("productKey") or item.get("clusterKey"))}</span></li>'
+        )
+    parts += ["</ul></section>", '<footer style="margin:60px 0 40px"></footer>', "</div>"]
+    return head(title) + "\n".join(parts) + "\n</body>\n</html>\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=Path)
@@ -326,8 +443,14 @@ def main() -> int:
     (folder / "improvements.md").write_text(
         render_markdown(profile, merged, worklist_path, sweep_path), encoding="utf-8"
     )
+    # 표지로 돌아가는 링크. 보고서 폴더는 사이클이 정하므로 기본 자리(`<run>/reports/`)를 가리킨다.
+    back_href = os.path.relpath(root / "reports" / INDEX_FILE, folder)
+    (folder / "improvements.html").write_text(
+        render_html(profile, merged, worklist_path, sweep_path, back_href), encoding="utf-8"
+    )
     print(relative_or_absolute(folder / "improvements.json"))
     print(relative_or_absolute(folder / "improvements.md"))
+    print(relative_or_absolute(folder / "improvements.html"))
     return 0
 
 

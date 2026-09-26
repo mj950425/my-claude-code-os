@@ -113,6 +113,31 @@ class AgentEntryPointTest(unittest.TestCase):
         self.assertEqual(broken, [], "\n".join(broken))
 
 
+    def test_every_agent_can_only_read(self) -> None:
+        """규칙 6 — 에이전트는 판단하되 기록하지 않는다. 쓰기 도구가 하나라도 있으면 «읽기만»이 지시로만 남는다."""
+        allowed = {"Read", "Grep", "Glob"}
+        offenders: list[str] = []
+        for package in package_dirs():
+            for agent_md in sorted(package.glob("agents/*.md")):
+                head = agent_md.read_text(encoding="utf-8").split("---")[1]
+                line = next((row for row in head.splitlines() if row.startswith("tools:")), "")
+                tools = {tool.strip() for tool in line.removeprefix("tools:").split(",") if tool.strip()}
+                if not tools or not tools <= allowed:
+                    offenders.append(f"{agent_md.relative_to(OS_ROOT)}: {sorted(tools) or '(tools 없음)'}")
+        self.assertEqual(offenders, [], "읽기 도구만 가져야 하는 에이전트:\n" + "\n".join(offenders))
+
+
+class DesignIndexTest(unittest.TestCase):
+    """CLAUDE.md는 DESIGN.md의 절 목록을 «문서 머리»로 가리킨다. 머리 목차가 절을 빠뜨리면 그 절을 찾을 길이 없다."""
+
+    def test_every_numbered_section_is_in_the_head_index(self) -> None:
+        body = (OS_ROOT / "DESIGN.md").read_text(encoding="utf-8")
+        head = body.split("\n## ", 1)[0]
+        numbers = re.findall(r"^## (\d+)\. ", body, re.M)
+        missing = [n for n in numbers if n != "0" and f"§{n} " not in head]
+        self.assertEqual(missing, [], "DESIGN.md 머리 목차에 없는 절")
+
+
 class HookEntryPointTest(unittest.TestCase):
     """훅은 settings.json → .claude/hooks/<이름> → 패키지 hooks/<이름> 세 겹이다. 어느 겹이 끊겨도 조용히 죽는다."""
 

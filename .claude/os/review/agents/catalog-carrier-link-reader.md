@@ -76,7 +76,7 @@ tools: Read, Grep, Glob
 |---|---|
 | `cut` | `DxxTyy#n` |
 | `people` | 이 컷에 사람이 몇이고 어디에 있는가(왼쪽·오른쪽·중앙) |
-| `holds` | 그 사람과 물건의 관계 — `WORN` · `CARRIED` · `NEARBY` · `NONE` |
+| `holds` | 그 사람과 물건의 관계 — `WORN` · `CARRIED` · `NEARBY` · `NONE` · `OUT_OF_FRAME` |
 | `heldObject` | 지닌 물건이 **어떻게 생겼는가**. 형태·색·소재·프린트·하드웨어 |
 | `isTarget` | 대표 사진과 대조 — `MATCH` · `VARIANT` · `DIFFERENT` · `UNSURE` · `NO_OBJECT` |
 | `linkEvidence` | 사람과 물건이 **닿아 있는 것을 본 자리** 한 줄. 어깨의 스트랩, 쥔 손 |
@@ -87,6 +87,15 @@ tools: Read, Grep, Glob
 
 **`NO_OBJECT`와 `DIFFERENT`를 섞지 않는다.** 앞은 아무것도 안 보고 쓴 것이고
 뒤는 다른 물건을 본 것이다. 고칠 방법이 서로 다르다.
+
+**`NONE`과 `OUT_OF_FRAME`을 섞지 않는다.** 앞은 **보고서 없다**고 답하는 것이고,
+뒤는 **볼 자리가 프레임에 없다**는 것이다. 발목만 나온 컷에 `NONE`을 적으면
+안 본 것을 봤다고 단언하는 셈이고, 그건 `NO_OBJECT`를 막는 이유와 같은 종류다.
+
+이 값이 없던 동안 판독자는 `holds=-`처럼 규격 밖으로 답할 수밖에 없었다.
+`isTarget`에는 `UNSURE`가 있는데 `holds`에는 없던 비대칭이라, 실제 판독에서 지적됐다.
+`OUT_OF_FRAME`인 컷은 대상을 지닌 사람 목록에 오르지 않는다 — 확인되지 않은 것은
+확인되지 않은 채로 다음 단계에 넘긴다.
 
 ## 흔들리는 축은 변형 목록에 물어본다
 

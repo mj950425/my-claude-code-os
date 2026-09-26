@@ -23,10 +23,12 @@
 사람은 그 화면에서 답할 수 없었다. 터미널을 열고, 상품 키를 옮겨 적고, 플래그 여섯 개를
 채워야 한 건이 기록됐다. **읽는 자리와 답하는 자리가 갈려 있으면 답은 안 쌓인다.**
 
-그래서 문을 하나 냈다. `POST /decide`. 지키는 선은 셋이다.
+그래서 문을 냈다 — **원장마다 하나씩, 둘이다.** `POST /decide`는 감사 사이클의 원장(`runs/<id>/review/decisions.json`)에,
+`POST /gt-decide`는 GT 개선 과제의 원장(`.claude/gt/<id>/gt-review/decisions.json`)에 쓴다. 읽는 문은
+`/decided`(사이클)·`/gt-decided`(과제)와 화면으로 보내는 `/gt/<과제ID>`다. 두 쓰기 문이 지키는 선은 같다.
 
 1. **원장 말고는 아무것도 쓰지 않는다.** 보고서도 GT도 정책도 서버가 건드리지 않는다.
-2. **규격은 서버가 정하지 않는다.** `record_review_decision.record()`를 그대로 지난다 —
+2. **규격은 서버가 정하지 않는다.** `record_review_decision.record()`·`gt_decisions.record()`를 그대로 지난다 —
    터미널로 들어온 판정과 버튼으로 들어온 판정이 같은 검사를 받아야 원장이 한 벌로 남는다.
 3. **사람의 클릭만 받는다.** JSON 본문만 받고 다른 출처의 요청은 거절한다. 브라우저의
    평범한 폼은 JSON을 보낼 수 없으므로, 다른 페이지가 몰래 판정을 심을 수 없다.
@@ -53,6 +55,12 @@ from typing import Any
 
 from build_gt_decisions import derive
 from catalog_profile import discover_profiles, load_profile, output_root, project_path
+from gt_decisions import DecisionRejected as FieldDecisionRejected
+from gt_decisions import answered_on_page
+from gt_decisions import effective as effective_field_decisions
+from gt_decisions import read_ledger as read_field_ledger
+from gt_decisions import record as record_field
+from gt_task import TaskError, field_map, gt_value, load_gt, load_task
 from record_review_decision import DecisionRejected, record
 
 DEFAULT_PORT = 7391
@@ -149,9 +157,11 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write(f"{datetime.now():%H:%M:%S} {self.address_string()} {fmt % args}\n")
 
-    def send(self, body: bytes, kind: str = "text/html; charset=utf-8", status: int = 200) -> None:
+    def send(self, body: bytes, kind: str = "text/html; charset=utf-8", status: int = 200, refresh: int | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        if refresh:
+            self.send_header("Refresh", str(refresh))
         self.send_header("Content-Length", str(len(body)))
         # 산출물은 사이클마다 갈린다. 새로고침이 항상 지금 파일을 보게 한다.
         self.send_header("Cache-Control", "no-store")
@@ -159,9 +169,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def fail(self, status: int, message: str) -> None:
-        """실패는 글자로만 답한다. 꾸밀 화면이 없으므로 꾸미는 코드도 두지 않는다."""
-        self.send(f"{status} {message}\n".encode(), "text/plain; charset=utf-8", status)
+    def fail(self, status: int, message: str, refresh: int | None = None) -> None:
+        """실패는 글자로만 답한다. 꾸밀 화면이 없으므로 꾸미는 코드도 두지 않는다. `refresh`는 기다리면 풀리는 실패에만 —
+        브라우저가 그 초마다 다시 물어, 준비가 끝나면 그 탭이 곧 화면이 된다."""
+        self.send(f"{status} {message}\n".encode(), "text/plain; charset=utf-8", status, refresh)
 
     def redirect(self, location: str) -> None:
         self.send_response(HTTPStatus.FOUND)
@@ -210,8 +221,15 @@ class Handler(BaseHTTPRequestHandler):
         if kind != "application/json":
             raise DecisionRejected("JSON 본문만 받습니다.")
         origin = self.headers.get("Origin")
-        if origin and urllib.parse.urlparse(origin).hostname not in ("127.0.0.1", "localhost"):
-            raise DecisionRejected(f"다른 출처의 요청은 받지 않습니다: {origin}")
+        if origin:
+            # 자기 출처(스킴·호스트·포트)만 — 같은 컴퓨터의 다른 로컬 서버(localhost:3000 같은)도 다른 출처다.
+            parsed = urllib.parse.urlparse(origin)
+            host = self.headers.get("Host") or ""
+            same_port = not host or f"{parsed.hostname}:{parsed.port or 80}" == (host if ":" in host else f"{host}:80")
+            if parsed.hostname not in ("127.0.0.1", "localhost") or not same_port:
+                raise DecisionRejected(f"다른 출처의 요청은 받지 않습니다: {origin}")
+        if self.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
+            raise DecisionRejected("다른 출처의 요청은 받지 않습니다.")
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError as error:
@@ -226,8 +244,72 @@ class Handler(BaseHTTPRequestHandler):
             raise DecisionRejected("본문은 객체여야 합니다.")
         return body
 
+    def decide_field(self) -> None:
+        """GT 개선 과제의 칸 하나. `/decide`와 같은 선을 지킨다 — JSON만, 로컬 출처만,
+        규격은 기록기(`gt_decisions.record`)가 정한다. 서버는 원장 말고 아무것도 쓰지 않는다."""
+        try:
+            body = self.read_submission()
+            wanted = str(body.get("task") or "")
+            attribute = next((item for item in scan() if item.id == wanted and item.profile.get("gtTask")), None)
+            if attribute is None:
+                raise FieldDecisionRejected(f"GT 개선 과제를 찾지 못했습니다: {wanted}")
+            proposal = body.get("proposal")
+            # 화면이 보여 준 GT 값을 늘 함께 받는다. 그사이 원본이 바뀌었으면 기록기가 거절한다.
+            if "expectedBefore" not in body:
+                raise FieldDecisionRejected("화면이 보여 준 GT 값이 요청에 없습니다. 화면을 새로고침해 주세요.")
+            # 새로고침하지 않은 옛 탭의 클릭. 옛 배치로 적힌 보류는 새 화면에서 «지난번 보류»가 된다 — 받지 않는다.
+            manifest = read_json(attribute.root / "gt-review" / "manifest.json", {})
+            current_batch = manifest.get("batchId")
+            if not body.get("batch"):
+                raise FieldDecisionRejected("어느 화면에서 누른 것인지 알 수 없습니다 — 화면을 새로고침해 주세요.")
+            if not current_batch:
+                raise FieldDecisionRejected("준비된 화면이 없습니다 — Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요.")
+            if body.get("batch") != current_batch:
+                raise FieldDecisionRejected(
+                    "AI가 새 후보를 보는 중입니다 — Claude가 새 화면을 열어 드릴 때까지 기다려 주세요." if manifest.get("preparing")
+                    else "새 화면이 준비됐습니다 — 이 탭은 지난 화면입니다. 새로고침해 주세요.")
+            entry = record_field(
+                attribute.profile,
+                key=str(body.get("key") or ""),
+                field=str(body.get("field") or ""),
+                decision=str(body.get("decision") or ""),
+                reviewer=str(body.get("reviewer") or ""),
+                value=body.get("value") or None,
+                reason=str(body.get("reason") or ""),
+                proposal=proposal if isinstance(proposal, dict) else None,
+                expected_before=body.get("expectedBefore"),
+                channel="screen-bulk" if body.get("bulk") is True else "screen",
+                batch=str(body.get("batch") or "") or None,
+                gap=bool(body.get("gap")),
+            )
+        except (FieldDecisionRejected, DecisionRejected) as rejected:
+            # 기록기의 거절은 사람에게 쓴 문장이다. 그대로 보인다.
+            return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
+        except (TaskError, ValueError) as broken:
+            # GT·설정 문제의 원문에는 파일 경로·설정 키가 있다 — 운영팀 화면에 내지 않고 서버 기록에만 남긴다.
+            self.log_message("gt-decide 설정 문제: %s", broken)
+            return self.send_json({"ok": False, "error": "GT 원본이나 설정에 문제가 있습니다 — Claude에게 알려 주세요."},
+                                  HTTPStatus.BAD_REQUEST)
+        except (OSError, ValueError) as error:
+            return self.send_json({"ok": False, "error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        return self.send_json({"ok": True, "decision": entry})
+
+    def local_host(self) -> bool:
+        """Host 머리가 이 컴퓨터를 가리키는가. DNS 리바인딩(남의 이름이 127.0.0.1로 풀리는 페이지)은
+        같은 출처로 원장·GT·사진을 읽을 수 있다 — Origin 검사는 쓰기만 막으므로 읽기도 여기서 막는다."""
+        host = (self.headers.get("Host") or "").strip()
+        name = host.rsplit(":", 1)[0] if not host.startswith("[") else host.split("]")[0] + "]"
+        if name in ("127.0.0.1", "localhost", "[::1]"):
+            return True
+        self.fail(HTTPStatus.FORBIDDEN, "이 컴퓨터의 주소(127.0.0.1)로만 열 수 있습니다.")
+        return False
+
     def do_POST(self) -> None:
+        if not self.local_host():
+            return None
         parsed = urllib.parse.urlparse(self.path)
+        if (parsed.path.rstrip("/") or "/") == "/gt-decide":
+            return self.decide_field()
         if (parsed.path.rstrip("/") or "/") != "/decide":
             return self.fail(HTTPStatus.NOT_FOUND, "그런 자리는 없습니다.")
 
@@ -277,6 +359,8 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_GET(self) -> None:
+        if not self.local_host():
+            return None
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path.rstrip("/") or "/"
         query = urllib.parse.parse_qs(parsed.query)
@@ -296,6 +380,78 @@ class Handler(BaseHTTPRequestHandler):
                 if item.id == urllib.parse.unquote(wanted):
                     return self.serve_file(item, rest)
             return self.fail(HTTPStatus.NOT_FOUND, "속성을 찾지 못했습니다.")
+
+        if route == "/gt" or route.startswith("/gt/"):
+            # GT 개선 과제의 화면. 주소는 과제 ID 하나로 끝난다 — 운영팀이 경로를 알 필요가 없다.
+            # 과제를 안 적으면 가장 최근에 준비된 화면으로 보낸다. 고를 것이 없는데 고르게 하지 않는다.
+            tasks = [item for item in found if item.profile.get("gtTask")]
+            wanted = urllib.parse.unquote(route[4:]) if route.startswith("/gt/") else ""
+            if wanted:
+                tasks = [item for item in tasks if item.id == wanted]
+            # 화면의 자리는 렌더러가 선언한다(`gt-review/manifest.json`). 관습으로 추측하지 않는다.
+            pages = []
+            preparing = []
+            for item in tasks:
+                manifest = read_json(item.root / "gt-review" / "manifest.json", {})
+                if manifest.get("preparing"):
+                    preparing.append(item.id)
+                page = item.root / "gt-review" / str(manifest.get("page") or "") if manifest.get("page") else None
+                if page is not None and page.is_file():
+                    pages.append((item, page))
+            if not pages and preparing:
+                # prepare는 끝났고 AI 판독이 도는 중이다. «다시 요청하라»고 하면 도는 배치를 지우고 새로 시작한다.
+                return self.fail(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    "AI가 새 후보를 보는 중입니다 — 끝나면 Claude가 화면을 열어 드립니다. 새로 요청하지 말고 잠시 기다려 주세요. "
+                    "10분이 지나도 그대로면 Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요(지금까지 준비된 것으로 화면을 엽니다). "
+                    "이 탭은 20초마다 스스로 다시 봅니다.",
+                    refresh=20,
+                )
+            if not pages:
+                return self.fail(
+                    HTTPStatus.NOT_FOUND,
+                    f"아직 준비된 GT 개선 화면이 없습니다{f': {wanted}' if wanted else ''}. "
+                    "Claude Code에 «GT 개선해줘»라고 요청하면 만들어집니다.",
+                )
+            item, page = max(pages, key=lambda pair: pair[1].stat().st_mtime)
+            return self.redirect(f"/f/{urllib.parse.quote(item.id)}/{page.relative_to(item.root).as_posix()}")
+
+        if route == "/gt-decided":
+            # 화면이 열릴 때 읽는 원장. 칸마다 마지막 판정을 그대로 넘기고, «이 화면의 답인가»는
+            # status와 **같은 함수**(answered_on_page)로 정해 칸마다 참·거짓으로 함께 넘긴다 — 규칙을 화면의
+            # 스크립트에 한 벌 더 두면 모순 칸·지난 배치 같은 가장자리에서 둘이 어긋난다(실제로 어긋났다).
+            wanted = (query.get("task") or [""])[0]
+            item = next((entry for entry in found if entry.id == wanted and entry.profile.get("gtTask")), None)
+            if item is None:
+                return self.send_json({"ok": False, "error": f"GT 개선 과제를 찾지 못했습니다: {wanted}"}, HTTPStatus.NOT_FOUND)
+            latest = effective_field_decisions(read_field_ledger(item.profile))
+            # 화면에 있는 칸의 지금 GT 값. 화면을 그린 뒤 원본이 바뀐 칸을 화면이 알아보게 한다 —
+            # 모르면 사람은 «새로고침»만 되풀이한다(화면의 값은 준비할 때 굳었으므로).
+            current: dict[str, Any] = {}
+            answered: dict[str, bool] = {}
+            review = read_json(item.root / "gt-review" / "review.json", {})
+            if review:
+                try:
+                    task = load_task(item.profile)
+                    rows = load_gt(item.profile, task)
+                    fields = field_map(task)
+                    for entry in review.get("items") or []:
+                        for cell in entry.get("cells") or []:
+                            name = f"{entry['key']}\u0000{cell['field']}"
+                            if entry["key"] in rows and cell["field"] in fields:
+                                current[name] = gt_value(task, fields[cell["field"]], rows[entry["key"]])
+                            answered[name] = answered_on_page(
+                                latest.get((entry["key"], cell["field"])), current.get(name, cell.get("current")),
+                                review.get("batchId"), "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))
+                except (ValueError, OSError):
+                    current = {}
+            # 지금 배치. 열어 둔 옛 탭이 «새 화면이 있다»를 알게 한다 — 모르면 옛 탭에서 계속 답하고 다 했다고 여긴다.
+            manifest = read_json(item.root / "gt-review" / "manifest.json", {})
+            return self.send_json({"ok": True,
+                                   "latest": {f"{key}\u0000{field}": entry for (key, field), entry in latest.items()},
+                                   "current": current, "answered": answered,
+                                   "batchId": manifest.get("batchId") or review.get("batchId"),
+                                   "preparing": bool(manifest.get("preparing"))})
 
         attribute = self.pick(found, query)
         if attribute is None:

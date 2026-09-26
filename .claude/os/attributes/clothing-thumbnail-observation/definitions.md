@@ -1,0 +1,92 @@
+---
+id: clothing-thumbnail-observation
+version: 1
+owner: minjoon.lee
+updatedAt: 2026-09-26
+seededFrom:
+  - core/src/main/resources/prompts/image-gender/v106/common-en.txt
+  - core/src/main/java/com/musinsa/ccp/core/platform/gender/domain/target/stage/ImageShotMetadata.java
+  - core/src/main/java/com/musinsa/ccp/core/platform/gender/application/service/inference/apply/ImageFrameObservation.java
+# 옮겨 올 때 원문마다의 해시(같은 순서). 원문이 바뀌면 준비 화면이 알린다.
+seededFromSha256:
+  - 1bf35d40d3837cb75639552bf9cd76a7cf21d70097180afca5ed2c7eaec919a9
+  - aa7cd3579a4622d6b3ce816560136266591dad998ec0188269962f5fac9b3b2c
+  - 85f61dbec3b074cd82bf491df7988cd5d429fc29456ff1975c1110af61f1a6e9
+---
+
+# 의류 썸네일 관찰 필드 정의
+
+썸네일 **한 장**을 보고 답하는 칸들이다(목록은 `profile.json`의 `gtTask.fields`). 성별 판정과 별개다 — 이 칸들은 성별의 근거가 아니고,
+성별은 이 칸들 때문에 바뀌지 않는다.
+
+이 문서는 운영 프롬프트(v106)와 코드의 열거형에서 옮겨 왔다. 새 판단을 넣지 않았다.
+운영과 **이름이** 다른 곳은 하나다 — GT는 `MODEL_CROPPED` 대신 `MODEL_CLOSEUP`이라는 이름을 쓴다(아래 `shotType`).
+판독자가 받는 입력이 운영과 다른 곳은 `package.md`의 «판독 맥락» 절에 있다.
+
+**한 장씩 따로 본다.** 같은 상품의 다른 썸네일에서 사람·방향·구도를 옮겨 오지 않는다.
+
+## personPresence
+
+진짜 사람(또는 사람의 몸이 상품을 입고 있는 것)이 **이 사진 안에서 직접** 보이는가.
+
+- `PRESENT` — 얼굴이 없어도 몸의 윤곽, 팔다리의 자리, 사람의 자세가 보이면 있다.
+  사진 가장자리의 머리카락·피부·손·목처럼 작은 조각도 놓치지 않는다. 디테일 클로즈업이라도
+  사람의 피부·팔·목·입은 몸이 보이면 `PRESENT`다.
+- `ABSENT` — 상품만 있는 컷, 플랫레이, 마네킹, 행거, 지퍼·원단 클로즈업. 옷이 불룩하거나 주름졌다는
+  것만으로는 사람이 아니다. 마네킹은 사람으로 세지 않는다.
+
+## shotType
+
+사람이 있을 때, 사진 틀 안에 **몸의 어디까지** 들어왔는가. 운영은 이 값을 모델에게 직접 묻지 않고
+몸의 표지(머리·어깨·엉덩이·무릎·발)가 틀 안에 있는지를 물은 뒤 코드로 정한다. 같은 순서로 판단한다.
+
+표지는 **조금이라도 틀 안에 있으면** 있는 것이다. 어깨는 목과 윗팔이 만나는 자리, 엉덩이는 골반·엉덩이,
+발은 실제 발이나 신발이다(바짓단·발목은 발이 아니다).
+
+- `NO_MODEL` — `personPresence`가 `ABSENT`다.
+- `MODEL_FULL_BODY` — 머리와 발이 모두 있다. 또는 머리가 없어도 어깨·엉덩이·발이 모두 있다.
+- `MODEL_UPPER_BODY` — 머리와 어깨가 있고 발은 없다. 또는 머리가 없고 어깨와 엉덩이가 있고 발은 없다.
+- `MODEL_LOWER_BODY` — 어깨가 없고 엉덩이와 무릎이 있다.
+- `MODEL_CLOSEUP` — 위 어느 것에도 들지 않는 부분 컷. 머리는 있는데 어깨가 없는 얼굴 컷, 손·목·허리 일부만 있는 컷.
+  운영 코드의 `MODEL_CROPPED`와 같은 값이다.
+
+## faceVisibility
+
+얼굴 **자체**가 알아볼 수 있게 틀 안에 있는가. 구도·머리 표지·성별·옷과 따로 본다.
+
+- `VISIBLE` — 얼굴 윤곽과 코·입이 정면이든 옆모습이든 알아볼 수 있다. 큰 선글라스, 모자 챙, 머리카락이
+  있어도 윤곽·코·입이 보이면 `VISIBLE`이다. 눈이 보일 필요는 없다.
+- `HIDDEN` — 사람은 있는데 틀이 얼굴을 자르거나 대부분을 가렸다(이마·턱·입 조각·머리카락·목·뒤통수만 보인다).
+  전신 사진이라도 머리가 위에서 잘렸으면 `HIDDEN`이다.
+- `NO_MODEL` — `personPresence`가 `ABSENT`다.
+
+## productView
+
+파는 상품의 **넓고 지배적인 면**이 어느 쪽인가. 얼굴·시선·발·팔·자세의 방향을 보지 않는다.
+
+- `FRONT` — 상품의 앞면이 넓게 지배적이다. 약한 사선, 한쪽 어깨가 물러난 자세, 옆을 보는 모델,
+  쪼그려 앉거나 몸을 튼 자세도 앞면이 지배적이면 `FRONT`다.
+- `BACK` — 뒷면이 넓게 지배적이다. 약한 뒤 사선도 포함한다.
+- `SIDE` — 옆판이나 옆 솔기가 지배적이고 앞·뒷면이 회전으로 눈에 띄게 좁아진, **분명한** 옆 모습일 때만.
+  3/4 앞·뒤 모습은 지배적인 면에 따라 `FRONT`나 `BACK`이다.
+- `UNKNOWN` — 파는 상품이나 그 방향을 확신할 수 없다. 잘림·가림·비대칭 자세·고개 돌림·가려진 어깨
+  하나만으로는 `SIDE`의 근거가 아니다.
+
+## productVisibility
+
+파는 상품이 **경계까지 통째로** 보이는가(상의는 어깨선부터 밑단까지, 바지는 허리밴드부터 밑단까지).
+
+- `WHOLE` — 상품 전체가 경계까지 보인다. 상반신 컷이라도 옷 전체가 보이면 `WHOLE`이다.
+- `CROPPED_OR_OCCLUDED` — 잘렸거나 가려졌거나 디테일만 보인다. 전신 컷이라도 옷이 가려졌으면 이 값이다.
+
+옷이 여러 벌 보이면 판독 목록의 `context.standardCategory`(표준 카테고리)로 파는 상품을 가른다 —
+예: `상의>후드 티셔츠`면 후드가 파는 상품이고, 함께 입은 쇼츠는 보지 않는다.
+운영 모델은 카테고리를 받지 않지만 GT는 «이 사진에서 파는 상품이 통째로 보이는가»의 정답이라 카테고리를 쓴다.
+카테고리로도 가를 수 없으면(세트 상품 등) 판독자는 값을 비운다.
+
+## 필드끼리의 제약
+
+프로필의 `gtTask.constraints`에 같은 내용이 기계가 읽는 모양으로 있다.
+
+- `personPresence`가 `ABSENT`면 `shotType`과 `faceVisibility`는 `NO_MODEL`이다.
+- `personPresence`가 `PRESENT`면 `shotType`과 `faceVisibility`는 `NO_MODEL`이 아니다.

@@ -159,6 +159,29 @@ class ReviewKnowsNothingTest(unittest.TestCase):
             + "\n".join(offenders),
         )
 
+    def test_review_imports_only_itself_and_common(self) -> None:
+        """PACKAGES.md의 약속을 긍정형으로 본다 — 심사가 import하는 이 저장소의 코드는 common의 순수 함수뿐이다.
+        문자열 검사(ENGINE_REACH)는 `sys.path`에 엔진 폴더를 넣고 모듈 이름만 쓰는 길을 못 막는다."""
+        import ast
+
+        own = {path.stem for path in review_sources()}
+        common = {path.stem for path in (OS_ROOT / "common").glob("*.py")}
+        allowed = set(sys.stdlib_module_names) | own | common | {"PIL"}
+        offenders = []
+        for path in review_sources():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                names = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
+                         else [node.module] if isinstance(node, ast.ImportFrom) and node.module and not node.level else [])
+                offenders += [f"{path.name}: import {name}" for name in names if name.split(".")[0] not in allowed]
+                # sys.path에 넣는 폴더는 common뿐이어야 한다.
+                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "insert"
+                        and "path" in ast.unparse(node.func.value)):
+                    target = ast.unparse(node.args[-1]) if node.args else ""
+                    if "common" not in target:
+                        offenders.append(f"{path.name}: sys.path에 {target}")
+        self.assertEqual(offenders, [], "심사가 common 밖의 저장소 코드를 import합니다:\n" + "\n".join(offenders))
+
     def test_no_domain_vocabulary(self) -> None:
         offenders = [
             f"{path.relative_to(OS_ROOT)}: `{term}`"

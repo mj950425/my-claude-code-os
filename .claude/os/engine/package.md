@@ -6,7 +6,7 @@
 
 | 종류 | 파일 |
 |---|---|
-| 계약 | `contracts/customization-boundary.md` · `contracts/policy-layer.md` · `contracts/declared-leaks.json` |
+| 계약 | `contracts/customization-boundary.md` · `contracts/policy-layer.md` · `contracts/gt-layer.md`(사이클 GT 계보·판정 원장) · `contracts/gt-task.md`(GT 개선 과제) · `contracts/declared-leaks.json` |
 | 목표 | `goal.md` — 프로세스 전체가 무엇을 성공으로 보는가 |
 | 오케스트레이터 | `scripts/run_catalog_cycle.py` |
 | 프로필 해석 | `scripts/catalog_profile.py` |
@@ -14,6 +14,11 @@
 | 정책 인덱스 | `scripts/build_policy_index.py` |
 | 진행률 | `scripts/build_review_progress.py` |
 | 판정 원장 | `scripts/record_review_decision.py` |
+| GT 계보 합치기 | `scripts/build_gt.py` — 계보 여럿을 순위로 합쳐 `.claude/gt/<id>/gt.jsonl` 하나로, 진 라벨은 이력으로 |
+| 원장 파생 | `scripts/build_gt_decisions.py` — 판정 원장에서 정정·확인·판례 대기·판례별 사례집을 다시 만든다 |
+| 규칙 브리프 | `scripts/build_precedent_brief.py` — 정책 규칙마다 원문 통째 + 확정 근거 판례 + 적용 사례 한 장 |
+| 로컬 서버 | `scripts/serve_reports.py` — 화면을 그리지 않고 리다이렉트만. 쓰는 곳은 두 판정 원장(`/decide`·`/gt-decide`)뿐 |
+| 페이지 머리 | `scripts/page_style.py` — 보고서와 GT 개선 화면이 함께 쓰는 글꼴·색. 하네스가 감사 보고서 모듈을 import하지 않게 떼어 냈다 |
 | 리포트 | `scripts/render_catalog_report.py` |
 | 개선 포인트 작업 목록 | `scripts/build_improvement_worklist.py` — 귀책으로 갈라 건·군집을 고르고 **센다** |
 | 개선 포인트 보고서 | `scripts/render_improvements.py` — 판단과 반증을 합쳐 `improvements/`에 남긴다 |
@@ -24,7 +29,19 @@
 | 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` · `catalog-improvement-sweep` |
 | 에이전트 | `agents/catalog-golden-adjudicator.md` — 큐의 한 건이 정책 공백인가 GT 오류인가 실행 오류인가 |
 | 에이전트 | `agents/catalog-policy-cluster-scout.md` — 같은 이유로 막힌 군집 하나가 어떤 정책 결함인가 |
+| GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) — 계약 `contracts/gt-task.md` |
+| GT 개선 워크플로우 | `workflows/gt-review.js` — 과제를 모른다. 판독자·반론자 유형도 인자로 받는다 |
+| 에이전트 | `agents/gt-blind-reader.md` — GT를 모른 채 사진과 정의만으로 칸을 읽는다 |
+| 에이전트 | `agents/gt-defender.md` — 판독이 GT와 갈린 칸에서 GT를 지킬 근거를 찾는다 |
+| 스킬 | `skills/gt-improve` — 데이터 운영팀의 단일 진입점 «GT 개선해줘» |
 | 진입점 링크 | `.claude/skills/<이름>` · `.claude/agents/engine/<이름>.md` → 여기. 실체는 이 패키지가 소유한다 |
+
+## 의존
+
+```
+engine  ──▶  common   (타일 규칙 — GT 개선 사진 준비와 보고서의 조각 표시)
+engine  ──✗  review · interview · attributes
+```
 
 ## 규칙
 
@@ -53,6 +70,20 @@ import 어댑터 → audit 어댑터 → arbitrate → build_policy_index → bu
 ```
 build_improvement_worklist → (워크플로우: 판정 · 반증 · 군집 질문) → render_improvements
 ```
+
+## GT 개선 하네스 — 감사 사이클과 따로 서는 문
+
+감사 사이클은 「상품 하나에 라벨 하나」와 정책·판례·심판을 전제한다. GT 개선 하네스는 그 전제를
+하나도 요구하지 않는다 — 프로필의 `gtTask` 블록만 있으면 돈다. 그래서 정책 문서가 아직 없는
+메타데이터 GT(이미지 한 장에 관찰 칸 여럿)와 가져오기만 있는 속성도 같은 문으로 들어온다.
+
+```
+gt_review.py prepare → (워크플로우 gt-review: 사진 판독 · GT 편 반론) → gt_review.py finish → 화면에서 사람이 답 → gt_review.py export
+```
+
+둘을 합치지 않은 이유 — 사이클에 넣으면 정책이 없는 과제는 영영 못 들어온다. 반대로 사이클을
+하네스로 옮기면 판례·심판이 만든 경계가 사라진다. 대신 **한 GT에 판정 원장은 하나**라는 선을
+로더가 지킨다: 사이클의 원장(`gt` 블록)을 가진 프로필은 `gtTask`를 선언할 수 없다.
 
 ## 보고서 형태 점검
 

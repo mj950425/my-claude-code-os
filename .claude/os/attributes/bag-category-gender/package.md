@@ -29,6 +29,9 @@
   `referenceLabel`·`observedLabel`로 맞춘다. 원본 필드명이 엔진에 새어 나가면 경계가 무너진다.
 - `adapters/arbiter_bag_category_gender.py`는 `policy/policy.md`의 근거 우선순위를 옮긴 것이다.
   **정책이 바뀌면 여기도 같이 바뀌어야 한다.** 새 판단을 어댑터에서 만들지 않는다.
+- 가져오기 어댑터는 `common/tile_rule.py`에 기댄다. 갤러리 줄마다 **어느 타일 규칙 판·디코더로 번호를 매겼는지**
+  (`tileRule`)를 찍는데, 그 판은 실행 결과 폴더의 날짜로 `tile_rule.rule_for_date`가 고른다. 장면을 되짚는
+  `review/`가 같은 선언으로 잘라야 `D01T03`이 같은 조각을 가리키기 때문이다. `common`이 바뀌면 이 찍음도 바뀐다.
 - 정책 원본은 `policy/`에 있고, `runs/bag-category-gender/policy/`에 있는 것은 외부에서 가져온
   읽기 전용 스냅샷이다. 둘이 다르면 `policy/`가 옳다.
 

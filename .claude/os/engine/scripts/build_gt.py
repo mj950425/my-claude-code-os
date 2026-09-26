@@ -66,10 +66,11 @@ def parse_lineage(raw: str) -> dict[str, Any]:
 
 def build(
     lineages: list[dict[str, Any]],
-    corrections: Path | None,
+    corrections: list[Path],
     out: Path,
     index_out: Path,
     profile_id: str,
+    confirmations: Path | None = None,
 ) -> dict[str, Any]:
     lineages = sorted(lineages, key=lambda spec: spec["rank"])
     merged: dict[str, dict[str, Any]] = {}
@@ -114,9 +115,14 @@ def build(
                     entry[field] = row.get(field)
             entry["otherLineages"].append(seen)
 
+    # 정정은 여러 곳에서 온다. 외부 하네스가 넘겨준 것과, **이 저장소의 사람이 확정한 것**이
+    # 서로 다른 파일이기 때문이다. 뒤에 준 것이 앞을 덮는다 — 우리 결정을 마지막에 두면
+    # 외부가 무엇을 보냈든 사람이 확정한 값이 최종이다.
     applied_corrections = []
-    if corrections is not None:
-        for row in read_jsonl(corrections):
+    correction_stats = []
+    for source_path in corrections:
+        applied_here = []
+        for row in read_jsonl(source_path):
             key = str(row.get("productKey") or "")
             entry = merged.get(key)
             if entry is None or not row.get("goldLabel"):
@@ -132,7 +138,41 @@ def build(
             entry["goldLabel"] = row.get("goldLabel")
             entry["goldSource"] = row.get("goldSource") or row.get("goldLabelSource")
             entry["goldLineage"] = "corrections"
+            # 누가 언제 왜 고쳤는지. 정정된 라벨만 남으면 다음 사람이 그 값을 되짚을 수 없다.
+            if row.get("decisionId"):
+                entry["correctedBy"] = {
+                    "decisionId": row.get("decisionId"),
+                    "reviewer": row.get("reviewer"),
+                    "at": row.get("reviewedAt"),
+                    "reason": row.get("reason"),
+                }
+            applied_here.append(key)
             applied_corrections.append(key)
+        correction_stats.append(
+            {
+                "path": str(source_path),
+                "sha256": sha256(source_path),
+                "applied": len(applied_here),
+            }
+        )
+
+    # **유지도 결정이다.** 사람이 「이 GT가 맞다」고 확정한 사실을 라벨 옆에 남긴다.
+    # 남기지 않으면 다음 사이클에 같은 건이 같은 이유로 다시 올라오고, 사람은 자기가
+    # 이미 답한 것을 또 답한다. 라벨은 바꾸지 않는다 — 확인은 변경이 아니다.
+    confirmed = []
+    for row in read_jsonl(confirmations) if confirmations is not None else []:
+        entry = merged.get(str(row.get("productKey") or ""))
+        if entry is None:
+            continue
+        entry["humanConfirmed"] = {
+            "decisionId": row.get("decisionId"),
+            "reviewer": row.get("reviewer"),
+            "at": row.get("reviewedAt"),
+            "reason": row.get("reason"),
+            # 무엇을 확인했는지 남긴다. 나중에 라벨이 바뀌면 이 확인은 그 라벨의 것이 아니다.
+            "label": row.get("goldLabel"),
+        }
+        confirmed.append(entry["productKey"])
 
     conflicts = []
     for key, entry in merged.items():
@@ -159,13 +199,14 @@ def build(
         "gt": str(out),
         "precedence": [spec["id"] for spec in lineages],
         "lineages": lineage_stats,
-        "corrections": (
+        "corrections": correction_stats or None,
+        "confirmations": (
             {
-                "path": str(corrections),
-                "sha256": sha256(corrections),
-                "applied": len(applied_corrections),
+                "path": str(confirmations),
+                "sha256": sha256(confirmations),
+                "applied": len(confirmed),
             }
-            if corrections is not None
+            if confirmations is not None
             else None
         ),
         "counts": {
@@ -177,6 +218,8 @@ def build(
             },
         },
         "conflictProductKeys": sorted(conflicts),
+        # 사람이 확정한 라벨. 다음 사이클이 이 건을 다시 묻지 않게 하는 근거다.
+        "humanConfirmedProductKeys": sorted(confirmed),
     }
     index_out.parent.mkdir(parents=True, exist_ok=True)
     index_out.write_text(json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -193,7 +236,18 @@ def main() -> int:
         metavar="JSON",
         help='{"id":"scoring","rank":1,"path":"...","labelField":"goldLabel","sourceField":"goldSource"}',
     )
-    parser.add_argument("--corrections", type=Path)
+    parser.add_argument(
+        "--corrections",
+        type=Path,
+        action="append",
+        default=[],
+        help="정정 파일. 반복 가능하고 **뒤에 준 것이 앞을 덮는다**",
+    )
+    parser.add_argument(
+        "--confirmations",
+        type=Path,
+        help="사람이 «이 GT가 맞다»고 확정한 목록. 라벨을 바꾸지 않고 확인 사실만 붙인다",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--lineage-index", type=Path, required=True)
     args = parser.parse_args()
@@ -204,6 +258,7 @@ def main() -> int:
         args.out,
         args.lineage_index,
         args.profile_id,
+        args.confirmations,
     )
     print(json.dumps({k: index[k] for k in ("gt", "precedence", "counts")}, ensure_ascii=False))
     return 0

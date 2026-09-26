@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,15 +29,22 @@ ENGINE_SCRIPTS = OS_ROOT / "engine/scripts"
 DECLARED_LEAKS = OS_ROOT / "engine/contracts/declared-leaks.json"
 
 # 엔진이 알아서는 안 되는 어휘. 특정 속성의 이름·라벨·데이터 출처가 여기 들어온다.
-FORBIDDEN = ("가방", "성별", "29CM", "MALE", "FEMALE", "UNISEX", "productGender", "bag-category-gender")
+FORBIDDEN = ("가방", "성별", "남성", "여성", "29CM", "MALE", "FEMALE", "UNISEX", "productGender", "bag-category-gender")
+
+
+ENGINE_WORKFLOWS = OS_ROOT / "engine/workflows"
 
 
 def engine_sources() -> list[Path]:
+    # 워크플로우도 엔진 코드다. 워크플로우가 과제의 어휘를 알면 새 과제마다 스크립트를 고쳐야 한다.
     return sorted(
-        path
-        for pattern in ("**/*.py", "**/*.sh")
-        for path in ENGINE_SCRIPTS.glob(pattern)
-        if "__pycache__" not in path.parts
+        [
+            path
+            for pattern in ("**/*.py", "**/*.sh")
+            for path in ENGINE_SCRIPTS.glob(pattern)
+            if "__pycache__" not in path.parts
+        ]
+        + list(ENGINE_WORKFLOWS.glob("*.js"))
     )
 
 
@@ -178,13 +186,163 @@ class EngineRunsWithoutTheAttributeTest(unittest.TestCase):
             index = (run / "reports/catalog-audit.html").read_text(encoding="utf-8")
             self.assertIn("대표 소재", index)
             self.assertIn("혼용률 정책 공백", index)
-            for name in ("gt-fixes.html", "suspect-gt.html", "policy-gaps.html"):
+            for name in ("gt-fixes.html", "policy-gaps.html"):
                 report = (run / "reports" / name).read_text(encoding="utf-8")
                 self.assertIn("혼방 니트", report, name)
                 self.assertNotIn("MALE", report, name)
                 self.assertNotIn("productGender", report, name)
             index = json.loads((run / "policy/policy-index.json").read_text(encoding="utf-8"))
             self.assertEqual(index["owned"]["labels"], ["COTTON", "UNKNOWN"])
+
+
+
+
+class GtTaskKeysAreReviewedTest(unittest.TestCase):
+    """과제 프로필(`gtTask`)에 새 선언 키가 생기면, 그 키가 과제의 어휘를 담는지(어휘 수집에 넣을지) 누군가 정해야 한다.
+    정하지 않은 새 키가 조용히 늘면 어휘 검사가 그 값을 못 본다 — 이번에 roleNames가 그랬다."""
+
+    # 값이 과제의 어휘를 담을 수 있어 어휘 수집이 보는 키, 그리고 엔진의 구조·수치라 어휘가 아닌 키.
+    REVIEWED_TASK = {"schemaVersion", "unit", "keyField", "groupField", "titleField", "titleAsEvidence", "definitions",
+                     "definitionsRoot", "gt", "authority", "correctionSourcePrefix", "fields", "constraints",
+                     "images", "evidence", "columnNames", "prerequisite", "agents", "limit"}
+    REVIEWED_IMAGES = {"path", "root", "keyField", "joinField", "listField", "fileField", "fileRoot", "fileBase", "idField",
+                       "roleField", "roles", "roleNames", "matchField", "entryField", "tileRoles", "tileRule", "sourceIndexField",
+                       "sourceListComplete", "preTiledRoles", "preTiledRule", "contextFields", "maxImages", "maxEdge"}
+    # 안쪽 블록도 같다 — 새 키의 값이 과제 어휘면 어휘 수집이 봐야 한다(rowCheck의 탭 이름처럼).
+    REVIEWED_NESTED = {
+        "gt": {"path", "root", "sourceField", "fieldSourcesField", "supersededBy", "upstream"},
+        "upstream": {"kind", "note", "refresh", "acceptsEmpty", "columns", "headerNames", "locatorFields", "mirrorFields",
+                     "rowCheck"},
+        "field": {"id", "name", "labels", "labelNames", "legacy", "gtField", "alternativesField", "fillMissing", "unknownLabel",
+                  "cardinality", "valueType", "definition"},
+        "constraint": {"id", "text", "when", "require"},
+        "evidence": {"textFields"},
+        "authority": {"trusted", "reference", "default"},
+    }
+
+    def test_every_declared_key_has_been_reviewed(self) -> None:
+        unknown = []
+        for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
+            task = json.loads(path.read_text(encoding="utf-8")).get("gtTask")
+            if not isinstance(task, dict):
+                continue
+            unknown += [f"{path.parent.name}: gtTask.{key}" for key in task if key not in self.REVIEWED_TASK]
+            unknown += [f"{path.parent.name}: images.{key}" for key in (task.get("images") or {}) if key not in self.REVIEWED_IMAGES]
+            gt = task.get("gt") or {}
+            blocks = {"gt": [gt], "upstream": [gt.get("upstream") or {}],
+                      "field": task.get("fields") or [], "constraint": task.get("constraints") or [],
+                      "evidence": [task.get("evidence") or {}], "authority": [task.get("authority") or {}]}
+            for name, dicts in blocks.items():
+                unknown += [f"{path.parent.name}: {name}.{key}" for block in dicts for key in block
+                            if key not in self.REVIEWED_NESTED[name]]
+        self.assertEqual(unknown, [], "새 선언 키 — 어휘 수집(GtHarnessKnowsNoTaskTest.vocabulary)에 넣을지 정하고 여기 적는다")
+
+
+class PackageTableTest(unittest.TestCase):
+    """engine/package.md의 소유 표가 실제 폴더와 맞는가. 표에 없는 스크립트는 누가 왜 가졌는지 모르는 파일이다."""
+
+    def test_every_script_and_contract_is_owned_in_the_table(self) -> None:
+        table = (OS_ROOT / "engine/package.md").read_text(encoding="utf-8")
+        files = [path.name for path in sorted((OS_ROOT / "engine/scripts").glob("*.py"))]
+        files += [path.name for path in sorted((OS_ROOT / "engine/contracts").glob("*")) if path.is_file()]
+        files += [path.name for path in sorted((OS_ROOT / "engine/workflows").glob("*.js"))]
+        files += [path.name for path in sorted((OS_ROOT / "engine/agents").glob("*.md"))]
+        files += [path.name for path in sorted((OS_ROOT / "engine/skills").iterdir()) if path.is_dir()]
+        self.assertEqual([name for name in files if name not in table], [])
+
+
+class GtHarnessKnowsNoTaskTest(unittest.TestCase):
+    """GT 개선 하네스는 과제를 모른다. 새 과제의 어휘가 엔진에 스며들면 그 과제에 맞춰 엔진이 휜다.
+
+    금지 어휘는 손으로 적지 않고 **지금 있는 모든 과제 프로필**에서 모은다 — 과제가 늘면 저절로 늘어난다.
+    """
+
+    HARNESS_DOCS = (
+        "engine/skills/gt-improve/SKILL.md",
+        "engine/agents/gt-blind-reader.md",
+        "engine/agents/gt-defender.md",
+        "engine/contracts/gt-task.md",
+    )
+
+    # 과제 라벨 가운데 엔진이 제 뜻으로 쓰는 낱말. 엔진의 어휘이지 과제의 어휘가 아니다.
+    # productKey는 감사 사이클이 쓰는 엔진의 키 이름이라(판정 원장·서버의 /decide) 과제의 어휘가 아니다.
+    # source·fieldSources·imageId·images는 엔진의 기본 열·블록 이름이다(과제가 선언하지 않으면 엔진이 쓰는 이름).
+    GENERIC = {"UNKNOWN", "NONE", "TRUE", "FALSE", "true", "false", "id", "role", "file", "productKey",
+               "source", "fieldSources", "imageId", "images",
+               # «상품»은 과제 단위(unit)로도 쓰이지만 엔진이 제 뜻(판매 단위 일반)으로 쓰는 낱말이다.
+               "상품",
+               # «이름»·«상품 키»는 엔진이 제 뜻으로 쓰는 말이다(판정한 사람의 이름, 감사 사이클의 상품 키).
+               # 상류 시트의 머리글(headerNames)이 같은 낱말을 쓰더라도 과제의 어휘가 아니다.
+               "이름", "상품 키"}
+
+    def vocabulary(self) -> set[str]:
+        words: set[str] = set(FORBIDDEN)
+        for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
+            profile = json.loads(path.read_text(encoding="utf-8"))
+            task = profile.get("gtTask")
+            if not isinstance(task, dict):
+                continue
+            words |= {str(profile.get(key)) for key in ("id", "displayName", "attributeName", "subjectName") if profile.get(key)}
+            words |= {str(task["unit"])} if task.get("unit") else set()
+            words |= {str(name) for name in (task.get("evidence") or {}).get("textFields") or []}
+            images = task.get("images") or {}
+            for key in ("roles", "tileRoles", "preTiledRoles", "contextFields"):
+                words |= {str(item) for item in images.get(key) or []}
+            for key in ("keyField", "titleField", "groupField"):
+                value = task.get(key)
+                words |= {str(item) for item in (value if isinstance(value, list) else [value] if value else [])}
+            for field in task.get("fields") or []:
+                words.add(str(field["id"]))
+                words |= {str(label) for label in field.get("labels") or []}
+                words |= {str(name) for name in (field.get("labelNames") or {}).values()}
+                words |= {str(old) for old in (field.get("legacy") or {})}
+                if field.get("name"):
+                    words.add(str(field["name"]))
+            words |= {str(item.get("id")) for item in task.get("constraints") or []}
+            # 과제가 가리키는 파일의 열 이름·상류 시트의 열 이름·출처 규약도 과제의 어휘다.
+            gt = task.get("gt") or {}
+            upstream = gt.get("upstream") or {}
+            words |= {str(gt[key]) for key in ("sourceField", "fieldSourcesField") if gt.get(key)}
+            words |= {str(value) for value in (upstream.get("columns") or {}).values()}
+            words |= {str(value) for value in (upstream.get("headerNames") or {}).values()}
+            # 출처 이름 규약(등급 패턴의 낱말·정정 출처 앞머리)도 과제의 것이다 — 엔진이 알면 그 상류 규약에 묶인다.
+            for grade in ("trusted", "reference"):
+                words |= {re.sub(r"[\^$]", "", str(pattern)) for pattern in (task.get("authority") or {}).get(grade) or []}
+            words |= {str(task["correctionSourcePrefix"])} if task.get("correctionSourcePrefix") else set()
+            words |= {str(value) for value in (task.get("columnNames") or {}).values()}
+            words |= {str(item) for key in ("mirrorFields", "locatorFields") for item in upstream.get(key) or []}
+            words |= {str(value) for value in (upstream.get("rowCheck") or {}).values()}
+            words |= {str(value) for value in (gt.get("supersededBy") or {}).values()}
+            words |= {str(value) for key, value in images.items() if key.endswith("Field") and isinstance(value, str)}
+            words |= {str(value) for value in (images.get("roleNames") or {}).values()}
+            for field in task.get("fields") or []:
+                words |= {str(field[key]) for key in ("gtField", "alternativesField") if field.get(key)}
+        # 영문은 3자 이상(짧은 낱말은 흔한 코드 조각과 겹친다), 한글은 2자 이상(«여성» 같은 라벨 이름).
+        return {word for word in words if word not in self.GENERIC
+                and (len(word) >= 3 or (len(word) >= 2 and not word.isascii()))}
+
+    def test_harness_code_and_docs_carry_no_task_vocabulary(self) -> None:
+        targets = [path for path in engine_sources() if path.name.startswith(("gt_", "gt-"))]
+        # 하네스가 import하는 엔진 모듈도 하네스의 일부다(화면 머리·프로필 읽기). 거기 과제의 어휘가 있으면 하네스가 안다.
+        imported = set()
+        for path in list(targets):
+            if path.suffix == ".py":
+                imported |= set(re.findall(r"^\s*(?:from|import)\s+(\w+)", path.read_text(encoding="utf-8"), re.M))
+        targets += [ENGINE_SCRIPTS / f"{name}.py" for name in sorted(imported)
+                    if (ENGINE_SCRIPTS / f"{name}.py").is_file() and not name.startswith("gt_")]
+        targets += [ENGINE_SCRIPTS / "serve_reports.py"]
+        # common은 어느 패키지도 모르는 자리다. 과제의 어휘가 들어오면 그 약속이 깨진다.
+        targets += sorted((OS_ROOT / "common").glob("*.py"))
+        targets += [OS_ROOT / relative for relative in self.HARNESS_DOCS]
+        leaks = []
+        for path in targets:
+            body = path.read_text(encoding="utf-8")
+            for word in sorted(self.vocabulary()):
+                # 영문 라벨은 낱말 경계로 본다 — «SIDE»가 «INSIDE» 안에서 걸리지 않게.
+                pattern = rf"(?<![A-Za-z0-9_]){re.escape(word)}(?![A-Za-z0-9_])" if word.isascii() else re.escape(word)
+                if re.search(pattern, body):
+                    leaks.append(f"{path.relative_to(OS_ROOT)}: `{word}`")
+        self.assertEqual(leaks, [], "GT 개선 하네스가 특정 과제의 어휘를 압니다:\n" + "\n".join(leaks))
 
 
 if __name__ == "__main__":

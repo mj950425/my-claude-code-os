@@ -19,6 +19,10 @@ PID_FILE="$RUN_DIR/serve.$PORT.pid"
 LOG_FILE="$RUN_DIR/serve.$PORT.log"
 HOST="${CATALOG_OS_HOST:-127.0.0.1}"
 URL="http://$HOST:$PORT"
+# 인터프리터를 밖에서 정할 수 있게 둔다 — 엔진은 3.11 이상(datetime.UTC 등)을 쓰는데,
+# PATH가 좁으면 python3가 macOS 시스템 3.9로 잡혀 서버가 import에서 조용히 죽는다.
+# 코드를 3.9에 맞추는 대신 문을 하나 둔 것은, 3.9를 지키는 검사가 없어 곧 다시 깨지기 때문이다.
+PYTHON="${CATALOG_OS_PYTHON:-python3}"
 
 alive() {
   [ -f "$PID_FILE" ] || return 1
@@ -37,7 +41,7 @@ start() {
   mkdir -p "$RUN_DIR"
   rm -f "$PID_FILE"
   CATALOG_OS_PORT="$PORT" CATALOG_OS_HOST="$HOST" \
-    nohup python3 "$OS_ROOT/engine/scripts/serve_reports.py" >>"$LOG_FILE" 2>&1 &
+    nohup "$PYTHON" "$OS_ROOT/engine/scripts/serve_reports.py" >>"$LOG_FILE" 2>&1 &
   local pid=$!
   echo "$pid" > "$PID_FILE"
 

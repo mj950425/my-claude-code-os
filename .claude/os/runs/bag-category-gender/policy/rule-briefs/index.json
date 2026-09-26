@@ -79,7 +79,7 @@
       "summary": "일반 토트·숄더·크로스백은 남녀 모두 쓸 수 있다는 상식만으로 `UNISEX`가 아니다"
     }
   ],
-  "builtAt": "2026-09-07T07:44:19.520859+00:00",
+  "builtAt": "2026-09-07T12:24:10.814837+00:00",
   "note": "규칙 하나에 브리프 한 장. 판독자에게는 이 파일을 그대로 넘긴다 — 손으로 발췌하지 않는다.",
   "policy": ".claude/os/attributes/bag-category-gender/policy/policy.md",
   "policySha256": "fdd40978a1d9",
