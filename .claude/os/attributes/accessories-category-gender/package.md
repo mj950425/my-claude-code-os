@@ -8,8 +8,8 @@
 
 | 종류 | 파일 |
 |---|---|
-| 선언 | `profile.json` — 라벨·가져오기 어댑터 경로·`gtTask`. 정책 블록과 신호 정의는 아직 없다 |
-| 정의 | `definitions.md` — GT 개선 판독자·반론자가 읽는 기준. 가방 정책의 근거 순위를 옮긴 출발점이다 |
+| 선언 | `profile.json` — 가져오기 어댑터 경로·`gtTask`(필드·옛 값 대응·등급). 값 목록은 없다. 정책 블록과 신호 정의는 아직 없다 |
+| 정책 | `definitions.md` — 허용값과 이름(`### 허용값`, 정본)·판독자와 반론자가 읽는 기준. 가방 정책의 근거 순위를 옮긴 출발점이다 |
 | 어댑터 | `adapters/import_accessories_category_gender_sources.py` |
 | 테스트 | `tests/test_import_paths.py` — GT 경로가 프로필 한 곳에서 오고, GT 사본을 쓰지 않는다 |
 | 산출물 | `.claude/os/runs/accessories-category-gender/` (재생성 가능, 소유가 아니라 출력) |

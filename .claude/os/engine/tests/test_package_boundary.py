@@ -215,7 +215,7 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
                      "rowCheck"},
         "field": {"id", "name", "labels", "labelNames", "legacy", "gtField", "alternativesField", "fillMissing", "unknownLabel",
                   "cardinality", "valueType", "definition"},
-        "constraint": {"id", "text", "when", "require"},
+        "constraint": {"id", "text", "when", "require", "forbid"},
         "evidence": {"textFields"},
         "authority": {"trusted", "reference", "default"},
     }
@@ -236,6 +236,44 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
                 unknown += [f"{path.parent.name}: {name}.{key}" for block in dicts for key in block
                             if key not in self.REVIEWED_NESTED[name]]
         self.assertEqual(unknown, [], "새 선언 키 — 어휘 수집(GtHarnessKnowsNoTaskTest.vocabulary)에 넣을지 정하고 여기 적는다")
+
+
+class PolicyIsTheOnlyValueListTest(unittest.TestCase):
+    """GT 개선 과제의 허용값은 정책(정의 문서) 하나가 정한다. 프로필에 목록이 남으면 두 곳이 조용히 어긋난다 —
+    감사 사이클이 없는 팩(정책 블록 없음)의 최상위 labels도 쓰는 곳 없이 남는 둘째 사본이다."""
+
+    def test_task_only_profiles_carry_no_value_list(self) -> None:
+        leaks = []
+        for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
+            profile = json.loads(path.read_text(encoding="utf-8"))
+            task = profile.get("gtTask")
+            if not isinstance(task, dict):
+                continue
+            if "labels" in profile and not profile.get("policy"):
+                leaks.append(f"{path.parent.name}: 최상위 labels")
+            leaks += [f"{path.parent.name}: {field.get('id')}.{key}" for field in task.get("fields") or []
+                      for key in ("labels", "labelNames") if key in field]
+        self.assertEqual(leaks, [], "허용값은 정의 문서의 `### 허용값`에만 적는다")
+
+    def test_every_real_task_pack_loads_its_values_from_its_policy(self) -> None:
+        # 정책 문서의 모양이 틀리면 로더가 멈춘다 — 그 멈춤을 운영팀의 «GT 개선해줘»가 아니라 여기서 먼저 만난다.
+        if str(ENGINE_SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(ENGINE_SCRIPTS))
+        import gt_task
+        from catalog_profile import load_profile
+
+        broken = []
+        for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
+            profile = load_profile(path)
+            if not isinstance(profile.get("gtTask"), dict):
+                continue
+            try:
+                task = gt_task.load_task(profile)
+            except gt_task.TaskError as error:
+                broken.append(f"{path.parent.name}: {error}")
+                continue
+            broken += [f"{path.parent.name}: {field['id']} 값 없음" for field in task["fields"] if not field.get("labels")]
+        self.assertEqual(broken, [])
 
 
 class PackageTableTest(unittest.TestCase):
@@ -291,6 +329,19 @@ class GtHarnessKnowsNoTaskTest(unittest.TestCase):
             for key in ("keyField", "titleField", "groupField"):
                 value = task.get(key)
                 words |= {str(item) for item in (value if isinstance(value, list) else [value] if value else [])}
+            # 허용값·이름표는 정책(정의 문서)의 `### 허용값` 목록에 있다 — 로더와 같은 해석(definition_values)으로 모은다.
+            if str(ENGINE_SCRIPTS) not in sys.path:
+                sys.path.insert(0, str(ENGINE_SCRIPTS))
+            from gt_task import definition_values, resolve
+
+            definitions = resolve({**profile, "_path": str(path)},
+                                  {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+            self.assertTrue(definitions.is_file(), f"{path.parent.name}: 정의 문서가 없습니다 — {definitions}")
+            for rows in definition_values(definitions).values():
+                for code, name in rows:
+                    words.add(code)
+                    if name:
+                        words.add(name)
             for field in task.get("fields") or []:
                 words.add(str(field["id"]))
                 words |= {str(label) for label in field.get("labels") or []}

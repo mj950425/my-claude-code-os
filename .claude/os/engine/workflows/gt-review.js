@@ -17,9 +17,35 @@ const BATCH = args.batchId
 const WORKLIST = args.worklist
 const DEFINITIONS = args.definitions
 const AGENTS = Object.assign({ reader: 'gt-blind-reader', defender: 'gt-defender' }, args.agents || {})
-const ITEMS = args.items || []
+// 건마다 같은 필드 설명(허용값·이름표 등)은 args.common에 한 번만 실어도 된다 — 건이 많으면 인자가 같은 목록을 수십 번 되풀이한다.
+const ITEMS = (args.items || []).map(item => Object.assign({}, args.common || {}, item))
 const GT = args.gt || {}
 const SEP = '|'
+
+// 사람에게 묻는 말 — 칸마다 이 모양 하나로만 받는다. 메모(note)에 섞인 물음을 화면이 문장으로 골라내면 칸을 모르고, 빠지고, 엉뚱한 문장이 잡힌다.
+// question은 이 상품을 떠나서도 통하는 경계 물음이다 — 사람의 답이 정책 규칙으로 옮겨 간다.
+const ASK_SCHEMA = {
+  type: 'object',
+  description: '사진과 정책만으로 이 칸을 가를 수 없어 사람의 판단이 필요할 때만 쓴다. 쓰면 confidence는 LOW다',
+  properties: {
+    question: { type: 'string', description: '정책의 경계를 묻는 한국어 물음 하나. 사진 번호·이 상품 이야기 없이, 다른 상품에도 그대로 통하게. 예: «손이 상품의 일부를 가리면 가린 것으로 보는가?»' },
+    here: { type: 'string', description: '이 사진에서 그 물음이 걸린 자리, 한국어 한 문장. 예: «P01에서 손이 상품 가장자리에 닿아 있다»' },
+    imageIds: { type: 'array', items: { type: 'string' }, description: '그 자리가 보이는 사진의 imageId' },
+    options: {
+      type: 'array',
+      description: '답마다 이 칸이 어느 값이 되는지. 둘 이상',
+      items: {
+        type: 'object',
+        properties: {
+          answer: { type: 'string', description: '짧은 한국어 답. 예: «가린 것이다»' },
+          value: { type: 'string', description: '그 답이면 이 칸의 허용값(코드)' },
+        },
+        required: ['answer', 'value'],
+      },
+    },
+  },
+  required: ['question', 'here', 'imageIds', 'options'],
+}
 
 const READING_SCHEMA = {
   type: 'object',
@@ -38,11 +64,12 @@ const READING_SCHEMA = {
           evidenceImageIds: { type: 'array', items: { type: 'string' }, description: '값을 정한 사진의 imageId(P01 같은). 글이 근거면 비운다' },
           observation: { type: 'string', description: '무엇이 보였는지 한국어로 한두 문장. 정의 문서의 어느 기준에 걸렸는지 포함' },
           definitionGap: { type: 'boolean', description: '정의 문서가 이 경우를 다루지 않아 기준 밖에서 판단해야 했으면 true' },
+          askHuman: ASK_SCHEMA,
         },
         required: ['field', 'value', 'confidence', 'evidenceImageIds', 'observation'],
       },
     },
-    note: { type: 'string', description: '건 전체에 대한 한국어 메모. 증거가 부족했다면 무엇이 없었는지' },
+    note: { type: 'string', description: '건 전체에 대한 한국어 요약. 증거가 부족했다면 무엇이 없었는지. 사람에게 묻는 말은 여기 쓰지 않고 그 칸의 askHuman에 쓴다' },
     unopened: { type: 'array', items: { type: 'string' }, description: '열지 못한 사진과 이유' },
   },
   required: ['readings'],
@@ -60,6 +87,7 @@ const DEFENSE_SCHEMA = {
           verdict: { type: 'string', enum: ['READER_RIGHT', 'GT_STANDS', 'CANT_TELL'] },
           why: { type: 'string', description: '정의 문서의 기준과 증거를 들어 한국어로 한두 문장' },
           evidenceImageIds: { type: 'array', items: { type: 'string' } },
+          askHuman: Object.assign({}, ASK_SCHEMA, { description: 'CANT_TELL일 때, 사람이 무엇을 가르면 되는지. 다른 판정에는 쓰지 않는다' }),
         },
         required: ['field', 'verdict', 'why', 'evidenceImageIds'],
       },
@@ -93,7 +121,11 @@ fields에 적힌 필드마다, 정의 문서의 기준으로 증거에서 보이
 - 사진 여러 장이 같은 칸에 다른 답을 주면, 정의 문서가 그 경우를 어떻게 다루는지 따르고
   정의가 말하지 않으면 confidence를 LOW로 두고 observation에 갈린 사진을 적는다.
 - 증거로 가를 수 없으면 value를 빈 문자열로, confidence를 LOW로 둔다. 추측으로 채우지 않는다.
-- evidenceImageIds에는 네가 실제로 연 사진의 imageId(P01 같은)만 적는다.${COMMON}`
+- evidenceImageIds에는 네가 실제로 연 사진의 imageId(P01 같은)만 적는다.
+- 사진과 정의 문서로 가를 수 없는 경계에 걸리면, 그 칸에 askHuman을 남기고 confidence를 LOW로 둔다.
+  question은 사진 번호도 이 상품 이야기도 없는 경계 물음이다(사람의 답이 정의 문서의 규칙이 된다).
+  이 사진의 사정은 here에, 답마다 될 값은 options에 적는다. 정의 문서 칸 절의 «### 규칙»이 이미 가른 경계는 다시 묻지 않고 그 규칙을 따른다(«범위»가 있으면 그 카테고리 상품에만).
+- 사람에게 묻는 말을 note에 쓰지 않는다 — 화면은 askHuman만 사람에게 보인다.${COMMON}`
 }
 
 // 값을 «이름 (코드)»로. 반론 문장은 이 모양을 따라 쓰므로, 여기서 코드만 주면 화면에 코드가 샌다.
@@ -117,7 +149,7 @@ ${lines}
 판독자가 기준을 잘못 적용한 자리를 본다. GT가 빈칸인 칸은 판독 값보다 나은 값이 있는지 본다.
 
 - 근거를 찾으면 GT_STANDS. 찾지 못하면 READER_RIGHT — 억지로 반박하지 않는다.
-- 증거로 어느 쪽도 설 수 없으면 CANT_TELL.
+- 증거로 어느 쪽도 설 수 없으면 CANT_TELL. 사람이 무엇을 가르면 되는지 askHuman에 적는다(question은 상품을 떠난 경계 물음, here는 이 사진의 자리).
 - 위 목록의 칸에만 답한다. GT 파일과 작업 목록은 열지 않는다 — 네가 볼 GT 값은 위에 다 있다.
 - why 문장에서 값은 위 목록의 이름(괄호 앞 글자)으로만 부른다. 괄호 안 코드는 옮겨 쓰지 않는다.${COMMON}`
 }
@@ -169,7 +201,9 @@ const results = await pipeline(
   async (reading, item) => {
     if (!reading) return { id: item.id, reading: null, defense: null }
     const gt = GT[item.id] || {}
-    reading.readings = (reading.readings || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) }))
+    // 사람에게 묻는 칸은 확신 낮음이다 — 물으면서 확신 높음이면 반론만 불리고 물음은 묻힌다.
+    reading.readings = (reading.readings || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) },
+      r.askHuman && r.askHuman.question ? { confidence: 'LOW' } : {}))
     const alts = (args.alternatives || {})[item.id] || {}
     // 대체 정답(사람이 같이 맞다고 적어 둔 값)을 낸 판독은 어긋난 것이 아니다 — 반론을 부르지 않는다.
     // 한 칸에 서로 다른 두 값을 낸 판독은 화면에서 «사람이 볼 칸»이 된다(merge와 같은 규칙) — 반론할 거리가 아니다.

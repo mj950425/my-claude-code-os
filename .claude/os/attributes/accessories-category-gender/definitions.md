@@ -1,8 +1,8 @@
 ---
 id: accessories-category-gender
-version: 1
+version: 2
 owner: minjoon.lee
-updatedAt: 2026-09-26
+updatedAt: 2026-09-27
 seededFrom:
   - .claude/os/attributes/bag-category-gender/policy/policy.md
 # 옮겨 올 때 원문의 해시. 원문이 바뀌면 이 값과 달라져, 이 문서가 낡았는지 확인할 수 있다.
@@ -22,10 +22,10 @@ seededFromSha256: fdd40978a1d92f7b010efcc5a5e08f2ded4b49ee7bad4a92f08c642c437a87
 
 ### 허용값
 
-- `MALE` — 남성용 직접 문구가 있거나, 대상 상품을 실제로 착용한 사람이 남성 외형 표현뿐이다.
-- `FEMALE` — 여성용 직접 문구가 있거나, 여성용 결합 디자인이 성립하거나, 착용자가 여성 외형 표현뿐이다.
-- `UNISEX` — 공용 직접 표기가 있거나, 남성과 여성이 **같은 상품**을 모두 착용했다.
-- `UNDETERMINED` — 근거가 없거나 근거끼리 충돌한다. 1급 값이다 — 정보 없이 값을 만드는 것이 더 나쁘다.
+- `MALE` 남성 — 남성용 직접 문구가 있거나, 대상 상품을 실제로 착용한 사람이 남성 외형 표현뿐이다.
+- `FEMALE` 여성 — 여성용 직접 문구가 있거나, 여성용 결합 디자인이 성립하거나, 착용자가 여성 외형 표현뿐이다.
+- `UNISEX` 공용 — 공용 직접 표기가 있거나, 남성과 여성이 **같은 상품**을 모두 착용했다.
+- `UNDETERMINED` 판단 불가 — 근거가 없거나 근거끼리 충돌한다. 정식 답이다 — 근거 없이 다른 값을 고르는 것보다 이 값이 맞다.
 
 ### 근거 우선순위 — 충돌하면 위가 이긴다
 

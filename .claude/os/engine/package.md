@@ -24,6 +24,7 @@
 | 개선 포인트 보고서 | `scripts/render_improvements.py` — 판단과 반증을 합쳐 `improvements/`에 남긴다 |
 | 보고서 형태 점검 | `scripts/check_report_shape.py` — 훅이 부른다. 진입점 링크는 `.claude/hooks/check-report-shape.py` |
 | 뼈대 | `templates/goal.md` · `templates/policy.md` · `templates/precedent.md` |
+| 첫 화면 | `templates/gt-home.html` — GT 개선 과제 목록. 과제를 모르고 `/gt-tasks`를 읽어 그린다 |
 | 테스트 | `tests/` — 계약 회귀와 패키지 경계 |
 | 워크플로우 | `workflows/improvement-sweep.js` — 건·군집을 나눠 돌리는 스윕. `Workflow`가 `scriptPath`로 부른다 |
 | 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` · `catalog-improvement-sweep` |

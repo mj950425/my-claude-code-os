@@ -196,15 +196,25 @@ class ProcessTest(unittest.TestCase):
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=5) as response:
                 self.assertEqual(response.read().strip(), b"ok")
 
-            # 뿌리는 스스로 그리지 않고 보고서로 보낸다. 따라간 끝이 GT 정정 후보여야 한다.
+            # 뿌리는 GT 개선 과제 목록이다 — 고정된 파일 한 장이 목록 JSON을 읽어 그린다(서버가 그리지 않는다).
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
+                home = response.read().decode("utf-8")
+            self.assertIn('fetch("/gt-tasks"', home)
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/gt-tasks", timeout=15) as response:
+                listing = json.loads(response.read().decode("utf-8"))
+            self.assertTrue(listing["tasks"], "과제가 목록에 나온다")
+            self.assertTrue(all(task.get("page") for task in listing["tasks"]))
+
+            # 감사 사이클의 화면은 /audit — 따라간 끝이 GT 정정 후보여야 한다.
             class NoRedirect(urllib.request.HTTPRedirectHandler):
                 def redirect_request(self, *args, **kwargs):  # noqa: ANN002, ANN003
                     return None
 
             opener = urllib.request.build_opener(NoRedirect)
+            door = listing["otherDoors"][0]["profile"]
             try:
-                opener.open(f"http://127.0.0.1:{port}/", timeout=5)
-                self.fail("뿌리가 리다이렉트하지 않았습니다.")
+                opener.open(f"http://127.0.0.1:{port}/audit?a={door}", timeout=5)
+                self.fail("감사 문이 리다이렉트하지 않았습니다.")
             except urllib.error.HTTPError as error:
                 self.assertEqual(error.code, 302)
                 self.assertIn("gt-fixes.html", error.headers["Location"])

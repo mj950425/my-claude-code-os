@@ -16,6 +16,7 @@
 |---|---|---|
 | `GT_SELF_CONTRADICTION` | GT 한 줄 안에서 필드끼리 모순된다(선언된 제약) | 아니다 |
 | `GT_OUT_OF_RANGE` | GT 값이 허용값 밖이다(대응 없는 옛 값, 오타) | 아니다 |
+| `POLICY_CHANGED_SINCE_DECISION` | 사람이 고른(유지한) 값이 지금 정책의 허용값에 없다 | 아니다 |
 | `GT_CHANGED_SINCE_DECISION` | 사람이 답한 뒤 원본 GT가 바뀌었다 — 사람이 본 값이 아니다 | 아니다 |
 | `GT_MISSING` | 채워야 하는 필드가 GT에 비어 있다 | 아니다 |
 | `GT_REFERENCE_ONLY` | GT 출처가 참고 등급이고, 실행 값이 없거나 굵은 범주뿐이라 교차 확인이 안 됐다 | 아니다 |
@@ -38,6 +39,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import subprocess
@@ -58,9 +60,11 @@ SIGNALS = {
     "GT_SELF_CONTRADICTION": {"rank": 1, "label": "GT 안에서 서로 모순",
                               "plain": "같은 줄의 다른 칸과 말이 안 맞습니다. 둘 중 하나는 틀렸습니다."},
     "GT_OUT_OF_RANGE": {"rank": 1, "label": "허용값 밖의 GT",
-                        "plain": "GT에 정해진 값이 아닌 것이 들어 있습니다. 옛 이름이거나 오타입니다."},
+                        "plain": "GT 값이 정책의 허용값 목록에 없습니다 — 옛 이름·오타이거나, 정책에서 뺀 값입니다."},
     "GT_CHANGED_SINCE_DECISION": {"rank": 2, "label": "답한 뒤 GT가 바뀜",
                                   "plain": "사람이 답한 뒤 원본 GT가 바뀌었습니다. 지금 값을 다시 봐 주세요."},
+    "POLICY_CHANGED_SINCE_DECISION": {"rank": 2, "label": "답한 뒤 정책이 바뀜",
+                                      "plain": "사람이 고른 값이 지금 정책의 허용값에 없습니다(정책에서 뺀 값). 다시 골라 주세요."},
     "GT_MISSING": {"rank": 4, "label": "GT가 비어 있음",
                    "plain": "이 칸에 정답이 없습니다. 증거(사진·글)를 보고 채울 값을 제안합니다."},
     "GT_REFERENCE_ONLY": {"rank": 5, "label": "사람 확인 전 라벨",
@@ -172,6 +176,93 @@ def superseded_by(path: Path, spec: dict[str, Any] | None) -> Path | None:
 _SECTION_HEAD = re.compile(r"^##\s+(.+?)\s*$", re.M)
 
 
+_VALUES_HEAD = re.compile(r"^###\s+허용값\s*$", re.M)
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s")
+_INDENT = (" ", "\t")
+_ODD_VALUES_HEAD = re.compile(r"^#{1,6}\s*.*허용\s*값.*$", re.M)
+_VALUE_LINE = re.compile(r"^- `([^`\s]+)`(?: ([^`—]*?))? — \S")
+VALUE_LINE_SHAPE = "- `코드` 이름 — 설명"
+
+
+def definition_values(path: Path) -> dict[str, list[tuple[str, str]]]:
+    """정책(정의 문서)이 정하는 허용값. 필드 절(`## <필드ID>`) 안 `### 허용값` 바로 아래의 **한 덩어리 목록**을 차례대로 읽는다.
+
+    한 줄 모양은 `` - `코드` 이름 — 설명 `` 하나뿐이다 — 코드는 백틱 안(공백 없이), 이름은 코드 뒤부터 « — » 앞까지(없어도 된다),
+    « — » 뒤가 설명이다. 들여쓴 줄은 앞 줄 설명의 이어짐이다. 목록은 빈 줄에서 끝난다. 목록 순서가 화면의 고르기 순서다.
+
+    조용히 넘어가는 줄이 없게 멈춘다 — 모양이 다른 목록 줄(`*` 글머리표, 백틱 없음, « — » 없음), 목록이 끝난 뒤 같은 절에 다시
+    나오는 목록 줄(설명 글머리표가 값이 되는 일), `### 허용값`이 둘. 정본이 한 문서라서, 그 문서를 잘못 읽으면 값이 말없이 늘거나 준다."""
+    values: dict[str, list[tuple[str, str]]] = {}
+    for field_id, body in definition_texts(path).items():
+        heads = list(_VALUES_HEAD.finditer(body))
+        odd = [match.group(0).strip() for match in _ODD_VALUES_HEAD.finditer(body) if not _VALUES_HEAD.fullmatch(match.group(0))]
+        if odd:
+            raise TaskError(f"정의 문서 `## {field_id}`에 «{odd[0]}» 제목이 있습니다 — 허용값 제목은 `### 허용값` 한 가지 모양만 읽습니다"
+                            "(다른 모양이면 목록을 못 보고 지나칩니다).")
+        if not heads:
+            continue
+        if len(heads) > 1:
+            raise TaskError(f"정의 문서 `## {field_id}` 절에 `### 허용값`이 둘 있습니다 — 하나로 합쳐 주세요.")
+        rest = body[heads[0].end():]
+        cut = re.search(r"^###\s", rest, re.M)
+        lines = (rest[:cut.start()] if cut else rest).split("\n")
+        rows: list[tuple[str, str]] = []
+        state = "before"  # before → list → after
+        for number, raw in enumerate(lines, 1):
+            line = raw.rstrip("\r")
+            if not line.strip():
+                state = "after" if state == "list" else state
+                continue
+            if _LIST_ITEM.match(line) and line.startswith(_INDENT):
+                # 들여쓴 글머리표는 목록 앞이든 안이든 뒤든 값으로 읽지 않는다 — 조용히 건너뛰지 않고 멈춘다.
+                raise TaskError(f"정의 문서 `## {field_id}`의 `### 허용값`에 들여쓴 글머리표가 있습니다: «{line.strip()}» — "
+                                "값은 들여쓰지 않은 한 줄씩 적고, 설명 글머리표는 `### 허용값` 밖(다른 `###` 절)에 둡니다.")
+            if _LIST_ITEM.match(line):
+                if state == "after":
+                    raise TaskError(f"정의 문서 `## {field_id}`의 `### 허용값` 목록이 빈 줄 뒤에 다시 이어집니다: «{line.strip()}» — "
+                                    "값은 빈 줄 없이 한 덩어리로 적고, 설명 글머리표는 `### 허용값` 밖(다른 `###` 절)에 둡니다.")
+                match = _VALUE_LINE.match(line)
+                if not match:
+                    raise TaskError(f"정의 문서 `## {field_id}`의 `### 허용값` 줄이 `{VALUE_LINE_SHAPE}` 모양이 아닙니다: «{line.strip()}»")
+                name = (match.group(2) or "").strip()
+                if len(name) > 30 or re.search(r"[:：*_\[\]`]|--|–| - ", name):
+                    raise TaskError(f"정의 문서 `## {field_id}`의 `{match.group(1)}` 줄 이름이 이상합니다(«{name}») — "
+                                    f"이름과 설명은 « — »(긴 줄표)로 가릅니다: `{VALUE_LINE_SHAPE}`")
+                rows.append((match.group(1), name))
+                state = "list"
+            elif state == "before":
+                continue  # 목록 앞의 안내 문장
+            elif state == "list" and line.startswith(_INDENT):
+                continue  # 앞 값 설명의 이어짐
+            elif state == "list":
+                raise TaskError(f"정의 문서 `## {field_id}`의 `### 허용값` 목록 바로 뒤에 들여쓰지 않은 줄이 있습니다: «{line.strip()}» — "
+                                "앞 값 설명의 이어짐이면 들여쓰고, 새 문단이면 목록과 사이에 빈 줄을 둡니다.")
+            # after: 목록 뒤 문단. 목록 줄은 위에서 멈췄다.
+        values[field_id] = rows
+    return values
+
+
+def definition_value_notes(path: Path) -> dict[str, dict[str, str]]:
+    """값마다 정책이 붙인 설명(« — » 뒤 첫 줄). 화면이 값 이름 옆에 한 줄 기준으로 보인다 — 이름만 보고 고르면
+    정의와 다른 뜻으로 고친다(이름은 짧고, 경계는 설명에 있다). 목록의 모양 검사는 `definition_values`가 한다."""
+    notes: dict[str, dict[str, str]] = {}
+    for field_id, body in definition_texts(path).items():
+        head = _VALUES_HEAD.search(body)
+        if not head:
+            continue
+        for line in body[head.end():].split("\n"):
+            match = re.match(r"^- `([^`\s]+)`(?: [^`—]*?)? — (.+)$", line.rstrip())
+            if match:
+                notes.setdefault(field_id, {})[match.group(1)] = match.group(2).strip()
+                last = match.group(1)
+            elif line.startswith(_INDENT) and line.strip() and notes.get(field_id):
+                # 들여쓴 줄은 앞 값 설명의 이어짐 — 첫 줄만 보이면 조건이 문장 중간에서 잘린다.
+                notes[field_id][last] += " " + line.strip()
+            elif line.strip() and notes.get(field_id):
+                break
+    return notes
+
+
 def definition_sections(path: Path) -> set[str]:
     return {match.group(1).strip() for match in _SECTION_HEAD.finditer(path.read_text(encoding="utf-8"))}
 
@@ -180,8 +271,123 @@ def definition_texts(path: Path) -> dict[str, str]:
     """필드마다 정의 문서의 그 절(`## <필드ID>`부터 다음 `## `까지) 글. 사람 화면이 판독자와 같은 기준을 보이게 한다."""
     text = path.read_text(encoding="utf-8")
     heads = list(_SECTION_HEAD.finditer(text))
+    names = [head.group(1).strip() for head in heads]
+    twice = sorted({name for name in names if names.count(name) > 1})
+    if twice:
+        # 같은 절이 둘이면 뒤 절이 앞 절을 말없이 덮는다 — 사람은 앞 절을 고치고 화면은 뒤 절을 그린다.
+        raise TaskError(f"정의 문서 {path.name}에 같은 절이 둘 있습니다: {', '.join(f'`## {name}`' for name in twice)} — 하나로 합쳐 주세요.")
     return {head.group(1).strip(): text[head.end():(heads[n + 1].start() if n + 1 < len(heads) else len(text))].strip()
             for n, head in enumerate(heads)}
+
+
+# 정책의 규칙 — 검수에서 자란다. 칸 절의 `### 규칙`에는 적용 중인 규칙만, 대체된 규칙은 `## 보관`에 둔다.
+# 판독자는 칸 절을 통째로 읽으니, 걸러내는 코드 없이 «지금 정책 전체»만 읽는다.
+#   - `R1` <규칙 문장> → `<허용값 코드>`        (→ 뒤는 없어도 된다 — 값으로 이어지지 않는 안내 규칙)
+#     - 물음: <이 규칙을 낳은 AI의 물음>          (검수 문답일 때)
+#     - 출처: <검수 문답 · 날짜 · 사람 · 판정 ID | 직접 작성 · 날짜 · 사람>   (반드시)
+#     - 범위: <상품 카테고리 이름 한 마디, 쉼표로 여럿>   (없으면 모든 상품)
+#     - 근거: <골든셋 키, 쉼표로 여럿>
+# `## 보관`의 줄은 ID 앞에 칸을 붙이고(`<칸ID>/R0`), `대체:` 한 줄을 더한다.
+RULES_HEAD = "### 규칙"
+ARCHIVE_SECTION = "보관"
+PURPOSE_SECTION = "목적"
+PURPOSE_PARTS = ("무엇을 가르나", "어디에 쓰나", "기대 효과")
+RULE_KEYS = ("물음", "출처", "범위", "근거")
+RULE_LINE_SHAPE = "- `R1` 규칙 문장 → `코드`"
+_RULE_LINE = re.compile(r"^- `(?:([A-Za-z][\w-]*)/)?(R\d+)` (.+?)(?: → `([^`\s]+)`)?$")
+_RULE_SUB = re.compile(r"^\s{2,}- ([^:：]+): (.+)$")
+
+
+def _rule_block(where: str, lines: list[str], labels: dict[str, list[str]], many: dict[str, bool],
+                field_id: str | None, archive: bool) -> list[dict[str, Any]]:
+    rules: list[dict[str, Any]] = []
+    keys = RULE_KEYS + (("대체",) if archive else ())
+    for raw in lines:
+        line = raw.rstrip("\r")
+        if not line.strip():
+            continue
+        sub = _RULE_SUB.match(line)
+        if sub:
+            if not rules:
+                raise TaskError(f"정의 문서 {where}의 첫 줄이 규칙이 아니라 딸린 줄입니다: «{line.strip()}»")
+            name, value = sub.group(1).strip(), sub.group(2).strip()
+            if name not in keys:
+                raise TaskError(f"정의 문서 {where}의 규칙 {rules[-1]['id']}에 모르는 줄이 있습니다: «{name}» — "
+                                f"{' · '.join(keys)} 중 하나로 적어 주세요.")
+            if name in rules[-1]:
+                raise TaskError(f"정의 문서 {where}의 규칙 {rules[-1]['id']}에 «{name}» 줄이 둘 있습니다.")
+            rules[-1][name] = value
+            continue
+        match = _RULE_LINE.match(line)
+        if not match:
+            raise TaskError(f"정의 문서 {where}의 줄이 `{RULE_LINE_SHAPE}` 모양이 아닙니다: «{line.strip()}»")
+        owner = match.group(1) if archive else field_id
+        if archive and not owner:
+            raise TaskError(f"정의 문서 {where}의 규칙은 칸을 붙여 적습니다(`칸ID/R1`): «{line.strip()}»")
+        if not archive and match.group(1):
+            raise TaskError(f"정의 문서 {where}의 규칙 ID에 칸을 붙이지 않습니다(칸 절 안이라 이미 압니다): «{line.strip()}»")
+        if owner not in labels:
+            raise TaskError(f"정의 문서 {where}의 규칙이 없는 칸을 가리킵니다: {owner}")
+        value = match.group(4)
+        if value is not None:
+            parts = [part for part in value.split(MANY_SEPARATOR) if part] if many.get(owner) else [value]
+            if not parts or any(part not in labels[owner] for part in parts):
+                raise TaskError(f"정의 문서 {where}의 규칙 {match.group(2)}이 허용값이 아닌 값을 가리킵니다: {value}")
+        rules.append({"field": owner, "id": match.group(2), "text": match.group(3).strip(), "value": value})
+    for rule in rules:
+        if not rule.get("출처"):
+            raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']}에 «출처» 줄이 없습니다 — 어디서 온 규칙인지 모르면 되짚을 수 없습니다.")
+        if archive and not rule.get("대체"):
+            raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']}에 «대체» 줄이 없습니다 — 무엇으로 바뀌었는지 적어 주세요.")
+    return rules
+
+
+def definition_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool] | None = None) -> dict[str, Any]:
+    """정책의 목적·규칙·보관을 읽는다. 허용값처럼 엄격하다 — 모양이 다른 줄, 없는 값, 같은 ID가 둘이면 멈춘다.
+    조용히 빠진 규칙은 판독자에게도 화면에도 가지 않는데, 사람은 넣은 줄 안다."""
+    many = many or {}
+    texts = definition_texts(path)
+    purpose = None
+    if PURPOSE_SECTION in texts:
+        parts = {m.group(1).strip(): m for m in re.finditer(r"^###\s+(.+?)\s*$", texts[PURPOSE_SECTION], re.M)}
+        odd = sorted(set(parts) - set(PURPOSE_PARTS))
+        lacking = [name for name in PURPOSE_PARTS if name not in parts]
+        if odd or lacking:
+            raise TaskError(f"정의 문서 `## {PURPOSE_SECTION}`은 `### {'`·`### '.join(PURPOSE_PARTS)}` 세 소제목으로 적습니다"
+                            + (f" — 없는 것: {', '.join(lacking)}" if lacking else "") + (f" — 모르는 것: {', '.join(odd)}" if odd else ""))
+        body = texts[PURPOSE_SECTION]
+        heads = sorted(parts.values(), key=lambda m: m.start())
+        purpose = {"note": body[:heads[0].start()].strip()}
+        for n, head in enumerate(heads):
+            text = body[head.end():(heads[n + 1].start() if n + 1 < len(heads) else len(body))].strip()
+            if not text:
+                raise TaskError(f"정의 문서 `## {PURPOSE_SECTION}`의 `### {head.group(1).strip()}`이 비어 있습니다.")
+            purpose[head.group(1).strip()] = text
+    rules: dict[str, list[dict[str, Any]]] = {}
+    for field_id in labels:
+        body = texts.get(field_id) or ""
+        heads = list(re.finditer(r"^###\s+규칙\s*$", body, re.M))
+        if len(heads) > 1:
+            raise TaskError(f"정의 문서 `## {field_id}` 절에 `{RULES_HEAD}`이 둘 있습니다 — 하나로 합쳐 주세요.")
+        if not heads:
+            continue
+        rest = body[heads[0].end():]
+        cut = re.search(r"^###\s", rest, re.M)
+        rules[field_id] = _rule_block(f"`## {field_id}`의 `{RULES_HEAD}`", (rest[:cut.start()] if cut else rest).split("\n"),
+                                      labels, many, field_id, archive=False)
+    archive = _rule_block(f"`## {ARCHIVE_SECTION}`", (texts.get(ARCHIVE_SECTION) or "").split("\n"), labels, many, None, archive=True)
+    for field_id in labels:
+        ids = [rule["id"] for rule in rules.get(field_id, [])] + [rule["id"] for rule in archive if rule["field"] == field_id]
+        twice = sorted({rule_id for rule_id in ids if ids.count(rule_id) > 1})
+        if twice:
+            raise TaskError(f"정의 문서 `## {field_id}`의 규칙 ID가 겹칩니다(보관 포함): {', '.join(twice)} — ID는 한 번만 씁니다.")
+    return {"purpose": purpose, "rules": rules, "archive": archive}
+
+
+def next_rule_id(policy: dict[str, Any], field_id: str) -> str:
+    used = [int(rule["id"][1:]) for rule in policy["rules"].get(field_id, [])] + \
+           [int(rule["id"][1:]) for rule in policy["archive"] if rule["field"] == field_id]
+    return f"R{max(used, default=0) + 1}"
 
 
 def gt_path(profile: dict[str, Any]) -> Path | None:
@@ -238,6 +444,8 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
     task = profile.get("gtTask")
     if not isinstance(task, dict):
         raise TaskError(f"{pid}: gtTask 블록이 없습니다. GT 개선 과제가 아닙니다.")
+    # 사본에 적는다 — 정책에서 읽은 허용값을 프로필 딕셔너리에 얹으면, 그 딕셔너리를 다시 저장하는 쪽이 목록을 프로필에 되써 버린다.
+    task = copy.deepcopy(task)
     task["_profileId"] = pid
     if task.get("schemaVersion") != TASK_SCHEMA:
         raise TaskError(f"{pid}: gtTask.schemaVersion은 {TASK_SCHEMA}여야 합니다.")
@@ -268,6 +476,41 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
     for name in ("groupField", "titleField"):
         if task.get(name) is not None and not isinstance(task[name], str):
             raise TaskError(f"{pid}: gtTask.{name}은 열 하나(문자열)만 적습니다 — 복합 키는 keyField에만 씁니다.")
+    # 허용값·이름표의 정본은 정책(정의 문서)이다 — 필드 절의 `### 허용값`. 프로필에는 두지 않는다(둘이면 어긋난다).
+    definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+    if not definitions.is_file():
+        raise TaskError(f"{pid}: 정의 문서가 없습니다: {definitions}")
+    # 필드 절이 통째로 없는 것을 먼저 모두 말한다 — 허용값 목록은 그다음이다.
+    absent = [str(field.get("id")) for field in fields if isinstance(field, dict) and field.get("id")
+              and field["id"] not in definition_sections(definitions)]
+    if absent:
+        raise TaskError(f"{pid}: 정의 문서에 필드 절(`## <필드ID>`)이 없습니다: {', '.join(absent)}")
+    try:
+        policy_values = definition_values(definitions)
+    except TaskError as error:
+        raise TaskError(f"{pid}: {error}") from error
+    for field in fields:
+        private = sorted(key for key in field if str(key).startswith("_"))
+        if private:
+            raise TaskError(f"{pid}: 필드 {field['id']}에 적을 수 없는 키가 있습니다: {', '.join(private)} — `_`로 시작하는 키는 로더가 쓰는 자리입니다.")
+        if "labels" in field or "labelNames" in field:
+            raise TaskError(f"{pid}: 필드 {field['id']}의 허용값은 정책(정의 문서)이 정본입니다 — 프로필의 labels·labelNames를 지우고 "
+                            f"정의 문서 `## {field['id']}` 절의 `### 허용값`에 `` - `코드` 이름 — 설명 `` 줄로 적어 주세요.")
+        rows = policy_values.get(field["id"])
+        if not rows:
+            raise TaskError(f"{pid}: 정의 문서 `## {field['id']}` 절에 `### 허용값` 목록이 없습니다 — 고를 수 있는 값은 정책이 정합니다.")
+        codes = [code for code, _ in rows]
+        twice = sorted({code for code in codes if codes.count(code) > 1})
+        if twice:
+            raise TaskError(f"{pid}: 정의 문서 `## {field['id']}`의 허용값에 같은 코드가 두 번 있습니다: {', '.join(twice)}")
+        field["labels"] = codes
+        field["labelNames"] = {code: name for code, name in rows if name}
+    # 목적·규칙·보관도 로드할 때 읽어 본다 — 모양이 틀린 정책으로 판독을 돌리면 규칙이 말없이 빠진다.
+    try:
+        definition_policy(definitions, {field["id"]: [str(c) for c in field["labels"]] for field in fields},
+                          {field["id"]: field.get("cardinality") == "many" for field in fields})
+    except TaskError as error:
+        raise TaskError(f"{pid}: {error}") from error
     seen: set[str] = set()
     names_seen: set[str] = set()
     for field in fields:
@@ -281,7 +524,7 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
             names_seen.add(field["name"])
         labels = field.get("labels")
         if not isinstance(labels, list) or len(labels) < 2:
-            raise TaskError(f"{pid}: 필드 {field['id']}의 labels는 둘 이상이어야 합니다.")
+            raise TaskError(f"{pid}: 정의 문서 `## {field['id']}`의 `### 허용값`에 값이 둘 이상 있어야 합니다.")
         kind = field.get("valueType", "string")
         if kind == "boolean" and set(map(str, labels)) - {"true", "false"}:
             raise TaskError(f"{pid}: 필드 {field['id']}는 참·거짓 필드라 라벨이 \"true\"·\"false\"여야 합니다.")
@@ -315,7 +558,8 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
         unnamed = sorted(label_set - set(map(str, field.get("labelNames") or {})))
         # 참·거짓은 뜻이 필드마다 달라(«true»가 «유광 있음»인지 운영팀은 모른다) 이름표가 필요하다. 정수만 면제한다.
         if unnamed and field.get("valueType", "string") in ("string", "boolean"):
-            raise TaskError(f"{pid}: 필드 {field['id']}의 허용값 가운데 이름표(labelNames)가 없는 값이 있습니다: {', '.join(unnamed)}")
+            raise TaskError(f"{pid}: 정의 문서 `## {field['id']}`의 `### 허용값`에서 이름이 빠진 값이 있습니다: {', '.join(unnamed)} — "
+                           f"`{VALUE_LINE_SHAPE}`처럼 코드 뒤에 사람이 읽는 이름을 적어 주세요.")
         stray = sorted(set(map(str, field.get("labelNames") or {})) - label_set)
         if stray:
             raise TaskError(f"{pid}: 필드 {field['id']}의 labelNames에 허용값이 아닌 이름표가 있습니다: {', '.join(stray)}")
@@ -325,7 +569,7 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
             by_name.setdefault(str(shown_name), []).append(str(code))
         twins = [f"{shown_name}({', '.join(codes)})" for shown_name, codes in by_name.items() if len(codes) > 1]
         if twins:
-            raise TaskError(f"{pid}: 필드 {field['id']}의 labelNames에 같은 이름이 둘 이상입니다: {'; '.join(twins)}")
+            raise TaskError(f"{pid}: 정의 문서 `## {field['id']}`의 `### 허용값`에 같은 이름이 둘 이상입니다: {'; '.join(twins)}")
         # 이름이 같은 필드의 다른 코드와 글자가 같으면, 말로 받은 «LOW»가 코드 LOW인지 이름 LOW(다른 코드)인지 가릴 수 없다.
         crossed = sorted(f"{code}→{shown_name}" for code, shown_name in (field.get("labelNames") or {}).items()
                          if str(shown_name) in label_set and str(shown_name) != str(code))
@@ -337,7 +581,9 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
         if field.get("name") in by_id and field.get("name") != field["id"]:
             raise TaskError(f"{pid}: 필드 {field['id']}의 이름 «{field['name']}»이 다른 필드의 id와 같습니다.")
     for constraint in task.get("constraints") or []:
-        for part in ("when", "require"):
+        if not (constraint.get("require") or constraint.get("forbid")):
+            raise TaskError(f"{pid}: 제약 {constraint.get('id')}에는 require(이 값들 중 하나)나 forbid(이 값은 안 됨)가 있어야 합니다.")
+        for part in ("when", "require", "forbid"):
             for name in (constraint.get(part) or {}):
                 if name not in seen:
                     raise TaskError(f"{pid}: 제약 {constraint.get('id')}가 선언되지 않은 필드 {name}를 씁니다.")
@@ -368,12 +614,25 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
                     raise TaskError(f"{pid}: 제약 {constraint.get('id')}의 require.{name}에 허용값이 아닌 {value!r}가 있습니다.")
                 values.append(canonical)
             normalized_require[name] = values
+        # forbid는 «이 값만은 안 된다» — 나머지 전부를 require에 나열하면 정책에 값을 더할 때 그 목록이 따라가지 못해 새 값이 모두 모순이 된다.
+        normalized_forbid: dict[str, list[str]] = {}
+        for name, banned in (constraint.get("forbid") or {}).items():
+            if not isinstance(banned, list) or not banned:
+                raise TaskError(f"{pid}: 제약 {constraint.get('id')}의 forbid.{name}은 값 목록이어야 합니다.")
+            values = []
+            for value in banned:
+                try:
+                    canonical = normalize(by_id[name], value)
+                except TaskError as error:
+                    raise TaskError(f"{pid}: 제약 {constraint.get('id')}의 forbid.{name} — {error}") from error
+                if not in_range(by_id[name], canonical):
+                    raise TaskError(f"{pid}: 제약 {constraint.get('id')}의 forbid.{name}에 허용값이 아닌 {value!r}가 있습니다.")
+                values.append(canonical)
+            normalized_forbid[name] = values
         constraint["_when"] = normalized_when
         constraint["_require"] = normalized_require
+        constraint["_forbid"] = normalized_forbid
     # 판독자와 반론자가 읽는 유일한 기준. 필드마다 절이 없으면 판독자가 상식으로 채운다.
-    definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
-    if not definitions.is_file():
-        raise TaskError(f"{pid}: 정의 문서가 없습니다: {definitions}")
     missing = sorted(seen - definition_sections(definitions))
     if missing:
         raise TaskError(f"{pid}: 정의 문서에 필드 절(`## <필드ID>`)이 없습니다: {', '.join(missing)}")
@@ -758,6 +1017,25 @@ def effective_row(task: dict[str, Any], row: dict[str, Any], ledger_for_key: dic
     return patched
 
 
+def ledger_value(field: dict[str, Any], value: Any) -> Any:
+    """원장에 적힌 값을 지금 규칙으로 읽는다 — 옛 코드는 `legacy`로 새 코드가 된다. 정책에서 코드를 바꾸고 legacy에 옛 코드를
+    적었을 때, 지난 판정이 «바뀐 값»·«정책에서 빠진 값»으로 다시 올라오지 않게."""
+    if value is None:
+        return None
+    try:
+        return normalize(field, value, legacy=True, lenient=True)
+    except TaskError:
+        return value
+
+
+def read_through_legacy(task: dict[str, Any], latest: dict[tuple[str, str], dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """칸마다 마지막 판정의 before·after를 `ledger_value`로 읽은 사본. 원장 파일은 그대로다."""
+    fields = field_map(task)
+    return {cell: ({**entry, "before": ledger_value(fields[cell[1]], entry.get("before")),
+                    "after": ledger_value(fields[cell[1]], entry.get("after"))} if cell[1] in fields else entry)
+            for cell, entry in latest.items()}
+
+
 def violations(task: dict[str, Any], row: dict[str, Any]) -> list[dict[str, Any]]:
     """선언된 제약을 GT 한 줄에 대 본다. 제약은 «이 칸이 이 값이면 저 칸은 이 값들 중 하나»다.
 
@@ -775,6 +1053,12 @@ def violations(task: dict[str, Any], row: dict[str, Any]) -> list[dict[str, Any]
             if actual is not None and actual not in allowed:
                 found.append({"constraint": constraint.get("id"), "text": constraint.get("text") or "",
                               "field": name, "when": when, "allowed": list(allowed), "actual": actual})
+        for name, banned in constraint.get("_forbid", constraint.get("forbid") or {}).items():
+            actual = gt_value(task, fields[name], row)
+            if actual is not None and actual in banned:
+                allowed = [label for label in fields[name].get("labels") or [] if label not in banned]
+                found.append({"constraint": constraint.get("id"), "text": constraint.get("text") or "",
+                              "field": name, "when": when, "allowed": allowed, "actual": actual})
     return found
 
 
@@ -837,6 +1121,10 @@ def candidates(
             # 고른 값과 같으면 정정이 원본에 반영된 것이다 — 그건 바뀐 것이 아니다.
             changed = bool(decided and decided.get("decision") in settled_decisions
                            and current not in (decided.get("before"), decided.get("after")))
+            # 사람이 고른(유지한) 값이 지금 정책에 없다 — 정책에서 값을 뺐다. 그 답은 더 답이 아니다.
+            chosen = (decided or {}).get("after") if (decided or {}).get("decision") in ("CORRECT", "CLEAR") else (decided or {}).get("before")
+            policy_moved = bool(decided and decided.get("decision") in settled_decisions and chosen is not None
+                                and not in_range(field, chosen))
             signals: list[str] = []
             if contradictions.get(field_id):
                 signals.append("GT_SELF_CONTRADICTION")
@@ -845,6 +1133,8 @@ def candidates(
                 counts["outOfRange"] += 1
             if changed:
                 signals.append("GT_CHANGED_SINCE_DECISION")
+            if policy_moved:
+                signals.append("POLICY_CHANGED_SINCE_DECISION")
             alternatives = row_alternatives(field, row)
             if current is None and field.get("fillMissing"):
                 signals.append("GT_MISSING")
@@ -855,8 +1145,8 @@ def candidates(
                 signals.append("BLIND_DISAGREES")
             if not signals:
                 continue
-            if (decided and decided.get("decision") in settled_decisions and not changed
-                    and not contradictions.get(field_id)):
+            if (decided and decided.get("decision") in settled_decisions and not changed and not policy_moved
+                    and not contradictions.get(field_id) and "GT_OUT_OF_RANGE" not in signals):
                 counts["alreadyDecided"] += 1
                 continue
             found.append({"key": key, "field": field_id, "current": current, "currentSource": source,

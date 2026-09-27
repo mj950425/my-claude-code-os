@@ -92,8 +92,9 @@ class Fixture:
             ]}
             for sku in "ABCDEF"
         ])
-        (root / "definitions.md").write_text(
-            "## color\n색.\n\n## finish\n마감.\n\n## sheen\n광택.\n\n## tones\n톤.\n", encoding="utf-8")
+        # 필드 절의 본문. 허용값(`### 허용값`)은 save()가 프로필 사본의 labels·labelNames로 적는다 — 정본은 정책이지만,
+        # 테스트는 값을 파이썬 딕셔너리로 바꾸는 편이 읽기 쉽다. 파일에 쓰는 순간 값은 정책으로만 간다.
+        self.bodies = {"color": "색.", "finish": "마감.", "sheen": "광택.", "tones": "톤."}
         self.profile_path = root / "attributes" / "fixture" / "profile.json"
         self.profile = {
             "schemaVersion": "catalog-data-profile-v1",
@@ -138,9 +139,22 @@ class Fixture:
         self.env = {**os.environ, "CATALOG_OS_GT_ROOT": str(root / "gt"),
                     "CATALOG_OS_ATTRIBUTES_ROOT": str(root / "attributes")}
 
-    def save(self) -> None:
+    def save(self, definitions: bool = True) -> None:
+        """프로필을 쓰고, 필드의 허용값·이름표를 정책(정의 문서)으로 옮겨 적는다. 프로필 파일에는 목록이 남지 않는다."""
         self.profile_path.parent.mkdir(parents=True, exist_ok=True)
-        self.profile_path.write_text(json.dumps(self.profile, ensure_ascii=False), encoding="utf-8")
+        written = json.loads(json.dumps(self.profile))
+        sections = []
+        for field in written["gtTask"]["fields"]:
+            labels = field.pop("labels", None)
+            names = field.pop("labelNames", None) or {}
+            if labels is None:
+                continue
+            lines = "\n".join(f"- `{label}` {names.get(str(label), '')}".rstrip() + " — 설명" for label in labels)
+            body = self.bodies.get(field["id"], f"{field.get('name') or field['id']}.")
+            sections.append(f"## {field['id']}\n{body}\n\n### 허용값\n\n{lines}\n")
+        self.profile_path.write_text(json.dumps(written, ensure_ascii=False), encoding="utf-8")
+        if definitions:
+            (self.root / "definitions.md").write_text("\n".join(sections), encoding="utf-8")
 
     def cli(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
         completed = subprocess.run([sys.executable, str(CLI), *args], capture_output=True, text=True,
@@ -163,10 +177,14 @@ class Fixture:
             sys.path.insert(0, str(SCRIPTS))
             from gt_task import field_map, gt_value, load_gt, load_task
 
-            task = load_task({**self.profile, "_path": str(self.profile_path)})
+            task = load_task(self.saved_profile())
             value = gt_value(task, field_map(task)[field], load_gt(self.profile, task)[key])
             items += ["--expect-empty"] if value is None else ["--expect", value]
         return self.task("record", *items, check=check)
+
+    def saved_profile(self) -> dict:
+        """디스크에 쓴 프로필(허용값이 정책으로 옮겨진 모양) — 코드가 읽는 것과 같은 것."""
+        return {**json.loads(self.profile_path.read_text(encoding="utf-8")), "_path": str(self.profile_path)}
 
     def review_dir(self) -> Path:
         return self.root / "run" / "gt-review"
@@ -357,6 +375,105 @@ class GtReviewTest(unittest.TestCase):
     def test_workflow_knows_no_task(self) -> None:
         body = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual([word for word in ("색상", "광택", "color", "sheen") if word in body], [])
+
+    # ── AI의 물음 → 정책 문답 ──
+    def test_a_standard_ask_binds_to_its_cell_and_an_answer_can_become_policy_qa(self) -> None:
+        question = "조명 반사만 보이면 광택이 있는 것인가?"
+        ask = {"question": question, "here": "P01에서 조명 반사만 보인다", "imageIds": ["P01"],
+               "options": [{"answer": "아니다", "value": "NONE"}, {"answer": "맞다", "value": "HIGH"},
+                           {"answer": "모름", "value": "SHINY"}]}
+        self.fx.task("finish", "--from", str(self.fx.sweep({"A": [{**reading("sheen", "LOW", "LOW"), "askHuman": ask}]})))
+        review = json.loads((self.fx.review_dir() / "review.json").read_text(encoding="utf-8"))
+        cell = next(c for item in review["items"] if item["key"] == "A" for c in item["cells"] if c["field"] == "sheen")
+        # 허용값 밖의 선택지는 버린다 — 버튼으로 이을 수 없고, 정책에 옮기면 없는 값을 가르친다.
+        self.assertEqual([o["value"] for o in cell["ask"]["options"]], ["NONE", "HIGH"])
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        block = page[page.index('data-field="sheen"', page.index('id="GI-')):]
+        self.assertIn("AI가 묻는 것", block[:block.index('class="act')])
+        self.assertIn("아니다 → <b>없음</b>", page)
+
+        entry = json.loads(self.fx.record("--key", "A", "--field", "sheen", "--decision", "CORRECT", "--value", "NONE",
+                                          "--reviewer", "민준", "--ask", question).stdout)
+        self.assertEqual(entry["basedOn"]["ask"]["question"], question)
+        listed = json.loads(self.fx.task("qa").stdout)["answered"]
+        self.assertEqual([(r["decisionId"], r["answer"], r["inPolicy"]) for r in listed], [(entry["decisionId"], "NONE", False)])
+
+        definitions = self.fx.root / "definitions.md"
+        before = definitions.read_text(encoding="utf-8")
+        # 규칙 문장이 없으면 넣지 않는다 — «물음 → 답»은 이 상품에 붙은 말이라, 사람이 확인한 한 문장이 정본이다.
+        refused = self.fx.task("qa", "--add", entry["decisionId"], "--reviewer", "민준", check=False)
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("--rule", refused.stderr)
+        rule = "조명 반사만 보이고 표면 결이 없으면 광택이 없다"
+        preview = json.loads(self.fx.task("qa", "--add", entry["decisionId"], "--reviewer", "민준", "--rule", rule).stdout)
+        self.assertFalse(preview["applied"])
+        self.assertEqual(preview["rule"][0], f"- `R1` {rule} → `NONE`")
+        self.assertEqual(definitions.read_text(encoding="utf-8"), before, "--yes 없이는 정책을 건드리지 않는다")
+
+        self.fx.task("qa", "--add", entry["decisionId"], "--reviewer", "민준", "--rule", rule, "--yes")
+        after = definitions.read_text(encoding="utf-8")
+        sheen = after[after.index("## sheen"):after.index("## tones")]
+        self.assertIn("### 규칙", sheen)
+        self.assertIn(f"- `R1` {rule} → `NONE`\n  - 물음: {question}\n  - 출처: 검수 문답 · ", sheen)
+        self.assertIn("  - 근거: A", sheen)
+        self.assertIn("## 변경 이력", after)
+        self.assertTrue(json.loads(self.fx.task("qa").stdout)["answered"][0]["inPolicy"])
+        # 규칙 줄이 허용값으로 새지 않는다.
+        values = json.loads(self.fx.task("values", "--field", "sheen").stdout)["fields"][0]["values"]
+        self.assertEqual([v["code"] for v in values], ["NONE", "LOW", "HIGH"])
+
+        # 대체 — 옛 규칙은 칸 절에서 빠져 보관으로 간다. 판독자가 읽는 칸 절에는 적용 중인 규칙만 남는다.
+        self.fx.task("qa", "--add", entry["decisionId"], "--reviewer", "민준", "--rule", "반사만 보이면 광택이 없다",
+                     "--replace", "R1", "--yes")
+        after = definitions.read_text(encoding="utf-8")
+        sheen = after[after.index("## sheen"):after.index("## tones")]
+        self.assertNotIn("`R1`", sheen)
+        self.assertIn("- `R2` 반사만 보이면 광택이 없다 → `NONE`", sheen)
+        archive = after[after.index("## 보관"):]
+        self.assertIn(f"- `sheen/R1` {rule} → `NONE`", archive)
+        self.assertIn("  - 대체: R2 · ", archive)
+
+        self.fx.task("render")
+        policy = (self.fx.review_dir() / "policy.html").read_text(encoding="utf-8")
+        self.assertIn("반사만 보이면 광택이 없다", policy)
+        self.assertIn('href="golden.html#q=A"', policy)
+        self.assertIn("<h2>보관</h2>", policy)
+
+    def test_a_malformed_policy_stops_the_loader(self) -> None:
+        definitions = self.fx.root / "definitions.md"
+        base = definitions.read_text(encoding="utf-8")
+        cases = {
+            "출처": "\n### 규칙\n\n- `R1` 반사면 없다 → `NONE`\n  - 근거: A\n",
+            "허용값이 아닌": "\n### 규칙\n\n- `R1` 반사면 없다 → `SHINY`\n  - 출처: 직접 작성 · 2026-09-27 · 민준\n",
+            "모르는 줄": "\n### 규칙\n\n- `R1` 반사면 없다\n  - 출처: 직접 작성\n  - 메모: 아무거나\n",
+            "모양이 아닙니다": "\n### 규칙\n\n* R1 반사면 없다\n",
+            "겹칩니다": ("\n### 규칙\n\n- `R1` 반사면 없다\n  - 출처: 직접 작성\n"
+                      "\n## 보관\n\n- `sheen/R1` 옛 규칙\n  - 출처: 직접 작성\n  - 대체: R1 · 2026-09-27 · 민준\n"),
+        }
+        for expected, block in cases.items():
+            with self.subTest(expected):
+                insert = base.index("## tones")
+                definitions.write_text(base[:insert] + block.lstrip("\n") + "\n" + base[insert:] if "## 보관" not in block
+                                       else base[:insert] + block.split("\n## 보관")[0].lstrip("\n") + "\n" + base[insert:]
+                                       + "\n## 보관" + block.split("\n## 보관")[1], encoding="utf-8")
+                completed = self.fx.task("status", check=False)
+                self.assertEqual(completed.returncode, 2, completed.stdout)
+                self.assertIn(expected, completed.stderr)
+        definitions.write_text(base + "\n## 목적\n\n### 무엇을 가르나\n\n색과 광택.\n", encoding="utf-8")
+        completed = self.fx.task("status", check=False)
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("세 소제목", completed.stderr)
+
+    def test_a_standard_ask_turns_off_scraping_the_note(self) -> None:
+        # 표준 물음이 있는 판독은 메모에서 물음 문장을 골라내지 않는다 — 한 물음이 두 자리에 두 번 보이지 않게.
+        ask = {"question": "반사만 보이면 광택인가?", "here": "", "imageIds": [], "options": []}
+        out = self.fx.sweep({"A": [{**reading("sheen", "LOW", "LOW"), "askHuman": ask}]})
+        raw = json.loads(out.read_text(encoding="utf-8"))
+        raw["result"]["items"][0]["reading"]["note"] = "메모입니다. 이 색이 같은지 확인해 주세요?"
+        out.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+        self.fx.task("finish", "--from", str(out))
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        self.assertEqual(page.count("AI가 묻는 것</b>"), 1)
 
     # ── 배치 ──
     def test_a_result_from_an_earlier_batch_is_refused(self) -> None:
@@ -729,9 +846,7 @@ class SourceAndUpstreamTest(unittest.TestCase):
         self.fx.save()
         self.assertIn("LOWW", self.fx.task("prepare", check=False).stderr)
         task["constraints"][0]["require"]["sheen"] = ["NONE", "LOW"]
-        task["fields"][1]["labels"] = [True, False]
         self.fx.save()
-        self.assertIn("문자열", self.fx.task("prepare", check=False).stderr)
 
     def test_a_many_value_constraint_matches_as_a_set(self) -> None:
         task = self.fx.profile["gtTask"]
@@ -931,7 +1046,8 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.fx.task("render")
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
         cell = page[page.index('<div class="cell'):]
-        self.assertLess(cell.index('class="gap"'), cell.index('data-decision="HOLD"'), "경계 표시는 버튼보다 먼저")
+        self.assertIn('class="gap"', cell.split('<div class="cell')[1] if '<div class="cell' in cell[5:] else cell, "경계 표시는 칸 안에 있다")
+        self.assertIn('<details class="memo-add">', page, "이유·경계 표시는 접어 둔다 — AI가 기준 밖이라고 짚은 칸만 펼친다")
         self.assertIn("아직 저장되지 않았습니다", page, "누른 뒤 바꾸면 다시 누르라고 말한다")
 
     def test_apply_keeps_line_endings_and_does_nothing_twice(self) -> None:
@@ -979,7 +1095,6 @@ class ScreenAndBatchTest(unittest.TestCase):
             (lambda t: t["images"].__setitem__("contextFields", ["category", "sku"]), "sku"),
             (lambda t: t["fields"][0]["legacy"].__setitem__("CRIMSON", "CRIMSONISH"), "legacy"),
             (lambda t: t["fields"][0].__setitem__("unknownLabel", "UNSURE"), "unknownLabel"),
-            (lambda t: t["fields"][0].__setitem__("labelNames", {"REDD": "빨강"}), "labelNames"),
         ]
         original = json.dumps(task)
         for change, needle in cases:
@@ -1050,10 +1165,10 @@ class ScreenAndBatchTest(unittest.TestCase):
     def test_screen_says_what_a_button_does_and_many_values_are_checkboxes(self) -> None:
         self.fx.task("render")
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn("판정이 기록됩니다", page)
+        self.assertIn("원본 GT는 아직 그대로입니다", page, "«반영해줘» 버튼의 결과가 GT는 아직 안 바뀌었다고 말한다")
         self.assertNotIn("GT가 고쳐집니다", page)
         self.assertIn('class="pick"', page, "값 여럿은 체크 상자")
-        self.assertIn("이 값들을 GT로 유지", page)
+        self.assertNotIn("GT로 유지</button>", page, "AI가 GT와 같게 본 칸은 누를 것이 없다")
         status = json.loads(self.fx.task("status").stdout)
         self.assertIn("holdsUnconfirmed", status)
 
@@ -1574,7 +1689,10 @@ class ScreenAndBatchTest(unittest.TestCase):
     def test_the_screen_says_why_the_second_ai_was_not_called(self) -> None:
         self.fx.task("finish", "--from", str(self.fx.sweep({"B": [reading("color", "BLUE")]})))
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn("판독이 GT와 같아 부르지 않음", page)
+        cell = page.split('data-key="B" data-field="color"')[1].split('<div class="cell')[0]
+        self.assertRegex(cell, r'class="chip chosen" data-decision="CONFIRM" data-label="BLUE" aria-pressed="true"',
+                         "같게 본 칸은 지금 GT 값이 처음부터 골라진 모양으로 보인다(누르지 않으면 기록하지 않는다)")
+        self.assertIn("두 값이 같아 묻지 않았음", cell, "반론 AI를 부르지 않은 까닭")
 
     def test_the_saved_workflow_args_hold_no_gt_value_and_no_reader_file(self) -> None:
         out = self.fx.task("prepare").stdout
@@ -1640,8 +1758,8 @@ class ScreenAndBatchTest(unittest.TestCase):
                              "B": [{"field": "color", "verdict": "READER_RIGHT", "why": "x", "evidenceImageIds": ["P01"]}]})
         self.fx.task("finish", "--from", str(out))
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertNotIn('class="primary" data-decision="CORRECT" data-value="LOW"', page, "사람이 확정한 GT를 칠한 버튼으로 덮지 않는다")
-        self.assertIn('class="primary" data-decision="CORRECT" data-value="RED"', page, "참고 등급 GT는 제안을 칠한다")
+        self.assertNotRegex(page, r'class="chip primary[^"]*" data-decision="CORRECT" data-value="LOW"', "사람이 확정한 GT를 칠한 버튼으로 덮지 않는다")
+        self.assertRegex(page, r'class="chip primary[^"]*" data-decision="CORRECT" data-value="RED"', "참고 등급 GT는 제안을 칠한다")
 
     def test_a_low_confidence_many_value_reading_is_offered_in_its_canonical_form(self) -> None:
         self.fx.task("finish", "--from", str(self.fx.sweep({"B": [reading("tones", "WARM|COOL|", "LOW")]})))
@@ -1687,9 +1805,8 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.assertEqual(self.fx.ledger()["decisions"][-1]["channel"], "spoken")
         from gt_decisions import DecisionRejected, record
 
-        profile = {**self.fx.profile, "_path": str(self.fx.profile_path)}
         with self.assertRaises(DecisionRejected):
-            record(profile, "B", "color", "CONFIRM", "민준", expected_before="BLUE", channel="guess")
+            record(self.fx.saved_profile(), "B", "color", "CONFIRM", "민준", expected_before="BLUE", channel="guess")
 
     def test_one_button_when_the_low_reading_is_the_unknown_value(self) -> None:
         self.fx.profile["gtTask"]["fields"][2]["unknownLabel"] = "NONE"
@@ -1699,7 +1816,7 @@ class ScreenAndBatchTest(unittest.TestCase):
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
         cell = page.split('data-key="A" data-field="sheen"')[1].split('<div class="cell')[0]
         self.assertEqual(cell.count('data-value="NONE"'), 1, "이름이 다른 두 버튼이 같은 판정을 남기지 않는다")
-        self.assertIn("AI도 이 값을 냈습니다", cell)
+        self.assertIn("AI 의견 · 확신 낮음", cell, "AI도 그 값을 냈다는 것은 버튼이 아니라 제안 자리에 한 번만")
 
     def test_a_sweep_left_from_another_batch_is_ignored(self) -> None:
         stray = self.fx.review_dir() / "sweep-raw.json"
@@ -1910,6 +2027,163 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.fx.save()
         self.assertIn("predictions는 더 쓰지 않습니다", self.fx.task("prepare", check=False).stderr)
 
+    def test_allowed_values_come_only_from_the_policy(self) -> None:
+        # 정책(정의 문서)의 `### 허용값` 목록이 화면의 «다른 값…»이다 — 순서까지 그대로.
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        text = text.replace("- `PURPLE` 보라 — 설명\n", "").replace("- `RED` 빨강 — 설명", "- `PURPLE` 보라 — 설명\n- `RED` 빨강 — 설명")
+        (self.fx.root / "definitions.md").write_text(text, encoding="utf-8")
+        self.fx.task("prepare")
+        self.fx.task("render")
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        cell = page.split('data-field="color"')[1].split('<div class="cell')[0]
+        options = re.findall(r'data-label="([^"]+)"', cell)
+        self.assertEqual(options, ["PURPLE", "RED", "BLUE", "GREEN"], "값 버튼은 정책의 순서 그대로다")
+
+    def test_an_open_screen_redraws_its_choices_from_the_policy(self) -> None:
+        self.fx.task("prepare")
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        (self.fx.root / "definitions.md").write_text(text.replace("- `PURPLE` 보라 — 설명", "- `PURPLE` 보라 — 설명\n- `ORANGE` 주황 — 설명"),
+                                                     encoding="utf-8")
+        self.fx.task("render")  # 새 배치 없이 다시 그리기만
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        cell = page.split('data-field="color"')[1].split('<div class="cell')[0]
+        self.assertRegex(cell, r'data-label="ORANGE">주황', "정책에 더한 값이 열린 화면의 값 버튼에 나온다")
+
+    def test_a_profile_that_still_lists_values_is_refused(self) -> None:
+        written = json.loads(self.fx.profile_path.read_text(encoding="utf-8"))
+        written["gtTask"]["fields"][0]["labels"] = ["RED", "BLUE"]
+        self.fx.profile_path.write_text(json.dumps(written, ensure_ascii=False), encoding="utf-8")
+        self.assertIn("정책(정의 문서)이 정본", self.fx.task("prepare", check=False).stderr)
+
+    def test_a_field_without_a_values_list_in_the_policy_is_refused(self) -> None:
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        head, rest = text.split("## sheen", 1)
+        rest = rest.split("## tones", 1)[1]
+        (self.fx.root / "definitions.md").write_text(head + "## sheen\n광택.\n\n## tones" + rest, encoding="utf-8")
+        self.assertIn("`### 허용값` 목록이 없습니다", self.fx.task("prepare", check=False).stderr)
+
+    def _policy_block(self, field: str, block: str) -> None:
+        """정의 문서의 한 필드 절을 통째로 바꿔 쓴다(허용값 목록 모양을 시험하려고)."""
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        head, rest = text.split(f"## {field}\n", 1)
+        tail = rest.split("\n## ", 1)
+        (self.fx.root / "definitions.md").write_text(head + f"## {field}\n" + block + ("\n## " + tail[1] if len(tail) > 1 else ""),
+                                                     encoding="utf-8")
+
+    def test_a_malformed_policy_list_stops_instead_of_dropping_or_adding_values(self) -> None:
+        cases = [
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n- `GLOSSY` 유광 — 설명\n\n참고:\n- `finish`는 광택과 함께 본다.\n", "빈 줄 뒤에 다시"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n* `GLOSSY` 유광 — 설명\n", "모양이 아닙니다"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n- GLOSSY 유광 — 설명\n", "모양이 아닙니다"),
+            ("### 허용값\n\n- `MATTE` 무광 - 설명\n- `GLOSSY` 유광 — 설명\n", "모양이 아닙니다"),
+            ("### 허용값\n\n- `MATTE` 무광: 광이 없다 — 설명\n- `GLOSSY` 유광 — 설명\n", "이름이 이상합니다"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n  - `GLOSSY` 유광 — 설명\n", "들여쓴 글머리표"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n\n### 허용값\n\n- `GLOSSY` 유광 — 설명\n", "둘 있습니다"),
+        ]
+        for block, words in cases:
+            self._policy_block("finish", "마감.\n\n" + block)
+            self.assertIn(words, self.fx.task("prepare", check=False).stderr, block)
+
+    def test_a_value_description_may_run_over_several_lines(self) -> None:
+        self._policy_block("finish", "마감.\n\n### 허용값\n\n- `MATTE` 무광 — 빛을 되돌리지 않는다.\n  주름 사이도 마찬가지다.\n"
+                                     "- `GLOSSY` 유광 — 빛이 난다.\n\n### 경계\n\n- `MATTE`와 `GLOSSY` 사이는 사진으로 가른다.\n")
+        from gt_task import definition_values
+
+        self.assertEqual(definition_values(self.fx.root / "definitions.md")["finish"], [("MATTE", "무광"), ("GLOSSY", "유광")],
+                         "다른 ### 절의 글머리표는 값이 아니다")
+
+    def test_a_private_key_in_the_profile_is_refused(self) -> None:
+        written = json.loads(self.fx.profile_path.read_text(encoding="utf-8"))
+        written["gtTask"]["fields"][0]["_valuesFrom"] = "definitions"
+        self.fx.profile_path.write_text(json.dumps(written, ensure_ascii=False), encoding="utf-8")
+        self.assertIn("적을 수 없는 키", self.fx.task("prepare", check=False).stderr)
+
+    def test_a_decision_for_a_value_removed_from_the_policy_is_asked_again_and_not_handed_out(self) -> None:
+        self.fx.record("--key", "B", "--field", "color", "--decision", "CORRECT", "--value", "PURPLE", "--reviewer", "민준")
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        (self.fx.root / "definitions.md").write_text(text.replace("- `PURPLE` 보라 — 설명\n", ""), encoding="utf-8")
+        summary = json.loads(self.fx.task("export").stdout)
+        self.assertEqual([row["value"] for row in summary["outOfPolicy"]], ["PURPLE"])
+        lines = (self.fx.root / "gt/fixture-color-sheen/gt-review/corrections.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertNotIn("B", [json.loads(line)["id"] for line in lines if line.strip()], "정책에 없는 값은 넣을 목록에 싣지 않는다")
+        self.fx.task("prepare")
+        cells = {(i["key"], c["field"]): c for i in self.fx.worklist()["items"] for c in i["cells"]}
+        self.assertIn("POLICY_CHANGED_SINCE_DECISION", cells[("B", "color")]["signals"], "정책에서 뺀 값으로 고친 칸은 다시 묻는다")
+
+    def test_renaming_a_code_through_legacy_keeps_earlier_decisions(self) -> None:
+        self.fx.record("--key", "B", "--field", "color", "--decision", "CORRECT", "--value", "PURPLE", "--reviewer", "민준")
+        color = self.fx.profile["gtTask"]["fields"][0]
+        color["labels"] = ["RED", "BLUE", "GREEN", "VIOLET"]
+        color["labelNames"] = {"RED": "빨강", "BLUE": "파랑", "GREEN": "초록", "VIOLET": "보라"}
+        color["legacy"] = {"CRIMSON": "RED", "PURPLE": "VIOLET"}
+        self.fx.save()
+        summary = json.loads(self.fx.task("export").stdout)
+        self.assertEqual(summary["outOfPolicy"], [], "옛 코드로 적힌 판정은 legacy로 새 코드가 된다 — 정책에서 빠진 값이 아니다")
+        lines = (self.fx.root / "gt/fixture-color-sheen/gt-review/corrections.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual([json.loads(line)["after"] for line in lines if json.loads(line)["id"] == "B"], ["VIOLET"])
+        self.fx.task("prepare")
+        cells = {(i["key"], c["field"]): c for i in self.fx.worklist()["items"] for c in i["cells"]}
+        signals = (cells.get(("B", "color")) or {}).get("signals") or []
+        self.assertFalse({"POLICY_CHANGED_SINCE_DECISION", "GT_CHANGED_SINCE_DECISION"} & set(signals),
+                         "코드 이름을 바꿨다고 지난 답을 다시 묻지 않는다")
+
+    def test_a_forbid_constraint_names_only_the_value_it_bans(self) -> None:
+        constraint = self.fx.profile["gtTask"]["constraints"][0]
+        del constraint["require"]
+        constraint["forbid"] = {"sheen": ["HIGH"]}
+        self.fx.save()
+        self.fx.task("prepare")
+        cells = {(i["key"], c["field"]): c for i in self.fx.worklist()["items"] for c in i["cells"]}
+        self.assertIn("GT_SELF_CONTRADICTION", cells[("A", "sheen")]["signals"], "무광인데 광택이 강함 — 막은 값이다")
+        # 정책에 값을 더해도 제약을 고칠 필요가 없다 — require로 나머지를 늘어놓았다면 새 값이 모두 모순이 된다.
+        sheen = self.fx.profile["gtTask"]["fields"][2]
+        sheen["labels"].insert(2, "MID")
+        sheen["labelNames"]["MID"] = "중간"
+        self.fx.save()
+        self.fx.task("prepare")
+        constraint["forbid"] = {"sheen": ["SHINY"]}
+        self.fx.save()
+        self.assertIn("허용값이 아닌", self.fx.task("prepare", check=False).stderr)
+        del constraint["forbid"]
+        self.fx.save()
+        self.assertIn("require", self.fx.task("prepare", check=False).stderr, "막을 것도 요구할 것도 없는 제약은 멈춘다")
+
+    def test_more_policy_shapes_that_would_be_read_wrong_stop(self) -> None:
+        cases = [
+            ("### 허용값\n\n  - `MATTE` 무광 — 설명\n- `GLOSSY` 유광 — 설명\n", "들여쓴 글머리표"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n- `GLOSSY` 유광 — 설명\n\n참고.\n  - `SATIN` 반광 — 설명\n", "들여쓴 글머리표"),
+            ("### 허용값\n\n1. `MATTE` 무광 — 설명\n2. `GLOSSY` 유광 — 설명\n", "모양이 아닙니다"),
+            ("### 허용값 (마감)\n\n- `MATTE` 무광 — 설명\n- `GLOSSY` 유광 — 설명\n", "한 가지 모양만"),
+            ("### 허용값\n\n- `MATTE` 무광 — 설명\n- `GLOSSY` 유광 — 설명\n뒤에 붙은 문장.\n", "들여쓰지 않은 줄"),
+            ("### 허용값\n\n- `MATTE` 무*광 — 설명\n- `GLOSSY` 유광 — 설명\n", "이름이 이상합니다"),
+        ]
+        for block, words in cases:
+            self._policy_block("finish", "마감.\n\n" + block)
+            self.assertIn(words, self.fx.task("prepare", check=False).stderr, block)
+
+    def test_a_field_section_written_twice_stops(self) -> None:
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        (self.fx.root / "definitions.md").write_text(text + "\n## finish\n\n### 허용값\n\n- `SATIN` 반광 — 설명\n", encoding="utf-8")
+        self.assertIn("같은 절이 둘", self.fx.task("prepare", check=False).stderr)
+
+    def test_values_counts_what_moves_with_each_policy_value(self) -> None:
+        self.fx.record("--key", "B", "--field", "color", "--decision", "CORRECT", "--value", "PURPLE", "--reviewer", "민준")
+        before = (self.fx.root / "gt/fixture-color-sheen/gt-review/decisions.json").read_bytes()
+        report = json.loads(self.fx.task("values", "--field", "color").stdout)["fields"][0]
+        by_code = {row["code"]: row for row in report["values"]}
+        self.assertEqual([row["code"] for row in report["values"]], ["RED", "BLUE", "GREEN", "PURPLE"], "정책의 순서")
+        self.assertEqual(by_code["GREEN"]["gtCells"], 2)
+        self.assertEqual(by_code["PURPLE"]["correctedTo"], 1, "이 값으로 고친 판정 — 빼면 다시 묻게 된다")
+        self.assertIn("legacy CRIMSON→RED", by_code["RED"]["usedInProfile"])
+        self.assertEqual(report["notInPolicy"], {"PURPEL": 1})
+        self.assertEqual((self.fx.root / "gt/fixture-color-sheen/gt-review/decisions.json").read_bytes(), before, "읽기만 한다")
+
+    def test_every_signal_is_in_the_contract(self) -> None:
+        from gt_task import SIGNALS
+
+        contract = (SCRIPTS.parent / "contracts" / "gt-task.md").read_text(encoding="utf-8")
+        self.assertEqual([name for name in SIGNALS if f"`{name}`" not in contract], [], "신호를 더하면 계약의 신호 표에도 적는다")
+
     def test_a_label_with_a_slash_is_refused(self) -> None:
         self.fx.profile["gtTask"]["fields"][0]["labels"].append("N/A")
         self.fx.profile["gtTask"]["fields"][0]["labelNames"]["N/A"] = "해당 없음"
@@ -1931,16 +2205,29 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.assertNotEqual(self.fx.worklist()["items"][0]["key"], first, "넘어간 건은 뒤로 — 같은 건이 다시 맨 앞에 오지 않는다")
         self.assertTrue((self.fx.review_dir() / "shown.jsonl").is_file())
 
+    def test_every_screen_opens_at_the_same_compact_density(self) -> None:
+        # 누가 어느 브라우저로 열어도 같은 크기 — 화면마다 같은 비율 한 줄(--zoom)로 줄인다.
+        self.fx.task("render")
+        folder = self.fx.review_dir()
+        home = (SCRIPTS.parent / "templates" / "gt-home.html").read_text(encoding="utf-8")
+        for name, page in [("review.html", (folder / "review.html").read_text(encoding="utf-8")),
+                           ("policy.html", (folder / "policy.html").read_text(encoding="utf-8")),
+                           ("golden.html", (folder / "golden.html").read_text(encoding="utf-8")), ("gt-home.html", home)]:
+            self.assertIn(":root{--zoom:.75}", page, name)
+            self.assertIn("html{zoom:var(--zoom)}", page, name)
+
     def test_the_screen_shows_each_field_s_definition(self) -> None:
         self.fx.task("render")
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn("이 칸의 기준 보기", page)
+        self.assertIn("이 항목의 정책 보기", page)
         self.assertIn("광택.", page, "정의 문서의 그 필드 절이 실린다")
 
     def test_a_low_confidence_reading_can_be_picked_in_one_press(self) -> None:
         self.fx.task("finish", "--from", str(self.fx.sweep({"B": [reading("color", "RED", "LOW")]})))
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn('data-decision="CORRECT" data-value="RED">판독 값으로 → 빨강 (RED) (확신 낮음)', page)
+        cell = page.split('data-key="B" data-field="color"')[1].split('<div class="cell')[0]
+        self.assertRegex(cell, r'class="chip is-ai" data-decision="CORRECT" data-value="RED"[^>]*>빨강<span class="vmark ai">AI 의견</span>',
+                         "확신 낮은 판독 값도 그 값 버튼 하나로 고른다 — 칠하지 않고 «AI 의견» 글자만")
 
     def test_a_missing_defender_keeps_the_readings(self) -> None:
         out = self.fx.sweep({"B": [reading("color", "RED")]})
@@ -1958,7 +2245,7 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.fx.profile["gtTask"]["fields"].append({"id": "lit", "name": "조명", "labels": ["true", "false"], "valueType": "boolean"})
         (self.fx.root / "definitions.md").write_text((self.fx.root / "definitions.md").read_text() + "\n## lit\n조명.\n")
         self.fx.save()
-        self.assertIn("이름표", self.fx.task("prepare", check=False).stderr)
+        self.assertIn("이름이 빠진", self.fx.task("prepare", check=False).stderr)
 
     def test_record_needs_what_the_person_saw(self) -> None:
         completed = self.fx.task("record", "--key", "A", "--field", "sheen", "--decision", "CONFIRM", "--reviewer", "민준", check=False)
@@ -2260,7 +2547,9 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("«아직 올라와 있지 않습니다»라고 말하지 않는다", self.skill)
 
     def test_the_step_four_message_names_the_unpainted_button(self) -> None:
-        self.assertIn("«판독 값으로 → …»", self.skill)
+        # 화면은 값마다 버튼 하나다 — 스킬이 화면에 없는 버튼 이름(«AI 제안대로 → …»)을 부르면 사람은 그 버튼을 찾는다.
+        self.assertIn("«AI 제안» 표시", self.skill)
+        self.assertNotIn("AI 제안대로 →", self.skill)
 
     def test_counts_come_from_status_not_the_screen_file(self) -> None:
         self.assertNotIn("화면과 `review.json`이 센다", self.skill)
@@ -2315,3 +2604,15 @@ class PublishTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "HEAD").stdout, head_before, "지금 브랜치는 그대로다")
         self.assertEqual(self.git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "main")
         self.assertTrue((self.fx.root / "unrelated.txt").exists())
+        self.assertIn("definitions.md", pushed, "허용값을 정한 정책이 바뀌었으면 GT와 한 PR로 간다")
+        self.assertIn("definitions.md", done["policyFiles"])
+
+    def test_publish_leaves_out_policy_files_that_match_the_base(self) -> None:
+        self.fx.only_first_field()
+        self.fx.save()
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "policy")
+        self.git("push", "-q", "origin", "main")
+        self.fx.record("--key", "B", "--field", "color", "--decision", "CONFIRM", "--reviewer", "민준")
+        preview = json.loads(self.fx.task("publish").stdout)
+        self.assertEqual(preview["policyFiles"], [], "기준 브랜치와 같은 정책은 싣지 않는다")

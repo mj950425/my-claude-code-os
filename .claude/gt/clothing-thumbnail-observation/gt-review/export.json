@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "gt-review-export-v4",
+  "profileId": "clothing-thumbnail-observation",
+  "gtSource": ".claude/gt/clothing-thumbnail-observation/gt.jsonl",
+  "sourceDigest": "72f2006cbae0a58114edcaf40fcc74ee12190c05a0418b6b740bf2b776f13aa1",
+  "lastDecisionId": "GTD-00081",
+  "upstream": null,
+  "rows": {
+    "source": 149,
+    "corrected": 149
+  },
+  "corrections": 23,
+  "alreadyApplied": 0,
+  "confirmations": 34,
+  "thisBatch": {
+    "corrections": 16,
+    "confirmations": 24
+  },
+  "linesToChange": 13,
+  "withdrawn": [],
+  "confirmationsNotUpstream": 0,
+  "newSinceLastList": null,
+  "sameAsLastList": false,
+  "locatorConflicts": 0,
+  "stale": [],
+  "orphaned": [],
+  "outOfPolicy": [],
+  "definitionGaps": {},
+  "newColumns": [
+    "fieldSources"
+  ],
+  "constraintViolationsAfter": [],
+  "appliedToSource": false,
+  "files": {
+    "corrections.jsonl": ".claude/gt/clothing-thumbnail-observation/gt-review/corrections.jsonl",
+    "confirmations.jsonl": ".claude/gt/clothing-thumbnail-observation/gt-review/confirmations.jsonl",
+    "gt.corrected.jsonl": ".claude/os/runs/clothing-thumbnail-observation/gt-review/export/gt.corrected.jsonl"
+  }
+}

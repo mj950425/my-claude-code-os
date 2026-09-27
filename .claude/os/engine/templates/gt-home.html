@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>데이터 운영 · 홈</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<!--
+  첫 화면 — GT 개선 과제 목록. 이 파일은 과제를 모른다: 이름·필드·수는 전부 /gt-tasks(JSON)에서 온다.
+  서버는 이 파일을 그대로 보내기만 한다(화면을 그리지 않는다). 수는 status와 같은 함수가 센다 — 화면마다 다른 수가 나오지 않게.
+  모양은 검수 화면과 같다(옅은 회색 바탕 · 흰 카드 · 파랑 하나 · 상태 뱃지). 사이드바의 정책·골든셋은 과제 화면 폴더의 두 장으로 간다.
+-->
+<style>
+:root{
+  color-scheme:light;
+  --paper:#F8FAFC; --ink:#0F172A; --muted:#475569; --faint:#64748B; --rule:#E2E8F0; --rule-soft:#F1F5F9;
+  --accent:#2563EB; --accent-soft:#EFF6FF; --accent-ink:#1D4ED8;
+  --ok:#15803D; --ok-soft:#F0FDF4; --warn:#854D0E; --warn-soft:#FEFCE8; --bad:#B91C1C; --bad-soft:#FEF2F2;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -12px rgba(15,23,42,.10);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;
+}
+/* 밀도 — 검수 화면과 같은 비율 */
+:root{--zoom:.75}
+html{zoom:var(--zoom)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--paper)}
+body{margin:0;color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.6;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,p,ul,ol{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent-ink)}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh / var(--zoom))}
+main.wrap,.task,.task-head > div{min-width:0}
+.side{position:sticky;top:0;align-self:start;height:calc(100vh / var(--zoom));padding:24px 14px;background:#fff;box-shadow:1px 0 0 var(--rule-soft);display:flex;flex-direction:column;gap:26px;overflow:auto}
+.side-brand{display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--ink);font-size:16px;font-weight:700}
+.side-logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-link,.side-task{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14.5px;font-weight:500}
+.side-link:hover,.side-task:hover{background:var(--rule-soft);color:var(--ink)}
+.side{overflow:visible}
+.side-item{position:relative}
+.flyout{display:none;position:absolute;left:calc(100% + 6px);top:0;z-index:20;min-width:220px;padding:6px;border-radius:12px;background:#fff;
+  box-shadow:0 12px 32px -8px rgba(15,23,42,.25),0 0 0 1px var(--rule)}
+.flyout::before{content:"";position:absolute;left:-8px;top:0;width:8px;height:100%}
+.side-item.has-menu:hover .flyout,.side-item.has-menu:focus-within .flyout{display:flex;flex-direction:column;gap:2px}
+.flyout-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap}
+.flyout-link:hover,.flyout-link:focus-visible{background:var(--rule-soft);color:var(--ink)}
+.side-link.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side-link[aria-disabled="true"]{pointer-events:none;opacity:.5}
+.side-task{justify-content:space-between;font-size:14px}
+.side-count{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--rule-soft);color:var(--muted)}
+.side-kicker{padding:0 12px 6px;font-size:12px;font-weight:600;color:var(--faint)}
+.side-others{margin-top:auto;padding:14px;border-radius:12px;background:var(--paper)}
+.side-others .side-kicker{padding:0 0 4px}
+.side-door{display:block;font-size:13.5px;font-weight:500}
+
+main.wrap{width:min(1080px,calc(100% - 80px));margin:0 auto;padding:40px 0 64px;display:flex;flex-direction:column;gap:24px}
+header h1{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
+
+.task{background:#fff;border-radius:16px;padding:24px 28px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:18px;animation:fade .4s ease both}
+.task-head{display:flex;align-items:start;justify-content:space-between;gap:24px}
+.task-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.task h2{font-size:19px;font-weight:700}
+.what{color:var(--faint);font-size:13.5px;margin-top:4px}
+.what b{color:var(--muted);font-weight:500}
+.badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--rule-soft);color:var(--muted)}
+.badge.todo{background:var(--warn-soft);color:var(--warn)}
+.badge.done{background:var(--ok-soft);color:var(--ok)}
+.badge.wait{background:var(--accent-soft);color:var(--accent-ink)}
+.badge.problem{background:var(--bad-soft);color:var(--bad)}
+.btn{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 20px;border-radius:10px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;white-space:nowrap}
+.btn:hover{background:var(--accent-ink);color:#fff}
+.btn.quiet{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule)}
+.btn.quiet:hover{background:var(--paper);color:var(--ink)}
+.btn[aria-disabled="true"]{pointer-events:none;background:var(--rule-soft);color:var(--faint);box-shadow:none}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{padding:14px 16px;border-radius:12px;background:var(--paper);display:flex;flex-direction:column;gap:2px}
+.stat .label{font-size:12.5px;font-weight:500;color:var(--faint)}
+.stat .value{font-size:22px;font-weight:700;color:var(--ink)}
+.stat .value.warn{color:#B45309}
+.stat .value.ok{color:var(--ok)}
+.stat .value.zero{color:#94A3B8}
+.stat .hint{font-size:12px;color:var(--faint)}
+.pbar{height:6px;border-radius:999px;background:var(--rule-soft);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+
+.alert{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;padding:12px 16px;border-radius:12px;background:var(--accent-soft);color:#1E3A8A;font-size:13.5px}
+.alert b{color:var(--accent-ink)}
+.alert.problem{background:var(--bad-soft);color:var(--bad)}
+.say{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13.5px;color:var(--muted)}
+.phrase{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;max-width:100%}
+.phrase .text{overflow-wrap:anywhere}
+.phrase .text{font-weight:600;color:var(--ink);background:#fff;padding:4px 10px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--rule)}
+.alert .phrase .text{box-shadow:none}
+.phrase button{min-height:32px;padding:0 12px;border:0;border-radius:8px;background:#fff;color:var(--accent-ink);font-size:12.5px;font-weight:600}
+.say .phrase button{background:var(--accent-soft)}
+
+.flow{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.flow li{display:flex;flex-direction:column;gap:8px}
+.flow .line{height:4px;border-radius:999px;background:var(--rule)}
+.flow li.now .line{background:#93C5FD}
+.flow .row{display:flex;align-items:center;gap:8px}
+.flow .n{width:22px;height:22px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--rule-soft);color:var(--faint)}
+.flow li.now .n{background:#DBEAFE;color:var(--accent-ink)}
+.flow .say-it{font-size:13.5px;font-weight:600;color:var(--muted)}
+.flow li.now .say-it{color:var(--ink)}
+.flow .does{font-size:12.5px;line-height:1.5;color:var(--faint);padding-left:30px}
+
+.foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12.5px;color:var(--faint)}
+.meta span+span::before{content:" · "}
+.foot .links a{font-weight:600;margin-left:12px}
+#fail{background:var(--bad-soft);color:var(--bad);padding:12px 16px;border-radius:12px}
+.loading{color:var(--faint);padding:26px 0}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .flow{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px}
+  .side-nav{flex-direction:row}.side-group,.side-others{display:none}
+  .flyout{left:0;top:calc(100% + 4px)}.flyout::before{display:none}
+  main.wrap{width:calc(100% - 32px);padding-top:24px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .task{padding:18px 16px}
+  .task-head{flex-direction:column;align-items:stretch}
+  .btn{justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="side">
+  <a class="side-brand" href="/"><span class="side-logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>데이터 운영</a>
+  <nav class="side-nav" aria-label="주 메뉴">
+    <div class="side-item"><a class="side-link on" href="/" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>홈</a></div>
+    <div class="side-item" data-menu="review"><a class="side-link" id="nav-review" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg>골든셋 검수</a><div class="flyout" role="menu"></div></div>
+    <div class="side-item" data-menu="policy"><a class="side-link" id="nav-policy" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu"></div></div>
+    <div class="side-item" data-menu="golden"><a class="side-link" id="nav-golden" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋</a><div class="flyout" role="menu"></div></div>
+  </nav>
+  <div class="side-others" id="others" hidden><p class="side-kicker">이 목록 밖의 GT</p><div id="other-list"></div></div>
+</aside>
+<main class="wrap">
+  <header>
+    <h1>어떤 GT를 볼까요</h1>
+    <p class="lead">골든셋 검수마다 AI 둘이 다시 볼 칸을 골라 두었습니다. 열어서 맨 위에 이름을 적고 칸마다 버튼을 누르세요.
+      버튼은 판정만 기록합니다 — GT가 실제로 바뀌는 순서는 카드 아래 단계에 있습니다.</p>
+  </header>
+  <div id="tasks" aria-live="polite"><p class="loading">골든셋 검수 목록을 읽는 중…</p></div>
+  <p id="fail" hidden>골든셋 검수 목록을 읽지 못했습니다. Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요.</p>
+</main>
+</div>
+<script>
+(function () {
+  "use strict";
+  var DONE_WORDS = {CORRECT: "고침", CONFIRM: "유지", LEAVE_EMPTY: "빈칸 유지", CLEAR: "비움", HOLD: "보류"};
+  var BADGE = {todo: "진행 중", done: "이 화면 다 답함", wait: "AI가 보는 중", empty: "준비 전", problem: "설정 문제"};
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function n(value) { return typeof value === "number" ? value : 0; }
+  function when(stamp) {
+    if (!stamp) return "";
+    var at = new Date(stamp);
+    if (isNaN(at)) return "";
+    return at.toLocaleString("ko-KR", {month: "long", day: "numeric", hour: "2-digit", minute: "2-digit"});
+  }
+
+  // 지금 이 과제에서 사람이 할 일. 수는 칸(기록한 칸)과 누를 횟수(«GT로 유지»는 상품마다 한 번)를 섞지 않는다.
+  function stateOf(task) {
+    var waiting = n(task.waitingForHuman), holds = n(task.holdsUnconfirmed) + n(task.alternativesUnconfirmed);
+    var unread = n(task.notRead), left = n(task.remainingItems), holdItems = n(task.holdsItems);
+    var settled = 0, parts = [];
+    Object.keys(DONE_WORDS).forEach(function (key) {
+      var count = n((task.decisions || {})[key]);
+      if (key !== "HOLD") settled += count;
+      if (count && key !== "HOLD") parts.push(DONE_WORDS[key] + " " + count);
+    });
+    var history = settled ? "" : "아직 기록한 칸이 없습니다";  // 수는 위 칸(지금까지 기록한 칸)에 있다 — 아래 줄에서 되풀이하지 않는다
+    var base = {history: history, settled: settled, parts: parts, waiting: waiting, holds: holds, holdItems: holdItems, unread: unread,
+                left: left, say: null, sayNext: null};
+    if (task.problem) return Object.assign(base, {kind: "problem"});
+    if (task.preparing) return Object.assign(base, {kind: "wait"});
+    if (!task.prepared || task.failed) return Object.assign(base, {kind: "empty", say: task.name + " 개선해줘"});
+    if (waiting || holds || unread) return Object.assign(base, {kind: "todo", started: n(task.answeredOnPage) > 0});
+    return Object.assign(base, {kind: "done",
+            say: n(task.toHandOff) ? task.name + " 반영해줘" : (left ? task.name + " 다음 거" : null),
+            sayNext: n(task.toHandOff) && left ? task.name + " 다음 거" : null});
+  }
+
+  function where(task) {
+    if (task.gtHome === "upstream") return "원본: " + (task.gtHomeNote || "다른 원천");
+    if (task.gtHome === "repo") return "원본: 팀 GT 파일(GitHub에서 관리)";
+    return "원본: 이 컴퓨터의 GT 파일";
+  }
+
+  function phrase(text) {
+    var wrap = el("span", "phrase");
+    wrap.appendChild(el("span", "text", "«" + text + "»"));
+    var copy = el("button", null, "복사");
+    copy.type = "button";
+    copy.addEventListener("click", function () {
+      var done = function () { copy.textContent = "복사했습니다"; setTimeout(function () { copy.textContent = "복사"; }, 1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {}); else done();
+    });
+    wrap.appendChild(copy);
+    return wrap;
+  }
+
+  function stat(label, value, hint, tone) {
+    var box = el("div", "stat");
+    box.appendChild(el("span", "label", label));
+    box.appendChild(el("span", "value" + (tone ? " " + tone : ""), String(value)));
+    if (hint) box.appendChild(el("span", "hint", hint));
+    return box;
+  }
+
+  function folder(task) { return "/f/" + encodeURIComponent(task.task) + "/gt-review/"; }
+
+  function row(task) {
+    var state = stateOf(task);
+    var box = el("article", "task");
+    box.id = "task-" + task.task;
+
+    var head = el("div", "task-head");
+    var left = el("div");
+    var title = el("div", "task-title");
+    title.appendChild(el("h2", null, task.name));
+    title.appendChild(el("span", "badge " + state.kind, BADGE[state.kind]));
+    left.appendChild(title);
+    var what = el("p", "what");
+    if (task.fields.length > 1) {
+      what.appendChild(document.createTextNode((task.subject || "") + " 한 건마다 보는 항목 " + task.fields.length + " — "));
+      what.appendChild(el("b", null, task.fields.join(" · ")));
+    } else {
+      what.appendChild(document.createTextNode((task.subject || "") + " 한 건마다 "));
+      what.appendChild(el("b", null, task.fields[0] || ""));
+      what.appendChild(document.createTextNode(" 하나를 봅니다"));
+    }
+    left.appendChild(what);
+    head.appendChild(left);
+    var open = el("a", "btn" + (state.kind === "done" ? " quiet" : ""),
+                  state.kind === "done" ? "화면 다시 보기" : state.kind === "todo" ? (state.started ? "이어서 판정하기 →" : "판정 시작하기 →") : "화면 열기");
+    if (state.kind === "empty" || state.kind === "wait" || state.kind === "problem") open.setAttribute("aria-disabled", "true");
+    else open.href = task.page || ("/gt/" + encodeURIComponent(task.task));
+    head.appendChild(open);
+    box.appendChild(head);
+
+    if (state.kind === "problem") {
+      box.appendChild(el("p", "alert problem", "설정에 문제가 있어 열 수 없습니다 — Claude에게 «" + task.name + " 설정 봐줘»라고 전하거나 개발자에게 알려 주세요."));
+    } else if (state.kind === "wait") {
+      box.appendChild(el("p", "alert", "AI가 새 후보를 보는 중입니다 — 끝나면 Claude가 화면을 열어 드립니다."));
+    } else if (state.kind !== "empty") {
+      var stats = el("div", "stats");
+      stats.appendChild(stat("판정할 칸", state.waiting, state.waiting ? "이 화면에서 직접 고를 칸" : "남은 칸이 없습니다", state.waiting ? "warn" : "zero"));
+      if (task.fields.length > 1 || state.holds)
+        stats.appendChild(stat("«GT로 유지» 누를 횟수", state.holdItems || state.holds,
+                               state.holds ? "유지 확인할 칸 " + state.holds + " · 상품마다 한 번" : "남은 칸이 없습니다", state.holds ? "" : "zero"));
+      stats.appendChild(stat("AI가 못 읽은 칸", state.unread, state.unread ? "«못 읽은 거 다시 봐줘»로 다시 봅니다" : "없음", state.unread ? "warn" : "zero"));
+      stats.appendChild(stat("지금까지 기록한 칸", state.settled, state.parts.join(" · ") || "아직 없습니다", state.settled ? "ok" : "zero"));
+      box.appendChild(stats);
+      var answered = n(task.answeredOnPage), total = answered + state.waiting + state.holds;
+      if (total) {
+        var bar = el("div", "pbar"); var fill = el("i"); fill.style.width = Math.round(answered * 100 / total) + "%";
+        bar.appendChild(fill); box.appendChild(bar);
+      }
+    }
+    if (n(task.toHandOff)) {
+      var hand = el("div", "alert");
+      var words = el("span");
+      words.appendChild(document.createTextNode("고친 판정 "));
+      words.appendChild(el("b", null, String(task.toHandOff) + "칸"));
+      words.appendChild(document.createTextNode("이 아직 GT에 들어가지 않았습니다 — " + (state.kind === "done" ? "" : "이 화면을 마친 뒤 ") + "Claude에게"));
+      hand.appendChild(words);
+      hand.appendChild(phrase(task.name + " 반영해줘"));
+      box.appendChild(hand);
+    } else if (state.say) {
+      var say = el("p", "say");
+      say.appendChild(document.createTextNode("Claude에게"));
+      say.appendChild(phrase(state.say));
+      if (state.sayNext) { say.appendChild(document.createTextNode("더 보려면")); say.appendChild(phrase(state.sayNext)); }
+      box.appendChild(say);
+    }
+    // GT가 바뀌는 순서 — 지금 단계에 불을 켠다. 판정 전이면 첫 단계, 넘길 정정이 있고 답할 칸이 없으면 둘째 단계.
+    if ((task.steps || []).length) {
+      var now = state.kind === "done" && n(task.toHandOff) ? 1 : 0;
+      var flow = el("ol", "flow");
+      flow.setAttribute("aria-label", "GT가 바뀌는 순서");
+      task.steps.forEach(function (step, i) {
+        var li = el("li", i === now ? "now" : "");
+        li.appendChild(el("div", "line"));
+        var top = el("div", "row");
+        top.appendChild(el("span", "n", String(i + 1)));
+        top.appendChild(el("span", "say-it", step.say));
+        li.appendChild(top);
+        li.appendChild(el("span", "does", step.does));
+        flow.appendChild(li);
+      });
+      box.appendChild(flow);
+    }
+    var foot = el("div", "foot");
+    var meta = el("p", "meta");
+    if (state.history) meta.appendChild(el("span", null, state.history));
+    if (state.left) meta.appendChild(el("span", null, "이 화면 뒤 후보 " + state.left + "건 — Claude에게 «" + task.name + " 다음 거»"));
+    if (task.preparedAt) meta.appendChild(el("span", null, "화면 만든 시각 " + when(task.preparedAt)));
+    meta.appendChild(el("span", null, where(task)));
+    foot.appendChild(meta);
+    if (task.prepared) {
+      var links = el("p", "links");
+      var policy = el("a", null, "정책"); policy.href = folder(task) + "policy.html";
+      var golden = el("a", null, "골든셋"); golden.href = folder(task) + "golden.html";
+      links.appendChild(policy); links.appendChild(golden);
+      foot.appendChild(links);
+    }
+    box.appendChild(foot);
+    return box;
+  }
+
+  function side(tasks, others) {
+    // 첫 화면의 정책·골든셋은 가장 최근에 준비된 과제의 것 — 과제마다의 두 장은 카드 아래 고리로 간다.
+    var ready = tasks.filter(function (task) { return task.prepared; })
+      .sort(function (a, b) { return String(b.preparedAt || "").localeCompare(String(a.preparedAt || "")); })[0];
+    var first = ready;
+    var review = document.getElementById("nav-review");
+    if (review && first) review.href = first.page || ("/gt/" + encodeURIComponent(first.task));
+    ["policy", "golden"].forEach(function (name) {
+      var link = document.getElementById("nav-" + name);
+      if (ready) { link.href = folder(ready) + name + ".html"; link.removeAttribute("aria-disabled"); link.title = ready.name; }
+    });
+    // 홈·정책·골든셋에 마우스를 올리면 과제를 고르는 목록이 펼쳐진다.
+    var paths = {review: function (task) { return task.page || ("/gt/" + encodeURIComponent(task.task)); },
+                 policy: function (task) { return folder(task) + "policy.html"; },
+                 golden: function (task) { return folder(task) + "golden.html"; }};
+    document.querySelectorAll(".side-item[data-menu]").forEach(function (item) {
+      var menu = item.querySelector(".flyout"); menu.textContent = "";
+      tasks.filter(function (task) { return item.dataset.menu === "review" || task.prepared; }).forEach(function (task) {
+        var a = el("a", "flyout-link"); a.href = paths[item.dataset.menu](task); a.setAttribute("role", "menuitem");
+        a.appendChild(el("span", null, task.name));
+        var left = n(task.waitingForHuman) + n(task.notRead);
+        if (item.dataset.menu === "review" && left) a.appendChild(el("span", "side-count", String(left)));
+        menu.appendChild(a);
+      });
+      item.classList.toggle("has-menu", menu.children.length > 0);
+    });
+    document.getElementById("others").hidden = !others.length;
+    var ul = document.getElementById("other-list");
+    ul.textContent = "";
+    others.forEach(function (door) {
+      var link = el("a", "side-door", door.name + " →");
+      link.href = "/audit?a=" + encodeURIComponent(door.profile);
+      link.title = "이 GT는 다른 화면(감사 화면)에서 봅니다";
+      ul.appendChild(link);
+    });
+  }
+
+  function draw(data) {
+    var list = document.getElementById("tasks");
+    list.textContent = "";
+    var tasks = data.tasks || [];
+    if (!tasks.length) list.appendChild(el("p", "loading", "아직 올라온 골든셋 검수가 없습니다. 개발자에게 설정을 부탁해 주세요."));
+    var column = el("div");
+    column.style.display = "flex"; column.style.flexDirection = "column"; column.style.gap = "20px";
+    tasks.forEach(function (task) { column.appendChild(row(task)); });
+    list.appendChild(column);
+    side(tasks, data.otherDoors || []);
+    return tasks.some(function (task) { return task.preparing; });
+  }
+
+  var timer = null;
+  function load() {
+    fetch("/gt-tasks", {cache: "no-store"})
+      .then(function (response) { if (!response.ok) throw new Error(response.status); return response.json(); })
+      .then(function (data) {
+        document.getElementById("fail").hidden = true;
+        var busy = draw(data);
+        clearTimeout(timer);
+        timer = setTimeout(load, busy ? 20000 : 60000);
+      })
+      .catch(function () { document.getElementById("fail").hidden = false; });
+  }
+  // 판정 화면에서 돌아오면 수가 바로 맞게.
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
+  window.addEventListener("pageshow", load);
+})();
+</script>
+</body>
+</html>

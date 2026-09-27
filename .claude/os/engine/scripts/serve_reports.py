@@ -56,10 +56,11 @@ from typing import Any
 from build_gt_decisions import derive
 from catalog_profile import discover_profiles, load_profile, output_root, project_path
 from gt_decisions import DecisionRejected as FieldDecisionRejected
-from gt_decisions import answered_on_page
-from gt_decisions import effective as effective_field_decisions
-from gt_decisions import read_ledger as read_field_ledger
+from gt_decisions import answered_on_page, reasked
+from gt_decisions import current_answers as current_field_answers
+from gt_decisions import export as export_fields
 from gt_decisions import record as record_field
+from gt_review import home_rows
 from gt_task import TaskError, field_map, gt_value, load_gt, load_task
 from record_review_decision import DecisionRejected, record
 
@@ -71,6 +72,9 @@ MAX_BODY = 64 * 1024
 # 뿌리를 열면 가는 곳. 파일 이름이 아니라 `artifacts`가 선언한 **키**를 적는다 —
 # 파일 이름을 여기 적으면 렌더러가 이름을 바꿀 때 조용히 끊긴다.
 LANDING_ARTIFACT = "gtFixesReport"
+# 첫 화면 — GT 개선 과제 목록. 고정된 파일 한 장이고 과제를 모른다: 목록과 수는 /gt-tasks(JSON)에서 읽는다.
+# 서버가 화면을 그리지 않는다는 선은 그대로다 — 이 파일을 보내고, 수는 엔진의 status와 같은 함수가 센다.
+HOME_PAGE = Path(__file__).resolve().parent.parent / "templates" / "gt-home.html"
 
 MIME = {
     ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -244,6 +248,36 @@ class Handler(BaseHTTPRequestHandler):
             raise DecisionRejected("본문은 객체여야 합니다.")
         return body
 
+    def export_field_list(self) -> None:
+        """화면의 «반영해줘» — 원장에서 정정 목록을 만든다(CLI `export`와 같은 함수). 원본 GT는 건드리지 않는다.
+        서버가 쓰는 것은 원장의 파생물(정정·확인 목록과 그 표지)뿐이고, 쓰는 일은 기록 함수(`gt_decisions.export`)가 한다."""
+        try:
+            body = self.read_submission()
+            wanted = str(body.get("task") or "")
+            attribute = next((item for item in scan() if item.id == wanted and item.profile.get("gtTask")), None)
+            if attribute is None:
+                raise FieldDecisionRejected(f"GT 개선 과제를 찾지 못했습니다: {wanted}")
+            # 원본이 다른 원천(시트)에서 다시 만들어지는 과제는 목록을 «건넸다»는 기록이 남는다 — 화면 버튼으로는 미리 보기만 한다.
+            # 붙여 넣을 Excel 목록은 Claude가 «반영해줘»로 만들어 연다.
+            upstream = bool(((attribute.profile.get("gtTask") or {}).get("gt") or {}).get("upstream"))
+            summary = export_fields(attribute.profile, record_handout=not upstream)
+            lines = []
+            listing = project_path(summary["files"]["corrections.jsonl"])
+            for raw in listing.read_text(encoding="utf-8").splitlines() if listing.is_file() and not upstream else []:
+                if raw.strip():
+                    item = json.loads(raw)
+                    if not item.get("applied"):
+                        lines.append({"key": item.get("id"), "field": item.get("field"), "before": item.get("before"),
+                                      "after": item.get("after"), "reviewer": item.get("reviewer")})
+        except (FieldDecisionRejected, DecisionRejected) as rejected:
+            return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
+        except (TaskError, OSError, ValueError, KeyError) as error:
+            self.log_message("gt-export 설정 문제: %s", error)
+            return self.send_json({"ok": False, "error": "목록을 만들지 못했습니다 — Claude에게 «반영해줘»라고 말해 주세요."},
+                                  HTTPStatus.INTERNAL_SERVER_ERROR)
+        keep = ("corrections", "alreadyApplied", "confirmations", "thisBatch", "linesToChange", "outOfPolicy", "stale", "upstream")
+        return self.send_json({"ok": True, "summary": {name: summary.get(name) for name in keep}, "lines": lines[:200]})
+
     def decide_field(self) -> None:
         """GT 개선 과제의 칸 하나. `/decide`와 같은 선을 지킨다 — JSON만, 로컬 출처만,
         규격은 기록기(`gt_decisions.record`)가 정한다. 서버는 원장 말고 아무것도 쓰지 않는다."""
@@ -310,6 +344,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if (parsed.path.rstrip("/") or "/") == "/gt-decide":
             return self.decide_field()
+        if (parsed.path.rstrip("/") or "/") == "/gt-export":
+            return self.export_field_list()
         if (parsed.path.rstrip("/") or "/") != "/decide":
             return self.fail(HTTPStatus.NOT_FOUND, "그런 자리는 없습니다.")
 
@@ -373,6 +409,17 @@ class Handler(BaseHTTPRequestHandler):
         if not found:
             return self.fail(HTTPStatus.NOT_FOUND, "프로필을 찾지 못했습니다.")
 
+        if route == "/" and HOME_PAGE.is_file() and any(item.profile.get("gtTask") for item in found):
+            # GT 개선 과제가 있으면 첫 화면은 과제 목록이다. 감사 사이클의 화면은 목록 아래 «이 목록 밖의 GT»에서 /audit로 간다.
+            return self.send(HOME_PAGE.read_bytes(), "text/html; charset=utf-8")
+
+        if route == "/gt-tasks":
+            try:
+                return self.send_json(home_rows())
+            except (TaskError, OSError, ValueError) as error:
+                self.log_message("gt-tasks 설정 문제: %s", error)
+                return self.send_json({"ok": False, "error": "과제 목록을 읽지 못했습니다."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
         if route.startswith("/f/"):
             _, _, rest = route[3:].partition("/")
             wanted = route[3:].split("/", 1)[0]
@@ -424,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
             item = next((entry for entry in found if entry.id == wanted and entry.profile.get("gtTask")), None)
             if item is None:
                 return self.send_json({"ok": False, "error": f"GT 개선 과제를 찾지 못했습니다: {wanted}"}, HTTPStatus.NOT_FOUND)
-            latest = effective_field_decisions(read_field_ledger(item.profile))
+            latest = current_field_answers(item.profile)
             # 화면에 있는 칸의 지금 GT 값. 화면을 그린 뒤 원본이 바뀐 칸을 화면이 알아보게 한다 —
             # 모르면 사람은 «새로고침»만 되풀이한다(화면의 값은 준비할 때 굳었으므로).
             current: dict[str, Any] = {}
@@ -442,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
                                 current[name] = gt_value(task, fields[cell["field"]], rows[entry["key"]])
                             answered[name] = answered_on_page(
                                 latest.get((entry["key"], cell["field"])), current.get(name, cell.get("current")),
-                                review.get("batchId"), "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))
+                                review.get("batchId"), reasked(cell))
                 except (ValueError, OSError):
                     current = {}
             # 지금 배치. 열어 둔 옛 탭이 «새 화면이 있다»를 알게 한다 — 모르면 옛 탭에서 계속 답하고 다 했다고 여긴다.
@@ -469,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
             })
 
         # 선언된 산출물 아무거나 여는 자리. 뿌리도 이 길을 쓴다.
-        key = LANDING_ARTIFACT if route == "/" else (query.get("k") or [""])[0] if route == "/r" else None
+        key = LANDING_ARTIFACT if route in ("/", "/audit") else (query.get("k") or [""])[0] if route == "/r" else None
         if key is None:
             return self.fail(HTTPStatus.NOT_FOUND, f"그런 화면은 없습니다: {route}")
         location = artifact_location(attribute, key)

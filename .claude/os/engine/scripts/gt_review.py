@@ -42,11 +42,14 @@ from pathlib import Path
 from typing import Any
 
 from catalog_profile import PROJECT_ROOT, discover_profiles, load_profile, output_root, relative_or_absolute
-from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page, apply, definition_gaps, effective, export,
+from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page, apply, current_answers, reasked, definition_gaps, effective, export,
                           locked, read_ledger, record)
 from gt_images import ImageIndex, prepare as prepare_evidence, require_pillow
+from gt_review_render import call_name, change_moment, flow_steps
 from gt_task import (
     authority,
+    definition_policy,
+    next_rule_id,
     gt_source,
     SIGNALS,
     TaskError,
@@ -55,7 +58,10 @@ from gt_task import (
     check_one_ledger,
     field_map,
     group_items,
+    MANY_SEPARATOR,
     gt_value,
+    in_range,
+    is_many,
     ledger_targets,
     load_gt,
     load_task,
@@ -208,19 +214,19 @@ def shown_cells(root: Path) -> dict[tuple[str, str, str | None], int]:
 def skipped_on_screen(profile: dict[str, Any], root: Path) -> list[dict[str, Any]]:
     """지금 화면에서 사람이 답하지 않은 칸 — 새 배치로 넘어가기 전에 적어 두면 다음 화면이 다른 건부터 보인다."""
     review = read_json(root / "review.json") or {}
-    latest = effective(read_ledger(profile))
+    latest = current_answers(profile)
     batch = review.get("batchId")
     return [{"key": cell["key"], "field": cell["field"], "gtValue": cell.get("current"), "batchId": batch}
             for item in review.get("items") or [] for cell in item.get("cells") or []
             if not answered_on_page(latest.get((cell["key"], cell["field"])), cell.get("current"), batch,
-                                    "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))]
+                                    reasked(cell))]
 
 
 def cmd_tasks(_: argparse.Namespace) -> int:
     rows = []
     for profile in task_profiles():
         task = profile["gtTask"]
-        latest = effective(read_ledger(profile))
+        latest = current_answers(profile)
         rows.append({
             "task": profile["id"],
             "name": profile.get("displayName"),
@@ -236,7 +242,7 @@ def cmd_tasks(_: argparse.Namespace) -> int:
     other_doors = [
         {"profile": profile["id"], "name": profile.get("displayName"), "attribute": profile.get("attributeName"),
          "subject": profile.get("subjectName"),
-         "door": "감사 사이클의 GT 정정 화면(http://127.0.0.1:7391/)에서 조서마다 판정"}
+         "door": "감사 사이클의 GT 정정 화면(http://127.0.0.1:7391/audit?a=" + profile["id"] + ")에서 조서마다 판정"}
         for profile in all_profiles() if profile.get("gt") and not profile.get("gtTask")
     ]
     print(json.dumps({"tasks": rows, "otherDoors": other_doors, "brokenProfiles": broken_profiles()},
@@ -270,7 +276,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         return reread(profile, task, root)
     run_root = output_root(profile)
     gt_rows = load_gt(profile, task)
-    found, counts = candidates(task, gt_rows, effective(read_ledger(profile)), blind=blind_cells(root))
+    found, counts = candidates(task, gt_rows, current_answers(profile), blind=blind_cells(root))
     skipped = [] if args.key else skipped_on_screen(profile, root)
     shown = shown_cells(root)
     latest_turn = max(shown.values(), default=0) + 1  # 지금 넘기는 칸은 파일의 어느 줄보다 뒤다
@@ -293,7 +299,7 @@ def cmd_prepare(args: argparse.Namespace) -> int:
         definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
         # 답이 원본에 들어간 칸은 신호가 없어 alreadyDecided에 안 센다 — 원장에 확정 판정이 있으면 «모두 답함»이다.
         answered = (counts.get("alreadyDecided") or 0) or any(
-            entry.get("decision") in SETTLED for entry in effective(read_ledger(profile)).values())
+            entry.get("decision") in SETTLED for entry in current_answers(profile).values())
         note = ("볼 칸이 없습니다 — 남은 후보를 모두 답했습니다." if answered else
                 f"볼 칸이 없습니다 — 요청한 키({', '.join(args.key)})에는 남은 후보가 없습니다." if args.key else
                 "볼 칸이 없습니다 — 이 설정으로는 걸리는 칸이 하나도 없습니다. 개발자에게 설정(등급 패턴)을 봐 달라고 전해 주세요.")
@@ -336,7 +342,7 @@ def _prepare_batch(args: argparse.Namespace, profile: dict[str, Any], task: dict
                    items: list[dict[str, Any]], limit: int, index: ImageIndex, batch: str, generated: str) -> int:
     fields = field_map(task)
     prepared: list[dict[str, Any]] = []
-    ledger = effective(read_ledger(profile))
+    ledger = current_answers(profile)
     for item in items[: limit if limit > 0 else None]:
         # 사람 화면의 사진은 images/에. 판독자 몫은 emit_workflow_args가 reader/에 따로 복사한다.
         evidence = prepare_evidence(index, gt_rows[item["key"]], item["key"], root / "images", run_root, batch)
@@ -532,14 +538,17 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         "items": [{"id": item["id"], "fields": [cell["field"] for cell in item["cells"]],
                    # 후보가 아닌 칸 — 판독이 확신 있게 GT와 다를 때만 반론을 부른다(화면의 BLIND_DISAGREES).
                    "quietFields": [cell["field"] for cell in item.get("quiet") or []],
-                   # 판독자가 필드 칸에 한국어 이름을 적으면 id로 되돌리는 표. 이름은 GT 값이 아니다.
-                   "fieldNames": {fields[cell["field"]].get("name") or cell["field"]: cell["field"] for cell in _all_cells(item)},
-                   # 반론자에게 GT·판독 값을 «이름 (코드)»로 건네려고. 코드만 주면 반론 문장에 코드가 그대로 샌다.
-                   "labelNames": {cell["field"]: fields[cell["field"]].get("labelNames") or {} for cell in _all_cells(item)},
-                   # 허용값 — 허용값 밖의 판독(화면에서는 «AI가 확신 못 함»)에는 반론을 부르지 않는다.
-                   "labels": {cell["field"]: [str(label) for label in fields[cell["field"]]["labels"]] for cell in _all_cells(item)},
-                   "many": {cell["field"]: fields[cell["field"]].get("cardinality") == "many" for cell in _all_cells(item)},
                    "images": len(item["images"])} for item in items],
+        # 필드 설명은 과제 전체에 한 번만 — 건마다 되풀이하면 60건 배치의 인자가 100KB를 넘는다(워크플로우가 건마다 합친다).
+        "common": {
+            # 판독자가 필드 칸에 한국어 이름을 적으면 id로 되돌리는 표. 이름은 GT 값이 아니다.
+            "fieldNames": {spec.get("name") or fid: fid for fid, spec in fields.items()},
+            # 반론자에게 GT·판독 값을 «이름 (코드)»로 건네려고. 코드만 주면 반론 문장에 코드가 그대로 샌다.
+            "labelNames": {fid: spec.get("labelNames") or {} for fid, spec in fields.items()},
+            # 허용값 — 허용값 밖의 판독(화면에서는 «AI가 확신 못 함»)에는 반론을 부르지 않는다.
+            "labels": {fid: [str(label) for label in spec["labels"]] for fid, spec in fields.items()},
+            "many": {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()},
+        },
         "worklist": relative_or_absolute(root / "worklist.json"),
     }
     # 파일에는 GT 값도 판독 파일 이름도 없이 남긴다(무엇을 돌렸는지 되짚는 용도). 둘 다 아래 표준 출력에만 있다.
@@ -576,23 +585,23 @@ def reread(profile: dict[str, Any], task: dict[str, Any], root: Path) -> int:
     else:
         # 판독이 돌아오지 않은 칸, 그리고 판독은 왔는데 반론이 돌아오지 않은 칸 — 둘 다 다시 읽는다.
         # 사람이 이미 답한 칸은 다시 읽지 않는다(답이 남아 있으니 AI를 다시 부를 까닭이 없다).
-        latest = effective(read_ledger(profile))
+        latest = current_answers(profile)
         batch = review.get("batchId")
         unread = {item["id"] for item in review.get("items") or []
                   if any((cell["status"] == "NOT_READ" or cell.get("noDefense"))
                          and not answered_on_page(latest.get((cell["key"], cell["field"])), cell.get("current"), batch,
-                                                  "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))
+                                                  reasked(cell))
                          for cell in item.get("cells") or [])}
     # 저장된 옛 경고가 아니라 지금 규칙으로 다시 셈한다 — 화면(render)이 보이는 경고와 같은 목록이어야 한다.
     # 한국어가 아닌 건도 사람이 이미 모든 칸에 답했으면 다시 읽지 않는다 — 위의 «못 읽음» 가지와 같은 규칙.
     if sweep.get("items"):
-        latest_now = effective(read_ledger(profile))
+        latest_now = current_answers(profile)
         page = {item["id"]: item for item in review.get("items") or []}
         for item_id in sweep_warnings(profile, sweep)["notKorean"]:
             cells = (page.get(item_id) or {}).get("cells") or []
             if not cells or any(not answered_on_page(latest_now.get((cell["key"], cell["field"])), cell.get("current"),
                                                      review.get("batchId"),
-                                                     "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))
+                                                     reasked(cell))
                                 for cell in cells):
                 unread.add(item_id)
     items = [item for item in worklist["items"] if item["id"] in unread and not item.get("noEvidence")]
@@ -658,7 +667,8 @@ def sweep_warnings(profile: dict[str, Any], value: dict[str, Any]) -> dict[str, 
     return {"notKorean": korean_warnings(value, jargon, codes)}
 
 
-def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, Any]) -> None:
+def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, Any],
+                       task_fields: list[dict[str, Any]] | None = None) -> None:
     """GT를 모르는 눈이 GT와 같은 값을 확신 있게 낸 칸을 적어 둔다. 원장이 아니다 — 다음 준비의 순서에만 쓴다."""
     path = root / "agreed.jsonl"
     known = agreed_cells(root)
@@ -668,8 +678,10 @@ def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, An
     # 모순을 놓쳤다는 뜻이다 — 적으면 1순위 모순이 «이미 합의»로 맨 뒤에 밀린다.
     urgent = {(item["id"], cell["field"]) for item in worklist["items"] for cell in item["cells"]
               if {"GT_SELF_CONTRADICTION", "GT_OUT_OF_RANGE"} & set(cell.get("signals") or [])}
-    many = {field["id"] for field in worklist.get("fields") or [] if field.get("cardinality") == "many"}
-    labels = {field["id"]: {str(label) for label in field.get("labels") or []} for field in worklist.get("fields") or []}
+    # 허용값은 지금 정책에서 — 화면(render)과 같은 목록으로 «같은 값»을 가른다.
+    policy_fields = task_fields if task_fields is not None else worklist.get("fields") or []
+    many = {field["id"] for field in policy_fields if field.get("cardinality") == "many"}
+    labels = {field["id"]: {str(label) for label in field.get("labels") or []} for field in policy_fields}
     lines = []
     for item in sweep.get("items") or []:
         values: dict[str, set[str]] = {}
@@ -746,7 +758,7 @@ def cmd_finish(args: argparse.Namespace) -> int:
             value = {**value, "items": list(merged.values())}
         value["warnings"] = sweep_warnings(profile, value)
         write_json_atomic(root / "sweep-raw.json", value)
-        remember_agreement(root, current, value)
+        remember_agreement(root, current, value, load_task(profile)["fields"])
     args.sweep = None
     return cmd_render(args)
 
@@ -768,7 +780,7 @@ def cmd_render(args: argparse.Namespace) -> int:
         raise TaskError("판독 결과가 지금 작업 목록의 배치와 다릅니다. 두 실행을 섞지 않습니다.")
     if sweep is not None:
         sweep["warnings"] = sweep_warnings(profile, sweep)  # 저장된 옛 경고가 아니라 지금 규칙으로
-    written = render(profile, worklist, sweep, read_ledger(profile), root)
+    written = render(profile, worklist, sweep, list(current_answers(profile).values()), root)
     if not written:
         raise TaskError("새 배치가 준비돼 이 결과는 화면에 올리지 않았습니다 — 새 배치의 판독을 기다려 주세요.")
     for path in written:
@@ -783,7 +795,9 @@ def cmd_record(args: argparse.Namespace) -> int:
     if args.expect is None and not args.expect_empty:
         raise TaskError("사람이 본 지금 GT 값을 --expect로(빈칸이면 --expect-empty) 함께 적어야 합니다.")
     worklist = read_json(review_root(profile) / "worklist.json") or {}
-    entry = record(profile, args.key, args.field, args.decision, args.reviewer, args.value, args.reason or "",
+    # AI의 물음에 말로 답한 판정 — 화면의 버튼처럼 그 물음을 함께 남긴다. 그래야 `qa`가 정책 문답으로 옮길 수 있다.
+    proposal = {"ask": {"question": args.ask.strip(), "here": ""}} if (args.ask or "").strip() else None
+    entry = record(profile, args.key, args.field, args.decision, args.reviewer, args.value, args.reason or "", proposal,
                    expected_before=None if args.expect_empty else args.expect,
                    channel="spoken", batch=worklist.get("batchId"), gap=args.gap)
     print(json.dumps(entry, ensure_ascii=False, indent=2))
@@ -816,6 +830,302 @@ def _screen_counts(profile: dict[str, Any]) -> dict[str, Any]:
     return {name: status.get(name) for name in ("waitingForHuman", "notRead", "holdsUnconfirmed")}
 
 
+def handoff_state(profile: dict[str, Any]) -> dict[str, int]:
+    """고친 판정 가운데 아직 원본 쪽으로 넘어가지 않은 수 — 첫 화면이 «반영해줘»를 권할지 가른다.
+    원본이 상류(시트)면 건넨 목록(handed-out.jsonl)에 아직 없는 정정, 파일이면 원본 값이 아직 고른 값이 아닌 정정."""
+    from gt_decisions import CHANGES, HANDOUT_LOG, gt_dir, load_gt_rows, read_jsonl_file
+
+    task = load_task(profile)
+    latest = current_answers(profile, task)
+    changes = [(cell, entry) for cell, entry in latest.items() if entry["decision"] in CHANGES]
+    if (task.get("gt") or {}).get("upstream"):
+        handed = {row["decisionId"] for row in read_jsonl_file(gt_dir(profile) / HANDOUT_LOG) if row.get("kind") == "correct"}
+        waiting = sum(1 for _, entry in changes if entry["decisionId"] not in handed)
+    else:
+        rows = dict(load_gt_rows(profile, task))
+        fields = field_map(task)
+        waiting = sum(1 for (key, field), entry in changes
+                      if key in rows and field in fields and gt_value(task, fields[field], rows[key]) != entry.get("after"))
+    return {"changesRecorded": len(changes), "toHandOff": waiting}
+
+
+def home_rows() -> dict[str, Any]:
+    """첫 화면(과제 목록)이 읽는 것. 수는 `status_of`가 센 그대로다 — 화면·스킬·목록이 한 셈을 쓴다.
+    아무것도 쓰지 않는다. 과제를 모른다 — 이름·필드·원본 자리는 전부 프로필에서 온다."""
+    rows = []
+    for profile in task_profiles():
+        task = profile["gtTask"]
+        spec = task.get("gt") or {}
+        upstream = spec.get("upstream") or {}
+        try:
+            status = status_of(profile)
+            status.update(handoff_state(profile))
+            problem = None
+        except (TaskError, OSError, ValueError) as error:
+            status, problem = {}, str(error)
+        source = resolve(profile, spec) if spec.get("path") else None
+        # 원본이 어디에 있고 판정이 어디로 가는가 — 운영팀이 «반영해줘» 뒤에 무엇이 일어날지 미리 안다.
+        home = ("upstream" if upstream else
+                "repo" if source is not None and _inside_project(source) else "file")
+        rows.append({
+            "task": profile["id"],
+            "name": call_name(profile),
+            "steps": flow_steps(profile),
+            "changeMoment": change_moment(profile),
+            "subject": profile.get("subjectName"),
+            "attribute": profile.get("attributeName"),
+            "fields": [field.get("name") or field["id"] for field in task.get("fields") or []],
+            "gtHome": home,
+            "gtHomeNote": upstream.get("note"),
+            "problem": problem,
+            **{name: status.get(name) for name in (
+                "prepared", "preparing", "failed", "preparedAt", "page", "remainingItems", "waitingForHuman",
+                "holdsUnconfirmed", "alternativesUnconfirmed", "notRead", "staleOnPage", "heldOnThisPage", "decisions",
+                "answeredOnPage", "holdsItems", "changesRecorded", "toHandOff")},
+        })
+    other_doors = [{"profile": profile["id"], "name": profile.get("displayName"), "subject": profile.get("subjectName"),
+                    "attribute": profile.get("attributeName")}
+                   for profile in all_profiles() if profile.get("gt") and not profile.get("gtTask")]
+    return {"tasks": rows, "otherDoors": other_doors, "brokenProfiles": broken_profiles()}
+
+
+def _inside_project(path: Path) -> bool:
+    try:
+        path.resolve().relative_to(PROJECT_ROOT)
+        return True
+    except ValueError:
+        return False
+
+
+def values_of(profile: dict[str, Any], only: str | None = None) -> dict[str, Any]:
+    """정책의 값마다 GT 칸 수·판정 수·프로필에서 쓰인 자리. 값을 빼거나 이름을 바꾸기 전에 «무엇이 따라 움직이나»를 본다.
+    아무것도 쓰지 않는다. GT 값은 legacy를 거친 뒤로 센다 — 옛 코드는 새 코드에 합쳐 센다."""
+    task = load_task(profile)
+    rows = load_gt(profile, task)
+    latest = current_answers(profile, task)
+    fields = [field for field in task["fields"] if only in (None, field["id"])]
+    if not fields:
+        raise TaskError(f"이 과제에 {only} 필드가 없습니다 — {', '.join(field['id'] for field in task['fields'])}")
+    report = []
+    for field in fields:
+        counts: dict[str, int] = {}
+        for row in rows.values():
+            value = gt_value(task, field, row)
+            for part in (value.split(MANY_SEPARATOR) if value and is_many(field) else [value] if value else []):
+                counts[part] = counts.get(part, 0) + 1
+        mine = [entry for (key, name), entry in latest.items() if name == field["id"]]
+        used = {label: [] for label in field["labels"]}
+        for old, new in (field.get("legacy") or {}).items():
+            used.setdefault(new, []).append(f"legacy {old}→{new}")
+        if field.get("unknownLabel"):
+            used.setdefault(field["unknownLabel"], []).append("unknownLabel")
+        for constraint in task.get("constraints") or []:
+            for part in ("when", "require", "forbid"):
+                wanted = (constraint.get(part) or {}).get(field["id"])
+                for value in (wanted if isinstance(wanted, list) else [wanted] if wanted else []):
+                    used.setdefault(str(value), []).append(f"constraints {constraint.get('id')}.{part}")
+        report.append({
+            "field": field["id"], "name": field.get("name"),
+            "values": [{"code": label, "name": field["labelNames"].get(label), "gtCells": counts.get(label, 0),
+                        "correctedTo": sum(1 for entry in mine if entry["decision"] == "CORRECT" and entry.get("after") == label),
+                        "keptAs": sum(1 for entry in mine if entry["decision"] == "CONFIRM" and entry.get("before") == label),
+                        "usedInProfile": used.get(label) or []}
+                       for label in field["labels"]],
+            "notInPolicy": {value: count for value, count in sorted(counts.items()) if not in_range(field, value)},
+        })
+    return {"task": profile["id"], "fields": report}
+
+
+def cmd_values(args: argparse.Namespace) -> int:
+    print(json.dumps(values_of(find_profile(args.task), args.field), ensure_ascii=False, indent=2))
+    return 0
+
+
+# 규칙 — 사람이 AI의 물음에 답한 판정을 정책(정의 문서)의 그 칸 절 `### 규칙`으로 옮긴다. 정본은 사람이 확인한 **규칙 문장**이고
+# AI의 물음은 그 규칙의 출처(`물음:`)로 남는다 — «물음 → 답»은 이번 상품에 붙은 말이라 다음 판독자에게 경계가 흐리다.
+# 옮긴 규칙은 다음 판독자가 칸 절째로 읽는다. 대체된 규칙은 `## 보관`으로 옮겨 칸 절에는 적용 중인 규칙만 남는다.
+# 옮기는 일은 사람이 고른 판정(`--add`)과 사람이 확인한 문장(`--rule`)으로, `--yes`가 있을 때만 한다. 서버는 부르지 않는다.
+def _definitions_path(profile: dict[str, Any]) -> Path:
+    spec = profile.get("gtTask") or {}
+    return resolve(profile, {"path": spec["definitions"], "root": spec.get("definitionsRoot") or "project"})
+
+
+def _policy(profile: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
+    return definition_policy(_definitions_path(profile), {f["id"]: [str(c) for c in f["labels"]] for f in task["fields"]},
+                             {f["id"]: f.get("cardinality") == "many" for f in task["fields"]})
+
+
+def qa_candidates(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """AI의 물음(`basedOn.ask`)을 보고 사람이 답한 판정. 칸마다 지금 유효한 판정 하나만 — 바꾼 답의 옛 줄은 옮기지 않는다."""
+    task = load_task(profile)
+    fields = {field["id"]: field for field in task["fields"]}
+    policy = _policy(profile, task)
+    asked_in_policy = {(rule["field"], rule.get("물음")) for rule in
+                       [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"]] if rule.get("물음")}
+    rows = []
+    for (key, field_id), entry in effective(read_ledger(profile)).items():
+        ask = (entry.get("basedOn") or {}).get("ask") or {}
+        if not ask.get("question") or entry["decision"] not in ("CORRECT", "CONFIRM"):
+            continue
+        field = fields.get(field_id) or {}
+        value = entry["after"] if entry["decision"] == "CORRECT" else entry["before"]
+        rows.append({
+            "decisionId": entry["decisionId"], "key": key, "field": field_id, "fieldName": field.get("name") or field_id,
+            "question": ask["question"], "here": ask.get("here") or "",
+            "answer": value, "answerName": _value_name(field, value), "reviewer": entry.get("reviewer"),
+            "inPolicy": (field_id, ask["question"]) in asked_in_policy,
+        })
+    return sorted(rows, key=lambda row: (row["field"], row["question"], row["key"]))
+
+
+def _value_name(field: dict[str, Any], value: Any) -> str:
+    names = field.get("labelNames") or {}
+    return " + ".join(names.get(part, part) for part in str(value or "").split("|") if part) or "(빈칸)"
+
+
+def _section_span(text: str, name: str) -> tuple[int, int] | None:
+    heads = list(re.finditer(r"^##\s+(.+?)\s*$", text, re.M))
+    for n, head in enumerate(heads):
+        if head.group(1).strip() == name:
+            return head.start(), heads[n + 1].start() if n + 1 < len(heads) else len(text)
+    return None
+
+
+def _append_to_block(text: str, section: str, block_head: str | None, lines: list[str]) -> str:
+    """`## section` 안(`block_head`가 있으면 그 `###` 목록 끝)에 줄을 붙인다. 없으면 만든다(절은 문서 끝에)."""
+    span = _section_span(text, section)
+    chunk = "\n".join(lines)
+    if span is None:
+        body = f"## {section}\n\n" + (f"{block_head}\n\n" if block_head else "") + chunk + "\n"
+        return text.rstrip("\n") + "\n\n" + body
+    start, end = span
+    body = text[start:end]
+    if block_head:
+        head = re.search(rf"^{re.escape(block_head)}\s*$", body, re.M)
+        if not head:
+            return text[:start] + body.rstrip("\n") + f"\n\n{block_head}\n\n{chunk}\n\n" + text[end:]
+        rest = body[head.end():]
+        cut = re.search(r"^###\s", rest, re.M)
+        stop = head.end() + (cut.start() if cut else len(rest))
+        tail = body[stop:]
+        body = body[:stop].rstrip("\n") + "\n" + chunk + "\n" + ("\n" + tail.lstrip("\n") if tail.strip() else "\n")
+        return text[:start] + body + text[end:]
+    return text[:start] + body.rstrip("\n") + "\n" + chunk + "\n" + ("\n" if text[end:].strip() else "") + text[end:]
+
+
+def _remove_rule(text: str, field_id: str, rule_id: str) -> tuple[str, list[str]]:
+    """칸 절의 `### 규칙`에서 규칙 한 건(딸린 줄 포함)을 떼어 낸다. 뗀 줄을 돌려준다(보관으로 옮긴다)."""
+    span = _section_span(text, field_id)
+    body = text[span[0]:span[1]]
+    lines = body.split("\n")
+    for n, line in enumerate(lines):
+        if line.startswith(f"- `{rule_id}` "):
+            m = n + 1
+            while m < len(lines) and re.match(r"^\s{2,}- ", lines[m]):
+                m += 1
+            taken = lines[n:m]
+            body = "\n".join(lines[:n] + lines[m:])
+            return text[:span[0]] + body + text[span[1]:], taken
+    raise DecisionRejected(f"`## {field_id}`의 규칙에 {rule_id}가 없습니다 — 대체할 규칙 ID를 확인해 주세요.")
+
+
+def _categories(profile: dict[str, Any], keys: list[str]) -> dict[str, str]:
+    """근거 키의 맥락(상품 카테고리 같은) — 지금 화면(review.json)에 있을 때만. 범위 이름이 근거와 맞는지 볼 때 쓴다."""
+    review = read_json(review_root(profile) / "review.json") or {}
+    found = {}
+    for item in review.get("items") or []:
+        if item.get("key") in keys:
+            found[item["key"]] = " › ".join(str(v) for v in (item.get("context") or {}).values())
+    return found
+
+
+def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer: str, confirm: bool,
+           scope: str | None = None, replace: str | None = None) -> dict[str, Any]:
+    """고른 판정을 규칙 한 건으로 정책에 옮긴다. 한 번에 규칙 하나 — 같은 칸·같은 답의 판정만 묶는다.
+    답이 갈린 판정을 한 규칙으로 묶지 않는다(정책이 스스로 모순된다)."""
+    reviewer, rule = (reviewer or "").strip(), (rule or "").strip()
+    if not reviewer:
+        raise DecisionRejected("누가 정책에 넣기로 했는지 이름을 적어 주세요(--reviewer).")
+    task = load_task(profile)
+    wanted = set(decision_ids)
+    picked = [row for row in qa_candidates(profile) if row["decisionId"] in wanted]
+    missing = sorted(wanted - {row["decisionId"] for row in picked})
+    if missing:
+        raise DecisionRejected(f"AI 물음에 답한 유효한 판정이 아닙니다: {', '.join(missing)} — `qa --task`로 목록을 보세요.")
+    if len({row["field"] for row in picked}) > 1:
+        raise DecisionRejected("한 번에 한 칸의 규칙 하나만 넣습니다 — 칸이 다른 판정은 따로 넣어 주세요.")
+    answers = {str(row["answer"]) for row in picked}
+    if len(answers) > 1:
+        raise DecisionRejected(f"고른 판정의 답이 갈렸습니다: {', '.join(sorted(answers))} — 한 답끼리만 골라 주세요.")
+    if not rule:
+        asked = " / ".join(dict.fromkeys(row["question"] for row in picked))
+        raise DecisionRejected(f"정책에 넣을 규칙 문장을 --rule로 주세요. 물음: {asked} → 답: {picked[0]['answerName']}. "
+                               "이 상품을 떠나서도 통하는 한 문장으로, 사람이 확인한 문장이어야 합니다.")
+    field_id, first = picked[0]["field"], picked[0]
+    if ((profile.get("gtTask") or {}).get("definitionsRoot") or "project") != "project":
+        raise DecisionRejected("정의 문서가 이 저장소 밖에 있습니다 — 그 저장소에서 고쳐 주세요.")
+    keys = list(dict.fromkeys(row["key"] for row in picked))
+    notes = []
+    if scope:
+        seen = _categories(profile, keys)
+        names = [name.strip() for name in scope.split(",") if name.strip()]
+        for key in keys:
+            path = seen.get(key)
+            if path is None:
+                notes.append(f"{key}의 카테고리를 지금 화면에서 찾지 못해 범위를 대조하지 못했습니다.")
+            elif not any(name in [part.strip() for part in re.split(r"[›>]", path)] for name in names):
+                raise DecisionRejected(f"범위 «{scope}»가 근거 {key}의 카테고리({path})의 어느 마디와도 맞지 않습니다.")
+    path = _definitions_path(profile)
+    policy = _policy(profile, task)
+    rule_id = next_rule_id(policy, field_id)
+    today = datetime.now(timezone.utc).date().isoformat()
+    lines = [f"- `{rule_id}` {rule} → `{first['answer']}`",
+             f"  - 물음: {first['question']}",
+             f"  - 출처: 검수 문답 · {today} · {reviewer} · {', '.join(row['decisionId'] for row in picked)}"]
+    if scope:
+        lines.append(f"  - 범위: {scope}")
+    lines.append(f"  - 근거: {', '.join(keys)}")
+    original = path.read_text(encoding="utf-8")
+    version = re.search(r"^version:\s*(\d+)\s*$", original, re.M)
+    new_version = int(version.group(1)) + 1 if version else None
+    history = (f"- {today} · " + (f"v{new_version} · " if new_version else "") + f"{first['fieldName']} {rule_id} 추가"
+               + (f", {replace} 대체" if replace else "") + f"({reviewer}) — 근거: {', '.join(keys)}")
+    plan = {"definitions": relative_or_absolute(path), "rule": lines, "replaces": replace, "history": history,
+            "notes": notes, "applied": False}
+    text = original
+    if replace:
+        text, taken = _remove_rule(text, field_id, replace)
+        taken[0] = taken[0].replace(f"- `{replace}` ", f"- `{field_id}/{replace}` ", 1)
+        plan["archive"] = taken + [f"  - 대체: {rule_id} · {today} · {reviewer}"]
+    if not confirm:
+        return plan
+    text = _append_to_block(text, field_id, "### 규칙", lines)
+    if replace:
+        text = _append_to_block(text, "보관", None, plan["archive"])
+    text = _append_to_block(text, "변경 이력", None, [history])
+    if new_version:
+        text = re.sub(r"^version:\s*\d+\s*$", f"version: {new_version}", text, count=1, flags=re.M)
+    text = re.sub(r"^updatedAt:.*$", f"updatedAt: {today}", text, count=1, flags=re.M)
+    path.write_text(text, encoding="utf-8")
+    try:
+        # 넣은 뒤 정책 전체를 다시 읽는다 — 로더가 멈추는 모양이면 되돌린다.
+        load_task(profile)
+    except TaskError:
+        path.write_text(original, encoding="utf-8")
+        raise
+    plan["applied"] = True
+    return plan
+
+
+def cmd_qa(args: argparse.Namespace) -> int:
+    profile = find_profile(args.task)
+    if args.add:
+        print(json.dumps(qa_add(profile, args.add, args.rule or "", args.reviewer or "", args.yes, args.scope, args.replace),
+                         ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps({"task": profile["id"], "answered": qa_candidates(profile)}, ensure_ascii=False, indent=2))
+    return 0
+
 def cmd_status(args: argparse.Namespace) -> int:
     print(json.dumps(status_of(find_profile(args.task)), ensure_ascii=False, indent=2))
     return 0
@@ -824,7 +1134,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def status_of(profile: dict[str, Any]) -> dict[str, Any]:
     """«얼마나 남았어»·과제 고르기가 읽는 수. 화면(/gt-decided·progress())과 같은 규칙으로 센다."""
     root = review_root(profile)
-    latest = effective(read_ledger(profile))
+    latest = current_answers(profile)
     worklist = read_json(root / "worklist.json") or {}
     status: dict[str, Any] = {
         "task": profile["id"],
@@ -857,7 +1167,7 @@ def status_of(profile: dict[str, Any]) -> dict[str, Any]:
         def answered(cell: dict[str, Any]) -> bool:
             # 화면과 같은 함수(answered_on_page). 보류는 **이 배치에서** 누른 것만 이 화면의 답이다.
             return answered_on_page(latest.get((cell["key"], cell["field"])), now(cell), batch,
-                                    "GT_SELF_CONTRADICTION" in (cell.get("signals") or []))
+                                    reasked(cell))
 
         def stale(cell: dict[str, Any]) -> bool:
             return now(cell) != cell.get("current") and not answered(cell)
@@ -872,8 +1182,9 @@ def status_of(profile: dict[str, Any]) -> dict[str, Any]:
                                        and (latest.get((cell["key"], cell["field"])) or {}).get("batchId") == batch)
         status["waitingForHuman"] = len(waiting)
         # AI가 GT와 같게 본 칸 가운데 아직 «유지»를 누르지 않은 칸. 할 일로 세지는 않지만, 둘 다 0이어야 «다 했다».
+        # AI가 GT와 같게 본 칸은 누를 것이 없다(화면이 그리지 않는다). 대체 정답을 낸 칸만 사람이 «지금 GT»를 골라야 한다.
         holds = [cell for item in review.get("items") or [] for cell in item.get("cells") or []
-                 if cell["status"] == "GT_HOLDS" and not answered(cell) and not stale(cell)]
+                 if cell["status"] == "GT_HOLDS" and cell.get("alternative") and not answered(cell) and not stale(cell)]
         status["holdsUnconfirmed"] = sum(1 for cell in holds if not cell.get("alternative"))
         # 대체 정답을 낸 칸 — 묶음 유지에서 빠지므로 칸마다 «지금 GT가 맞다»를 눌러야 한다.
         status["alternativesUnconfirmed"] = sum(1 for cell in holds if cell.get("alternative"))
@@ -882,6 +1193,10 @@ def status_of(profile: dict[str, Any]) -> dict[str, Any]:
         status["notRead"] = sum(1 for item in review.get("items") or [] for cell in item.get("cells") or []
                                 if (cell["status"] == "NOT_READ" or cell.get("noDefense"))
                                 and not answered(cell) and not stale(cell))  # 원본이 바뀐 칸은 다시 읽어도 이 화면에서 못 답한다
+        # 첫 화면이 «시작하기»와 «이어서»를 가르고, «유지»를 몇 번 눌러야 끝나는지(상품 수) 말하는 데 쓴다.
+        status["answeredOnPage"] = sum(1 for cell in cells if answered(cell))
+        status["holdsItems"] = sum(1 for item in review.get("items") or []
+                                   if False)  # 묶음 유지 버튼이 없어졌다 — 누를 횟수는 늘 0
     status["definitionGaps"] = definition_gaps(profile, latest)
     return status
 
@@ -916,11 +1231,25 @@ def main() -> int:
     rec.add_argument("--expect", help="사람이 본 지금 GT 값. 다르면 거절한다")
     rec.add_argument("--expect-empty", action="store_true", help="사람이 본 GT가 빈칸이었다")
     rec.add_argument("--gap", action="store_true", help="정의 문서가 다루지 않는 경계 위의 판정이다")
+    rec.add_argument("--ask", help="이 판정이 답한 AI의 물음(화면의 «AI가 묻는 것» 문장)")
     rec.set_defaults(run=cmd_record)
     for name, runner in (("export", cmd_export), ("status", cmd_status)):
         command = sub.add_parser(name)
         command.add_argument("--task", required=True)
         command.set_defaults(run=runner)
+    vals = sub.add_parser("values", help="정책의 값마다 GT 칸·판정 수 — 값을 빼거나 바꾸기 전에 본다. 아무것도 쓰지 않는다")
+    vals.add_argument("--task", required=True)
+    vals.add_argument("--field")
+    vals.set_defaults(run=cmd_values)
+    qa = sub.add_parser("qa", help="AI 물음에 사람이 답한 판정을 보고, 고른 것을 정책의 규칙으로 옮긴다")
+    qa.add_argument("--task", required=True)
+    qa.add_argument("--add", action="append", help="정책에 옮길 판정 ID(GTD-…). 반복 가능. 없으면 목록만 본다")
+    qa.add_argument("--reviewer", help="옮기기로 한 사람")
+    qa.add_argument("--rule", help="정책에 넣을 규칙 문장(사람이 확인한 것). 이 상품을 떠나서도 통하는 한 문장")
+    qa.add_argument("--scope", help="이 규칙이 걸리는 상품 카테고리 이름(쉼표로 여럿). 없으면 모든 상품")
+    qa.add_argument("--replace", help="이 규칙이 대체하는 같은 칸의 규칙 ID(R0 같은) — 보관으로 옮긴다")
+    qa.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇을 넣을지만 말한다")
+    qa.set_defaults(run=cmd_qa)
     app = sub.add_parser("apply")
     app.add_argument("--task", required=True)
     app.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")

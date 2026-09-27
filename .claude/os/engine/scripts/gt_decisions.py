@@ -75,6 +75,15 @@ SETTLED = ("CORRECT", "CONFIRM", "LEAVE_EMPTY", "CLEAR")
 CHANGES = ("CORRECT", "CLEAR")
 
 
+# 이 신호가 붙은 칸은 지난 답이 더 답이 아니다 — 그 화면(배치)에서 누른 답만 센다. 모순은 둘 중 하나가 틀렸다는 뜻이고,
+# 정책 변경은 사람이 고른 값이 허용값에서 빠졌다는 뜻이다.
+REASK_SIGNALS = frozenset({"GT_SELF_CONTRADICTION", "POLICY_CHANGED_SINCE_DECISION"})
+
+
+def reasked(cell: dict[str, Any]) -> bool:
+    return bool(REASK_SIGNALS & set(cell.get("signals") or []))
+
+
 def answered_on_page(entry: dict[str, Any] | None, current: str | None, batch: str | None,
                      contradicted: bool = False) -> bool:
     """이 화면에서 답한 칸인가 — 화면의 load()·서버가 그린 done과 status가 같은 규칙을 쓴다.
@@ -171,6 +180,13 @@ def _write_atomic(path: Path, text: str) -> None:
     finally:
         if os.path.exists(handle.name):
             os.unlink(handle.name)
+
+
+def current_answers(profile: dict[str, Any], task: dict[str, Any] | None = None) -> dict[tuple[str, str], dict[str, Any]]:
+    """칸마다 마지막 판정 — before·after를 지금 규칙(legacy)으로 읽은 것. 비교·셈은 이것으로 한다(원장 파일은 그대로)."""
+    from gt_task import read_through_legacy
+
+    return read_through_legacy(task or load_task(profile), effective(read_ledger(profile)))
 
 
 def effective(decisions: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
@@ -385,7 +401,7 @@ def _build(profile: dict[str, Any], task: dict[str, Any]) -> tuple[dict[str, Any
     source = resolve(profile, task["gt"])
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     rows = load_gt_rows(profile, task)
-    latest = effective(read_ledger(profile))
+    latest = current_answers(profile, task)
     by_key = dict(rows)
     keys = key_fields(task["keyField"])
     # 정정 출처 이름의 앞머리. 과제가 밝히지 않으면 과제 ID로 만든다 — 상류 하네스의 이름 규약을 엔진이 알지 않게.
@@ -402,6 +418,8 @@ def _build(profile: dict[str, Any], task: dict[str, Any]) -> tuple[dict[str, Any
     # 상류(검수 시트 같은)에서 이 줄을 찾는 열 — 시트 이름·칸 같은. 붙여 넣을 목록에 함께 싣는다.
     locators = [str(name) for name in upstream_spec.get("locatorFields") or []]
     orphaned: list[dict[str, Any]] = []
+    # 사람이 고른(또는 유지한) 값이 지금 정책의 허용값에 없다 — 정책에서 값을 뺐다. 넣지 않고 다시 묻는다.
+    out_of_policy: list[dict[str, Any]] = []
     for (key, field), entry in sorted(latest.items()):
         if entry["decision"] not in SETTLED:
             continue
@@ -414,6 +432,10 @@ def _build(profile: dict[str, Any], task: dict[str, Any]) -> tuple[dict[str, Any
         row = by_key[key]
         current = gt_value(task, spec, row)
         column = spec.get("gtField") or field
+        chosen = entry["after"] if entry["decision"] in CHANGES else entry["before"]
+        if chosen is not None and not in_range(spec, chosen):
+            out_of_policy.append({"key": key, "field": field, "decisionId": entry["decisionId"], "value": chosen})
+            continue
         # 이미 원본에 들어간 정정. 목록에는 «반영됨»으로 남긴다(무엇을 고쳤나는 원장에서 늘 다시 만들 수 있어야 한다).
         # 원본에 다시 얹지는 않는다.
         if entry["decision"] in CHANGES and current == entry["after"] and current != entry["before"]:
@@ -492,6 +514,7 @@ def _build(profile: dict[str, Any], task: dict[str, Any]) -> tuple[dict[str, Any
     summary = {
         "lastDecisionId": decisions[-1]["decisionId"] if decisions else None,
         "orphaned": orphaned,
+        "outOfPolicy": out_of_policy,
         "definitionGaps": gaps,
         "corrections": corrections,
         "confirmations": confirmations,
@@ -660,7 +683,7 @@ def _handout(profile: dict[str, Any], task: dict[str, Any], folder: Path,
               "listing": listing}
              for item in pending if ("correct", item["decisionId"]) not in known]
     # 되돌림 후보 — 칸마다 마지막으로 건넨 정정.
-    latest = effective(read_ledger(profile))
+    latest = current_answers(profile, task)
     rows = dict(load_gt_rows(profile, task))
     fields = field_map(task)
     last_listed: dict[tuple[str, str], dict[str, Any]] = {}
@@ -789,6 +812,8 @@ def export(profile: dict[str, Any], record_handout: bool = True) -> dict[str, An
             "locatorConflicts": sum(1 for item in [*pending, *reverts] if locator_conflict(task, item.get("locator"))) if upstream else 0,
             "stale": built["stale"],
             "orphaned": built["orphaned"],
+            # 사람이 고른 값을 정책에서 뺐다 — 넣지 않았고, 다음 화면에 다시 나온다.
+            "outOfPolicy": built["outOfPolicy"],
             "definitionGaps": built["definitionGaps"],
             "newColumns": built["newColumns"],
             "constraintViolationsAfter": built["constraintViolationsAfter"],

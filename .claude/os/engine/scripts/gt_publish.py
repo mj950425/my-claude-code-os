@@ -6,9 +6,11 @@ GT를 GitHub에서 관리한다 — 정답이 바뀐 이력은 커밋이 되고,
 그래서 브랜치를 바꾸거나 stash하지 않고, **임시 인덱스**로 «기준 브랜치 + 이 과제의 파일»만 담은 커밋을 만들어
 원격에 새 브랜치로 민다. 지금 브랜치·작업 트리·인덱스는 그대로다.
 
-올리는 파일은 둘뿐이다.
+올리는 파일:
 - GT 원본 — 프로필 `gtTask.gt`가 이 레포 안을 가리킬 때만(밖이면 그 레포 몫이라 올리지 않는다).
 - 판정 원장 폴더 `.claude/gt/<과제>/gt-review/` — 잠금 파일은 빼고.
+- 정책 — 정의 문서와 프로필이 기준 브랜치와 다를 때만. 허용값의 정본이 정의 문서라, 값을 빼거나 바꾼 정책 없이 GT만 올리면
+  PR의 GT는 기준 브랜치의 정책으로는 «허용값 밖»이 된다. 정책도 같이 사람이 한 번 더 본다.
 
 원본에 아직 넣지 않은 정정이 있으면 멈춘다 — PR의 GT와 원장이 서로 다른 말을 하게 된다(«넣어줘»가 먼저다).
 이 함수를 부르는 쪽(스킬)은 반드시 먼저 묻는다. 푸시와 PR은 밖으로 나가는 일이다.
@@ -76,12 +78,30 @@ def _files(profile: dict[str, Any], task: dict[str, Any], top: Path) -> tuple[li
     return ([source] if in_repo else []) + files, in_repo
 
 
+def _policy_files(profile: dict[str, Any], task: dict[str, Any], top: Path, base: str) -> list[Path]:
+    """기준 브랜치와 다른 정책 파일(정의 문서·프로필). 레포 밖이거나 같으면 싣지 않는다."""
+    candidates = [resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})]
+    if profile.get("_path"):
+        candidates.append(Path(profile["_path"]))
+    changed = []
+    for path in candidates:
+        if not (path.is_file() and _inside(path, top)):
+            continue
+        relative = str(path.resolve().relative_to(top.resolve()))
+        on_base = subprocess.run(["git", "-C", str(top), "show", f"{REMOTE}/{base}:{relative}"], capture_output=True)
+        if on_base.returncode != 0 or on_base.stdout != path.read_bytes():
+            changed.append(path)
+    return changed
+
+
 def plan(profile: dict[str, Any], base: str | None = None) -> dict[str, Any]:
     """무엇을 어디에 올릴지. 아무것도 쓰지 않는다."""
     task = load_task(profile)
     ledger = gt_dir(profile)
     top = _toplevel(ledger)
     files, in_repo = _files(profile, task, top)
+    branch = _base_branch(top, base)
+    policy = _policy_files(profile, task, top, branch)
     if not files:
         raise DecisionRejected("올릴 것이 없습니다 — 아직 기록된 판정이 없습니다.")
     unapplied = 0
@@ -91,8 +111,9 @@ def plan(profile: dict[str, Any], base: str | None = None) -> dict[str, Any]:
         except DecisionRejected:
             unapplied = 0
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return {"task": profile["id"], "base": _base_branch(top, base), "branch": f"gt/{profile['id']}-{stamp}",
-            "files": [str(path.resolve().relative_to(top.resolve())) for path in files],
+    relative = [str(path.resolve().relative_to(top.resolve())) for path in [*files, *policy]]
+    return {"task": profile["id"], "base": branch, "branch": f"gt/{profile['id']}-{stamp}",
+            "files": relative, "policyFiles": relative[len(files):],
             "gtInRepo": in_repo, "unapplied": unapplied}
 
 
@@ -137,14 +158,17 @@ def publish(profile: dict[str, Any], base: str | None = None, confirm: bool = Fa
     lines = [f"- 정정 {counts['corrections'] or 0}칸(원본에 들어간 것 {counts['alreadyApplied'] or 0}) · 유지 확인 {counts['confirmations'] or 0}칸",
              *(f"- `{name}`" for name in result["files"])]
     message = (f"{title}\n\n" + "\n".join(lines)
-               + "\n\n사람이 GT 개선 화면에서 누른 판정과, 그 판정을 넣은 GT 원본이다.\n\n"
+               + "\n\n사람이 GT 개선 화면에서 누른 판정과, 그 판정을 넣은 GT 원본이다."
+               + (" 허용값의 정본인 정책(정의 문서·프로필)이 바뀌어 함께 올린다." if result["policyFiles"] else "") + "\n\n"
                + "Co-authored-by: Claude <noreply@anthropic.com>\n")
     commit = _git(top, "commit-tree", tree, "-p", base_commit, "-m", message)
     _git(top, "push", "--quiet", REMOTE, f"{commit}:refs/heads/{result['branch']}")
     pr = None
     if open_pr:
         slug = _repo_slug(top)
-        body = ("\n".join(lines) + "\n\n판정 원장(`decisions.json`)이 정본이다 — 이 PR의 GT 변경은 그 원장에서 만들어졌다. "
+        body = ("\n".join(lines)
+                + ("\n\n**정책도 바뀌었다** — 허용값은 정의 문서가 정한다. GT 변경과 함께 봐 주세요." if result["policyFiles"] else "")
+                + "\n\n판정 원장(`decisions.json`)이 정본이다 — 이 PR의 GT 변경은 그 원장에서 만들어졌다. "
                 "머지하면 GT가 바뀐다.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n")
         args = ["gh", "pr", "create", "--base", result["base"], "--head", result["branch"], "--title", title, "--body", body]
         if slug:

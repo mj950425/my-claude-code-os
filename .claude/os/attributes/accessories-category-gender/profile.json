@@ -1,19 +1,13 @@
 {
   "schemaVersion": "catalog-data-profile-v1",
   "id": "accessories-category-gender",
-  "displayName": "잡화 대상 고객 성별 GT",
+  "displayName": "잡화 대상 고객 성별 골든셋",
   "attributeName": "대상 고객 성별",
   "subjectName": "잡화 상품",
   "outputRoot": ".claude/os/runs/accessories-category-gender",
   "source": {
     "repository": "../core-catalog-platfom"
   },
-  "labels": [
-    "MALE",
-    "FEMALE",
-    "UNISEX",
-    "UNDETERMINED"
-  ],
   "adapters": {
     "import": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py"
   },
@@ -81,18 +75,6 @@
         "id": "targetGender",
         "name": "대상 고객 성별",
         "gtField": "goldLabel",
-        "labels": [
-          "MALE",
-          "FEMALE",
-          "UNISEX",
-          "UNDETERMINED"
-        ],
-        "labelNames": {
-          "MALE": "남성",
-          "FEMALE": "여성",
-          "UNISEX": "공용",
-          "UNDETERMINED": "판단 불가"
-        },
         "fillMissing": false,
         "unknownLabel": "UNDETERMINED"
       }
@@ -129,7 +111,7 @@
         "DETAIL_TILE": "상세 조각"
       }
     },
-    "limit": 6,
+    "limit": 60,
     "prerequisite": {
       "adapter": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py",
       "note": "사진 색인·실행 결과·사진 사본(runs/ 아래)은 이 가져오기가 만든다. 지워졌으면 다시 돌린다."
