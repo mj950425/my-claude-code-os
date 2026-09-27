@@ -30,6 +30,7 @@ __pycache__/
 
 # 서버 프로세스의 PID·로그. 이 머신에서만 뜻이 있는 값이라 추적하지 않는다.
 .claude/os/runs/.serve/
+.claude/os/runs/.gt-next/
 
 
 # «넣어줘»가 GT 원본 옆에 남기는 되돌리기용 사본. 이력은 git이 갖는다 — 커밋하지 않는다.

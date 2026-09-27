@@ -45,6 +45,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import urllib.parse
 from datetime import datetime
@@ -54,13 +55,16 @@ from pathlib import Path
 from typing import Any
 
 from build_gt_decisions import derive
-from catalog_profile import discover_profiles, load_profile, output_root, project_path
+from catalog_profile import PROJECT_ROOT, discover_profiles, load_profile, output_root, project_path
 from gt_decisions import DecisionRejected as FieldDecisionRejected
 from gt_decisions import answered_on_page, reasked
 from gt_decisions import current_answers as current_field_answers
+from gt_decisions import apply as apply_fields
 from gt_decisions import export as export_fields
 from gt_decisions import record as record_field
-from gt_review import home_rows
+from gt_next import running as next_running
+from gt_next import status as next_status
+from gt_review import answered_questions, home_rows
 from gt_task import TaskError, field_map, gt_value, load_gt, load_task
 from record_review_decision import DecisionRejected, record
 
@@ -249,8 +253,10 @@ class Handler(BaseHTTPRequestHandler):
         return body
 
     def export_field_list(self) -> None:
-        """화면의 «반영해줘» — 원장에서 정정 목록을 만든다(CLI `export`와 같은 함수). 원본 GT는 건드리지 않는다.
-        서버가 쓰는 것은 원장의 파생물(정정·확인 목록과 그 표지)뿐이고, 쓰는 일은 기록 함수(`gt_decisions.export`)가 한다."""
+        """화면의 «반영하기» — 원장에서 정정 목록을 만들고(CLI `export`) 곧바로 원본 GT에 넣는다(CLI `apply --yes`). 같은 두 함수다.
+        누르는 것이 곧 «넣어줘»다 — 목록을 따로 보고 한 번 더 말하던 단계를 없앴다. 넣기 전 원본은 옆에 사본으로 남고(`apply`),
+        원본은 git이 기억하므로 되돌릴 수 있다. 원본이 상류(시트)에서 다시 만들어지는 과제만 예외로 미리 보기에 머문다 —
+        파일에 넣어도 다음 새로 고침에서 덮이기 때문이다."""
         try:
             body = self.read_submission()
             wanted = str(body.get("task") or "")
@@ -269,14 +275,45 @@ class Handler(BaseHTTPRequestHandler):
                     if not item.get("applied"):
                         lines.append({"key": item.get("id"), "field": item.get("field"), "before": item.get("before"),
                                       "after": item.get("after"), "reviewer": item.get("reviewer")})
+            # 방금 만든 목록 그대로 넣는다. 그사이 판정이 늘었거나 원본이 바뀌었으면 `apply`가 거절한다 — 다시 누르면 된다.
+            applied = None if upstream else apply_fields(attribute.profile, confirm=True)
         except (FieldDecisionRejected, DecisionRejected) as rejected:
             return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
         except (TaskError, OSError, ValueError, KeyError) as error:
             self.log_message("gt-export 설정 문제: %s", error)
-            return self.send_json({"ok": False, "error": "목록을 만들지 못했습니다 — Claude에게 «반영해줘»라고 말해 주세요."},
+            return self.send_json({"ok": False, "error": "반영하지 못했습니다 — Claude에게 «반영해줘»라고 말해 주세요."},
                                   HTTPStatus.INTERNAL_SERVER_ERROR)
         keep = ("corrections", "alreadyApplied", "confirmations", "thisBatch", "linesToChange", "outOfPolicy", "stale", "upstream")
-        return self.send_json({"ok": True, "summary": {name: summary.get(name) for name in keep}, "lines": lines[:200]})
+        result = {name: summary.get(name) for name in keep}
+        result["applied"] = bool(applied and applied.get("applied"))
+        result["linesChanged"] = (applied or {}).get("linesToChange", 0) if result["applied"] else 0
+        return self.send_json({"ok": True, "summary": result, "lines": lines[:200]})
+
+    def start_next(self) -> None:
+        """«다음 후보 받기». 준비·판독·화면은 러너(`gt_next.py run`)가 따로 떠서 하고, 서버는 띄우기만 한다 —
+        서버는 여전히 아무것도 쓰지 않는다. 한 번에 하나는 러너의 잠금이 지킨다: 여기서 먼저 보고 거절하는 것은
+        사람에게 빨리 답하려는 것일 뿐, 두 요청이 같이 들어와도 둘째 러너는 잠금을 못 얻고 아무것도 하지 않은 채 끝난다."""
+        try:
+            body = self.read_submission()
+            wanted = str(body.get("task") or "")
+            if not any(item.id == wanted and item.profile.get("gtTask") for item in scan()):
+                raise FieldDecisionRejected(f"GT 개선 과제를 찾지 못했습니다: {wanted}")
+            # 스킬도 이 문으로 온다 — «못 읽은 거 다시 봐줘»(reread)와 «20건씩»(limit)도 같은 러너가 돈다.
+            extra = ["--reread"] if body.get("reread") is True else []
+            if isinstance(body.get("limit"), int) and not isinstance(body.get("limit"), bool) and body["limit"] >= 0:
+                extra += ["--limit", str(body["limit"])]
+        except (FieldDecisionRejected, DecisionRejected) as rejected:
+            return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
+        now = next_running()
+        if now is not None:
+            name = now.get("taskName") or now.get("task") or "다른 과제"
+            return self.send_json({"ok": False, "busy": True, "error": f"«{name}»의 다음 후보를 AI가 보는 중입니다 — "
+                                   "한 번에 하나만 돕니다. 끝난 뒤 다시 눌러 주세요."}, HTTPStatus.CONFLICT)
+        # 서버와 떨어져 돈다 — 서버를 다시 켜도(serve.sh restart) 판독은 멈추지 않는다.
+        subprocess.Popen([sys.executable, str(Path(__file__).with_name("gt_next.py")), "run", "--task", wanted, *extra],
+                         cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return self.send_json({"ok": True, "started": wanted})
 
     def decide_field(self) -> None:
         """GT 개선 과제의 칸 하나. `/decide`와 같은 선을 지킨다 — JSON만, 로컬 출처만,
@@ -346,6 +383,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.decide_field()
         if (parsed.path.rstrip("/") or "/") == "/gt-export":
             return self.export_field_list()
+        if (parsed.path.rstrip("/") or "/") == "/gt-next":
+            return self.start_next()
         if (parsed.path.rstrip("/") or "/") != "/decide":
             return self.fail(HTTPStatus.NOT_FOUND, "그런 자리는 없습니다.")
 
@@ -413,6 +452,9 @@ class Handler(BaseHTTPRequestHandler):
             # GT 개선 과제가 있으면 첫 화면은 과제 목록이다. 감사 사이클의 화면은 목록 아래 «이 목록 밖의 GT»에서 /audit로 간다.
             return self.send(HOME_PAGE.read_bytes(), "text/html; charset=utf-8")
 
+        if route == "/gt-next":
+            return self.send_json(next_status())
+
         if route == "/gt-tasks":
             try:
                 return self.send_json(home_rows())
@@ -463,6 +505,16 @@ class Handler(BaseHTTPRequestHandler):
             item, page = max(pages, key=lambda pair: pair[1].stat().st_mtime)
             return self.redirect(f"/f/{urllib.parse.quote(item.id)}/{page.relative_to(item.root).as_posix()}")
 
+        if route == "/gt-qa":
+            # 검수 문답 — 사람이 AI의 물음에 답한 판정. 읽기만 한다(원장이 정본). 정책 페이지가 열릴 때 읽는다.
+            wanted = (query.get("task") or [""])[0]
+            item = next((entry for entry in found if entry.id == wanted and entry.profile.get("gtTask")), None)
+            if item is None:
+                return self.send_json({"ok": False, "error": f"GT 개선 과제를 찾지 못했습니다: {wanted}"}, HTTPStatus.NOT_FOUND)
+            try:
+                return self.send_json({"ok": True, "answered": answered_questions(item.profile)})
+            except (TaskError, OSError, ValueError) as error:
+                return self.send_json({"ok": False, "error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         if route == "/gt-decided":
             # 화면이 열릴 때 읽는 원장. 칸마다 마지막 판정을 그대로 넘기고, «이 화면의 답인가»는
             # status와 **같은 함수**(answered_on_page)로 정해 칸마다 참·거짓으로 함께 넘긴다 — 규칙을 화면의

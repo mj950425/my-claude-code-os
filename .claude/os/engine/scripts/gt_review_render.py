@@ -84,7 +84,7 @@ def call_name(profile: dict[str, Any]) -> str:
 
 def flow_steps(profile: dict[str, Any]) -> list[dict[str, str]]:
     """버튼에서 GT가 실제로 바뀌기까지. 원본이 어디 있느냐(프로필 `gtTask.gt`)로 갈린다 — 화면과 첫 화면이 같은 문장을 쓴다.
-    «반영해줘» 한 마디에 GT가 바뀐다고 말하면 거짓이다(목록만 만든다)."""
+    원본이 이 레포·이 컴퓨터의 파일이면 «반영하기» 버튼이 곧바로 넣는다. 상류(시트)가 원본이면 목록까지만 — 붙여 넣기는 사람이 한다."""
     spec = (profile.get("gtTask") or {}).get("gt") or {}
     upstream = spec.get("upstream") or {}
     name = call_name(profile)
@@ -95,8 +95,7 @@ def flow_steps(profile: dict[str, Any]) -> list[dict[str, str]]:
                 {"say": "직접: 목록 붙여 넣기", "does": f"{where}에 옮긴 뒤 개발자에게 알림"},
                 {"say": "개발자가 새로 고침", "does": "이때 GT가 바뀜"}]
     steps = [{"say": "칸마다 버튼", "does": "판정만 기록 — GT는 그대로"},
-             {"say": f"Claude에게 «{name} 반영해줘»", "does": "고칠 목록 미리 보기"},
-             {"say": "«넣어줘»", "does": "이 컴퓨터의 파일만 바뀜(팀 GT는 그대로)"}]
+             {"say": "«반영하기» 버튼", "does": "이 컴퓨터의 GT 파일에 바로 들어감(팀 GT는 그대로)"}]
     path = str(spec.get("path") or "")
     if spec.get("root") == "project" or path.startswith(".claude/"):
         steps.append({"say": "«올려줘»", "does": "팀 검토 요청 — 검토자가 승인(머지)하면 팀 GT가 바뀜"})
@@ -111,8 +110,8 @@ def change_moment(profile: dict[str, Any]) -> str:
         return f"목록을 {upstream.get('note') or '원천'}에 붙여 넣고 개발자가 새로 고치면 바뀝니다"
     path = str(spec.get("path") or "")
     if spec.get("root") == "project" or path.startswith(".claude/"):
-        return "«반영해줘» → «넣어줘» → «올려줘» 뒤 검토자가 승인하면 팀 GT가 바뀝니다"
-    return "«반영해줘» → «넣어줘» 뒤에 바뀝니다"
+        return "«반영하기»를 누르면 이 컴퓨터의 GT에 들어가고, «올려줘» 뒤 검토자가 승인하면 팀 GT가 바뀝니다"
+    return "«반영하기»를 누르면 바뀝니다"
 
 
 def _flow_html(profile: dict[str, Any]) -> str:
@@ -270,6 +269,21 @@ def ask_of(reading: dict[str, Any] | None, rebuttal: dict[str, Any] | None, labe
         return {"question": str(ask["question"]).strip(), "here": str(ask.get("here") or "").strip(),
                 "imageIds": [str(i) for i in ask.get("imageIds") or []], "options": options}
     return None
+
+
+def legacy_ask(item: dict[str, Any], fields: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """옛 배치의 메모에서 사람에게 묻는 문장(최대 둘)을 고르고, 그 물음이 걸린 칸을 찾는다. 칸마다 표준 물음이 있으면 쓰지 않는다.
+    화면(칸에 붙이기)과 `qa`(그 판정이 어느 물음에 대한 답이었나)가 같은 함수를 지난다 — 둘이 다른 칸을 가리키면 안 된다."""
+    if any(cell.get("ask") and not cell["ask"].get("legacy") for cell in item["cells"]):
+        return None, ""
+    asks = [part.strip() for part in re.split(r"(?<=[.?!])\s+", _ai(item.get("note") or ""))
+            if part.strip() and ("?" in part or re.search(r"확인하면|확인해|확인되|확인이 필요|직접 보고|판단해|봐야|갈리는|같은지|맞는지|정하지 않았", part))
+            and not re.search(r"(없습니다|없다|없었습니다)\.?$", part.strip()) and len(part.strip()) >= 15
+            and not re.search(r"점이 (하나|둘|두 가지|몇 가지)|점은 (하나|둘|두 가지)", part)][:2]
+    if not asks:
+        return None, ""
+    text = " ".join(asks)
+    return _ask_target(text, item["cells"], fields), text
 
 
 def _ask_target(text: str, cells: list[dict[str, Any]], fields: dict[str, Any]) -> dict[str, Any] | None:
@@ -499,7 +513,8 @@ function progress() {
   const holdItems = [...document.querySelectorAll('.item')].filter(item => [...item.querySelectorAll('.cell.GT_HOLDS:not(.alt)')].some(open)).length;
   if (holds) text += ` · 유지 확인만 남은 칸 ${holds} — 상품 ${holdItems}개의 맨 아래 «GT로 유지» 버튼을 눌러 주세요.`;
   if (alts) text += ` · 같이 맞다고 적어 둔 값을 AI가 낸 칸 ${alts} — 그 칸의 «지금 GT» 값 버튼을 눌러 주세요.`;
-  if (finished) text += ` — 다 했습니다. Claude에게 «${data.callName} 반영해줘», 더 보려면 «${data.callName} 다음 거»라고 말해 주세요.`;
+  if (finished) text += data.upstreamNote ? ` — 다 했습니다. Claude에게 «${data.callName} 반영해줘», 더 보려면 «${data.callName} 다음 거»라고 말해 주세요.`
+    : ` — 다 했습니다. 위의 «반영하기»를 누르면 GT에 들어갑니다. 더 보려면 Claude에게 «${data.callName} 다음 거»라고 말해 주세요.`;
   const allUnread = boxes.length && boxes.every(b => b.classList.contains('NOT_READ'));
   if (unread && !allUnread) text += ` · AI가 못 읽은 칸 ${unread} — 다음으로 넘어가기 전에 Claude에게 «못 읽은 거 다시 봐줘»라고 말해 주세요.`;
   const stale = document.querySelectorAll('.cell.stale').length;
@@ -508,9 +523,13 @@ function progress() {
   // 휴대폰에서는 마지막 칸이 화면 맨 아래다 — 진행률을 아래에도 보여 «다 했습니다»를 놓치지 않게.
   // 아래 막대는 짧은 요약만 — 긴 문장이 버튼 줄을 가리지 않게. 긴 문장은 위에 있다.
   const bottom = document.getElementById('progress-bottom-text');
-  const short = finished ? `다 했습니다 — Claude에게 «${data.callName} 반영해줘»`
+  // 다 했으면 짧게 — 무엇을 할지는 위의 «반영해줘» 버튼과 «다음 후보 받기» 버튼이 이미 말한다. 같은 말을 여러 자리에 두지 않는다.
+  const short = finished ? '다 답했습니다'
     : `판정할 칸 ${done} / ${boxes.length} 답함` + (holds ? ` · «GT로 유지» ${holdItems}번 남음 (${holds}칸)` : '') + (alts ? ` · 같이 맞다고 적은 값 확인 ${alts}` : '') + (unread ? ` · AI가 못 읽은 칸 ${unread}` : '');
   if (bottom) bottom.textContent = short;
+  // 아래 떠 있는 막대는 아직 할 일이 있을 때만 — 다 했으면 위의 버튼 둘(반영해줘 · 다음 후보 받기)로 충분하다.
+  const dock = document.getElementById('progress-bottom');
+  if (dock) dock.hidden = finished;
   const top = document.getElementById('progress-short');
   if (top) top.textContent = short;
   const nextButton = document.getElementById('next-open');
@@ -703,6 +722,9 @@ function foldFinished() {
 document.querySelectorAll('.reopen').forEach(button => button.addEventListener('click', () => {
   button.closest('.item').classList.remove('folded'); button.hidden = true;
 }));
+document.querySelectorAll('.fold-thumb').forEach(button => button.addEventListener('click', () => {
+  const again = button.closest('.item').querySelector('.reopen'); if (again) again.click();
+}));
 // 다른 과제와 남은 건 — 첫 화면과 같은 목록(/gt-tasks)에서 읽는다. 화면을 그린 때가 아니라 지금의 수다.
 async function others() {
   if (!served) return;
@@ -753,7 +775,7 @@ async function load() {
         const cell = box.dataset.key + '\u0000' + box.dataset.field;
         const entry = latest[cell];
         const current = box.dataset.current === '' ? null : box.dataset.current;
-        // 사람이 고른 값이 원본에 들어갔다(«넣어줘» 뒤). 바뀐 것이 아니라 반영된 것이다.
+        // 사람이 고른 값이 원본에 들어갔다(«반영하기» 뒤). 바뀐 것이 아니라 반영된 것이다.
         if (entry && CHANGES.includes(entry.decision) && cell in now && now[cell] === entry.after && now[cell] !== current) {
           box.classList.add('done');
           box.querySelectorAll('button').forEach(b => b.disabled = true);
@@ -935,6 +957,10 @@ details.def .deftext{white-space:normal}
 .keep-list details[open]{display:block;margin:4px 0 8px 12px}
 .keep-note{font-size:13px}
 #progress-bottom{display:flex;gap:16px;justify-content:space-between;align-items:center}
+#progress-bottom[hidden]{display:none!important}
+#export-out.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
+#export-out code.phrase{padding:2px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8;font-weight:600}
 #progress-bottom-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bottom-actions{display:flex;gap:14px;align-items:center;flex:0 0 auto}
 .bottom-actions button{font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer}
@@ -1313,6 +1339,14 @@ body.only-ask .decide .cell.GT_HOLDS{display:none}
 .vmark.ai{color:var(--accent)}
 .vmark.now{color:var(--faint);font-weight:500}
 .chip.picked .vmark,.chip.chosen .vmark{color:#DBEAFE}
+/* 접힌 상품 — 왼쪽에 대표 사진 작게, 오른쪽에 번호·키·다시 펼치기 */
+.fold-thumb{display:none}
+.item.folded{display:grid;grid-template-columns:72px minmax(0,1fr);column-gap:16px;align-items:start}
+.item.folded > :not(.fold-thumb){grid-column:2}
+.item.folded .reopen{justify-self:start}
+.item.folded .fold-thumb{display:block;grid-column:1;grid-row:1 / span 3;width:72px;height:90px;padding:0;border:0;border-radius:10px;overflow:hidden;background:#F1F5F9;cursor:pointer}
+.item.folded .fold-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.item.folded .fold-thumb:hover{box-shadow:0 0 0 2px var(--accent)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 """
 
@@ -1474,26 +1508,75 @@ PAGE_SCRIPT = r"""
   const pages = Math.max(1, ...items.map(item => Number(item.dataset.page)));
   let page = Math.min(pages, Math.max(1, Number((location.hash.match(/^#p(\d+)$/) || [])[1]) || 1));
   const nextButtons = [...document.querySelectorAll('.page-next')];
+  const NEXT_LABEL = '다음 후보 받기 →';
   const show = (to, scroll = true) => {
     page = Math.min(pages, Math.max(1, to));
     items.forEach(item => { item.hidden = Number(item.dataset.page) !== page; });
     const now = document.getElementById('page-now'); if (now) now.textContent = `${page} / ${pages} 페이지`;
     const prev = document.getElementById('page-prev'); if (prev) prev.disabled = page === 1;
-    nextButtons.forEach(b => { b.textContent = page < pages ? '다음 페이지 →' : '다음 후보 받기 →'; });
+    nextButtons.forEach(b => { b.textContent = page < pages ? '다음 페이지 →' : NEXT_LABEL; });
     if (history.replaceState) history.replaceState(null, '', page > 1 ? `#p${page}` : location.pathname);
     if (scroll) window.scrollTo({top: 0, behavior: 'smooth'});
   };
   show(page, false);
   const prev = document.getElementById('page-prev'); if (prev) prev.addEventListener('click', () => show(page - 1));
+  const nextOut = () => { const out = document.getElementById('export-out'); out.hidden = false; return out; };
+  // 서버가 도는 준비를 알려 준다 — 한 번에 하나만 돈다(gt_next.py). 이 과제의 준비가 끝나면 새 화면으로 다시 읽는다.
+  const watchNext = async (started) => {
+    let answer;
+    try { answer = await (await fetch('/gt-next', {cache: 'no-store'})).json(); } catch (e) { answer = null; }
+    if (!answer) { nextOut().textContent = '서버에 닿지 못했습니다 — Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요.'; return; }
+    const mine = answer.task === data.profileId;
+    if (answer.running) {
+      nextButtons.forEach(b => { b.disabled = true; b.textContent = mine ? 'AI가 보는 중…' : '다른 과제 준비 중…'; });
+      nextOut().innerHTML = `<p>${esc(mine ? (answer.message || 'AI가 보는 중입니다.') : `«${answer.taskName || answer.task}»의 다음 후보를 AI가 보는 중입니다 — 한 번에 하나만 돕니다. 끝나면 이 버튼이 다시 켜집니다.`)}</p>`
+        + (mine ? '<p>이 탭을 닫아도 계속 돕니다. 끝나면 새 후보로 바뀝니다.</p>' : '');
+      clearTimeout(watchNext.timer);
+      watchNext.timer = setTimeout(() => watchNext(started || mine), 4000);
+      return;
+    }
+    nextButtons.forEach(b => { b.disabled = false; b.textContent = page < pages ? '다음 페이지 →' : NEXT_LABEL; });
+    if (!started || !mine) return;
+    if (answer.phase === 'done' && answer.newScreen) { location.href = location.pathname; return; }
+    nextOut().innerHTML = `<p>${esc(answer.message || '준비가 끝났습니다.')}</p>`;
+    if (answer.phase === 'failed') location.reload();  // 칸마다 «AI가 못 읽음»인 화면이 새로 있다
+  };
   const goNext = async () => {
     if (page < pages) return show(page + 1);
+    if (served) {
+      // 답하지 않은 칸은 다음에 다시 나오지만, 모르고 넘어가지 않게 한 번 묻는다(스킬의 «다음 거»와 같은 물음).
+      const left = [...document.querySelectorAll('.cell[data-actionable="1"], .cell.NOT_READ')]
+        .filter(b => !['done', 'held', 'stale'].some(name => b.classList.contains(name))).length;
+      if (left && !confirm(`이 화면에 답하지 않은 칸이 ${left}개 있습니다. 새 후보로 넘어갈까요?\n(답하지 않은 칸은 다음에 다시 나옵니다)`)) return;
+      nextButtons.forEach(b => { b.disabled = true; b.textContent = '시작하는 중…'; });
+      let result;
+      try {
+        result = await (await fetch('/gt-next', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                 body: JSON.stringify({task: data.profileId})})).json();
+      } catch (e) { result = {ok: false, error: '서버에 닿지 못했습니다 — Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요.'}; }
+      if (!result.ok) {
+        nextButtons.forEach(b => { b.disabled = false; b.textContent = NEXT_LABEL; });
+        nextOut().innerHTML = `<p>${esc(result.error || '시작하지 못했습니다.')}</p>`;
+        return;
+      }
+      return watchNext(true);
+    }
+    // 파일을 직접 열었다(서버 없음) — 요청 문장을 복사해 Claude에게 건넨다.
     const phrase = `${data.callName} 다음 거`;
-    try { await navigator.clipboard.writeText(phrase); } catch (e) {}
-    const out = document.getElementById('export-out');
-    out.hidden = false;
-    out.innerHTML = `<p><b>이 배치를 다 보셨습니다.</b> 다음 후보는 AI가 먼저 읽어야 해서 Claude가 준비합니다 — Claude 창에 «${esc(phrase)}»를 붙여 넣어 주세요(복사해 두었습니다).</p>`;
+    let copied = true;
+    try { await navigator.clipboard.writeText(phrase); } catch (e) {
+      const area = document.createElement('textarea');
+      area.value = phrase; area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+      area.remove();
+    }
+    const out = nextOut();
+    out.innerHTML = `<p>${copied ? '<b>복사했습니다.</b> ' : ''}서버 없이 연 화면이라 Claude가 준비합니다 — Claude 창에 `
+      + `<code class="phrase">${esc(phrase)}</code>${copied ? '를 붙여 넣어 주세요.' : '를 적어 주세요(복사하지 못했습니다).'}</p>`;
     out.scrollIntoView({block: 'center', behavior: 'smooth'});
   };
+  if (served) watchNext(false);  // 다시 연 탭 — 도는 준비가 있으면 버튼을 잠그고 끝나기를 기다린다
   nextButtons.forEach(b => b.addEventListener('click', goNext));
   // «다음 안 한 칸»이 다른 페이지의 칸을 가리키면 그 페이지로 먼저 간다.
   document.addEventListener('click', event => {
@@ -1504,29 +1587,28 @@ PAGE_SCRIPT = r"""
     if (item && Number(item.dataset.page) !== page) show(Number(item.dataset.page), false);
   }, true);
 
-  // «반영해줘» — 원장에서 고칠 목록을 만든다. 원본 GT는 그대로다.
+  // «반영하기» — 원장에서 고칠 목록을 만들고 곧바로 원본 GT에 넣는다. 상류(시트)가 원본인 과제만 목록까지.
   const button = document.getElementById('do-export');
   if (!button) return;
   button.addEventListener('click', async () => {
     const out = document.getElementById('export-out');
     if (!served) { out.hidden = false; out.textContent = '이 파일을 직접 열었습니다 — Claude에게 «GT 화면 열어줘»라고 말해 주세요.'; return; }
-    button.disabled = true; out.hidden = false; out.textContent = '목록을 만드는 중…';
+    button.disabled = true; out.hidden = false; out.textContent = data.upstreamNote ? '목록을 만드는 중…' : 'GT에 넣는 중…';
     try {
       const response = await fetch('/gt-export', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                                    body: JSON.stringify({task: data.profileId})});
       const result = await response.json();
       if (!result.ok) { out.textContent = result.error || '목록을 만들지 못했습니다.'; return; }
-      const sum = result.summary, lines = result.lines || [];
-      const next = data.upstreamNote
-        ? `Claude에게 «${esc(data.callName)} 반영해줘»라고 하시면 ${esc(data.upstreamNote)}에 붙여 넣을 Excel 목록을 열어 드립니다.`
-        : 'GT 파일에 넣으려면 Claude에게 «넣어줘», 팀에 올리려면 그 뒤 «올려줘»라고 말해 주세요.';
-      const rows = lines.map(line => `<tr><td>${esc(line.key)}</td><td>${esc(data.fieldNames[line.field] || line.field)}</td>`
-        + `<td>${esc(labelOf(line.field, line.before))} → <b>${esc(labelOf(line.field, line.after))}</b></td><td>${esc(line.reviewer || '')}</td></tr>`).join('');
-      out.innerHTML = `<p><b>고칠 칸 ${sum.corrections} · 유지 확인 ${sum.confirmations}</b>`
-        + (sum.alreadyApplied ? ` (이미 원본에 들어간 칸 ${sum.alreadyApplied})` : '')
-        + ` — 목록을 만들었습니다. <b>원본 GT는 아직 그대로입니다.</b> ${next}</p>`
+      const sum = result.summary;
+      // 원본이 이 레포의 파일이면 누른 순간 들어갔다. 상류(시트)가 원본이면 목록까지만 — 붙여 넣기는 사람이 한다.
+      const head = data.upstreamNote
+        ? ` — 목록을 만들었습니다. <b>원본 GT는 아직 그대로입니다.</b> Claude에게 «${esc(data.callName)} 반영해줘»라고 하시면 ${esc(data.upstreamNote)}에 붙여 넣을 Excel 목록을 열어 드립니다.`
+        : sum.applied
+          ? ` — <b>GT에 넣었습니다(바뀐 줄 ${sum.linesChanged}).</b> 넣기 전 원본은 옆에 사본으로 남겼습니다. 팀에 올리려면 Claude에게 «올려줘»라고 말해 주세요.`
+          : ' — 원본에 새로 넣을 것이 없습니다. 기록된 판정은 모두 GT에 들어가 있습니다.';
+      // 결과는 한 줄로만 — 누른 뒤 표가 펼쳐지면 «무엇이 떴나» 하고 멈춘다. 무엇이 바뀌었는지는 «올려줘»의 PR에서 본다.
+      out.innerHTML = `<p><b>고친 칸 ${sum.corrections} · 유지 확인 ${sum.confirmations}</b>${head}</p>`
         + ((sum.outOfPolicy || []).length ? `<p>정책에서 뺀 값으로 고친 판정 ${sum.outOfPolicy.length}개는 넣지 않았습니다 — 다음 화면에 다시 나옵니다.</p>` : '')
-        + (rows ? `<table><thead><tr><th>키</th><th>항목</th><th>고칠 값</th><th>판정</th></tr></thead><tbody>${rows}</tbody></table>` : '<p>원본에 새로 넣을 칸은 없습니다.</p>')
         + `<p class="then"><button type="button" class="page-next">${page < pages ? '다음 페이지 →' : '다음 후보 받기 →'}</button></p>`;
       out.querySelectorAll('.page-next').forEach(b => b.addEventListener('click', goNext));
     } catch (e) {
@@ -1692,7 +1774,7 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
     first = re.split(r"(?<=[.?!다])\s+", _ai(reading.get("observation") or "").strip())[0] if reading.get("observation") else ""
     gist = (f'<p class="gist"><b>AI가 사진에서 본 것</b> — {e(first)}</p>' if first and cell["status"] in ("FIX_PROPOSED", "CONTESTED") else "")
     if caution and not reading.get("definitionGap") and cell["status"] in ("FIX_PROPOSED", "FILL_PROPOSED"):
-        gist += '<p class="why">이 건은 AI가 정책 밖 경우를 짚어 제안을 칠하지 않았습니다 — 사진을 보고 골라 주세요.</p>'
+        gist += '<p class="why">AI가 이 상품은 정책이 다루지 않는 경우라고 봐서 제안 값을 미리 골라 두지 않았습니다 — 사진을 보고 골라 주세요.</p>'
     # 근거는 접어 둔다 — 사진을 보고 사람이 직접 가를 칸(갈림·확신 낮음·반론 없음·사람 확정 GT를 뒤집는 제안)만 펼쳐 둔다.
     open_grounds = (cell["status"] in ("CONTESTED", "NEEDS_HUMAN_LOOK", "NO_EVIDENCE") or bool(cell.get("noDefense"))
                     or bool(reading.get("definitionGap")) or (cell.get("authority") == "TRUSTED" and cell["status"] == "FIX_PROPOSED"))
@@ -1915,38 +1997,27 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
                     + '</ul></div>' if holding else "")
         title = " · ".join(part for part in (item.get("title"), item.get("group")) if part)
         subtitle = f' <small style="color:var(--muted);font-weight:400">{e(title)}</small>' if title else ""
-        # AI가 사람에게 묻는 말(«P07의 안경테가 이 상품과 같은지»)은 버튼 곁에 — 사진 아래 회색 글에 묻히면 판정 순간에 없다.
-        memo = ((f'<div class="memo{" caution" if caution else ""}"><details>'
-                 + ('<summary class="memo-title">정책 밖 경우 — 제안 버튼을 칠하지 않았습니다</summary>' if caution
-                    else '<summary class="memo-title">AI 메모</summary>')
-                 + f'<p>{e(_ai(item["note"]))}</p></details></div>') if item.get("note") else
-                ('<div class="memo caution"><p class="memo-title">정책 밖 경우 — 제안 버튼을 칠하지 않았습니다. 사진을 직접 보고 골라 주세요.</p></div>'
-                 if caution else ""))
+        # AI 메모(건 전체에 대한 자유 서술)는 사진 곁에 두지 않는다 — 물음은 칸의 «AI가 묻는 것»에, 정책 밖 경우는 칸의 «AI가 짚은 점»에,
+        # 본 것은 칸의 «AI가 사진에서 본 것»에 이미 있다. 같은 말을 세 자리에 두면 사람은 서로 다른 이야기인 줄 안다.
+        memo = ""
         # AI가 사람에게 묻는 말은 버튼 곁에 — 사진 아래 메모에 묻히면 판정 순간에 없다.
         # 옛 판독(표준 물음이 없던 배치)만 메모에서 물음 문장을 골라낸다. 칸마다 `askHuman`을 받은 판독은 그것만 쓴다.
-        standard = any(cell.get("ask") for cell in item["cells"])
-        asks = [] if standard else [part.strip() for part in re.split(r"(?<=[.?!])\s+", _ai(item.get("note") or ""))
-                if part.strip() and ("?" in part or re.search(r"확인하면|확인해|확인되|확인이 필요|직접 보고|판단해|봐야|갈리는|같은지|맞는지|정하지 않았", part))
-                and not re.search(r"(없습니다|없다|없었습니다)\.?$", part.strip()) and len(part.strip()) >= 15
-                and not re.search(r"점이 (하나|둘|두 가지|몇 가지)|점은 (하나|둘|두 가지)", part)][:2]
-        ask = (f'<p class="ask"><b>AI가 묻는 것</b> — {e(" ".join(asks))}</p>' if asks else "")
-        # 「직접 봐 주세요」와 AI의 질문은 같은 걱정이다 — 봐야 할 칸이 하나면 질문을 그 칸의 이름 아래에 같은 색으로 붙인다.
-        # 칸이 여럿이거나 없으면 어느 칸 이야기인지 모르므로 맨 위에 둔다.
-        target = _ask_target(" ".join(asks), item["cells"], fields) if ask else None
-        cell_parts = []
-        for cell in item["cells"]:
-            part = _cell_html(item, cell, fields.get(cell["field"]) or {}, signals, clear_ok, review.get("batchId"), caution)
-            if ask and cell is target and "</h4>" in part:
-                # AI가 사람에게 묻는 칸은 «직접 봐 주세요» 칸이다 — 물음과 꼬리표가 늘 같이 다닌다.
-                part = part.replace('<div class="cell ', '<div class="cell asking ', 1)
-                head_end = part.index("</div>", part.index("</h4>")) + len("</div>")
-                part = part[:head_end] + ask + part[head_end:]
-                ask = ""
-            cell_parts.append(part)
+        # 옛 배치(표준 물음이 없던 판독)는 메모에서 물음을 골라 그 칸에 표준 물음처럼 붙인다 — 그래야 사람이 누른 판정에
+        # 그 물음이 함께 남고(`basedOn.ask`), 정책 규칙의 재료가 된다. 칸을 못 고르면 맨 위에 둔다(판정에는 안 남는다).
+        target, legacy = legacy_ask(item, fields)
+        if target is not None:
+            target["ask"] = {"question": legacy, "here": "", "imageIds": [], "options": [], "legacy": True}
+        ask = (f'<p class="ask"><b>AI가 묻는 것</b> — {e(legacy)}</p>' if legacy and target is None else "")
+        cell_parts = [_cell_html(item, cell, fields.get(cell["field"]) or {}, signals, clear_ok, review.get("batchId"), caution)
+                      for cell in item["cells"]]
         cells = "".join(cell_parts)
         one = len(item["images"]) == 1
+        # 접힌 상품은 머리만 남는다 — 키만으로는 어떤 상품인지 모르니 대표 사진(첫 장)을 작게 곁에 둔다. 누르면 펼친다.
+        cover = item["images"][0] if item["images"] else None
+        thumb = (f'<button class="fold-thumb" type="button" aria-label="{e(item["key"])} 펼치기"><img loading="lazy" alt="" '
+                 f'src="{e(os.path.relpath(output_path(root, cover["path"]), root))}"></button>' if cover else "")
         blocks.append(
-            f'<section class="item" id="{e(item["id"])}" data-page="{(number - 1) // PAGE_SIZE + 1}"><p class="item-top"><span class="kicker">{number} / {total}</span>'
+            f'<section class="item" id="{e(item["id"])}" data-page="{(number - 1) // PAGE_SIZE + 1}">{thumb}<p class="item-top"><span class="kicker">{number} / {total}</span>'
             f'<span class="item-state" aria-live="polite"></span></p>'
             f'<h3>{e(item["key"])}{subtitle}</h3>'
             f'<button class="reopen" type="button" hidden>이 상품 다시 펼치기</button>'
@@ -1968,7 +2039,7 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
   <div class="title-row"><h1>{e(name)}</h1><label class="who">판정하는 사람 <input id="reviewer" placeholder="이름"></label></div>
   <div class="actions">
     <div class="action-row">
-      <button type="button" id="do-export">반영해줘 — 고칠 목록 만들기</button>
+      <button type="button" id="do-export">{"반영해줘 — 고칠 목록 만들기" if upstream else "반영하기 — GT에 바로 넣기"}</button>
       <nav class="pager" aria-label="페이지"{' hidden' if total <= PAGE_SIZE else ''}><button type="button" id="page-prev" aria-label="이전 페이지">‹</button><span id="page-now"></span><button type="button" class="page-next">다음 페이지 →</button></nav>
     </div>
     <div id="export-out" hidden aria-live="polite"></div>
@@ -2123,6 +2194,9 @@ def render_policy_html(profile: dict[str, Any]) -> str:
                   if texts.get(field["id"]) else "")
         rules = "".join(_rule_html(field, rule) for rule in policy["rules"].get(field["id"], []))
         qa = (f'<p class="sub" style="margin-top:14px">규칙</p><ul class="rules policy-rules">{rules}</ul>' if rules else "")
+        # 검수 문답 — 사람이 AI의 물음에 답한 것. 원장이 정본이라 화면이 열릴 때 서버(/gt-qa)에서 읽어 채운다(답하면 곧 보인다).
+        qa += (f'<div class="qa-live" data-field="{e(field["id"])}" hidden><p class="sub" style="margin-top:14px">검수 문답</p>'
+               '<ul class="rules policy-rules"></ul></div>')
         many = " · 값을 여럿 고를 수 있습니다" if field.get("cardinality") == "many" else ""
         cards.append(f'<section class="card"><h2>{e(field.get("name") or field["id"])}</h2>'
                      f'<p class="sub">들어올 수 있는 값 {len(field.get("labels") or [])}개{many}</p><ul class="values">{values}</ul>{qa}{source}</section>')
@@ -2174,7 +2248,25 @@ def render_policy_html(profile: dict[str, Any]) -> str:
     purpose = purpose + background
     inner = (f'<header class="page-head"><p class="kicker crumbs"><a href="/">홈</a> / {e(call_name(profile))}</p><h1>정책</h1>'
              '</header>' + purpose + "".join(cards))
-    return _page(f"정책 · {call_name(profile)}", profile, "policy", inner)
+    script = """<script>
+(async () => {
+  if (location.protocol === 'file:') return;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+  try {
+    const answer = await (await fetch('/gt-qa?task=' + encodeURIComponent(TASK))).json();
+    (answer.answered || []).forEach(q => {
+      const box = document.querySelector(`.qa-live[data-field="${CSS.escape(q.field)}"]`);
+      if (!box) return;
+      box.hidden = false;
+      box.querySelector('ul').insertAdjacentHTML('beforeend',
+        `<li><span class="rule-text">${esc(q.question)}</span> → <b>${esc(q.answerName)}</b><br>`
+        + `<span class="sub"><span class="tag from-review">검수 문답</span> ${esc((q.decidedAt || '').slice(0, 10))} · ${esc(q.reviewer)}`
+        + ` · 근거 골든셋 <a href="golden.html#q=${encodeURIComponent(q.key)}">${esc(q.key)}</a></span></li>`);
+    });
+  } catch (e) {}
+})();
+</script>""".replace("TASK", json.dumps(profile["id"]))
+    return _page(f"정책 · {call_name(profile)}", profile, "policy", inner + script)
 
 
 GOLDEN_SCRIPT = r"""

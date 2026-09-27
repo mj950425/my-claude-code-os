@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "gt-field-decisions-v1",
+  "profileId": "accessories-category-gender",
+  "decisions": [
+    {
+      "decisionId": "GTD-00001",
+      "key": "MUSINSA:5376738",
+      "field": "targetGender",
+      "decision": "CORRECT",
+      "before": "UNISEX",
+      "after": "UNDETERMINED",
+      "previousSource": "ORIGINAL_H_FALLBACK",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:50:26+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "FIX_PROPOSED",
+        "proposal": "UNDETERMINED",
+        "reader": "UNDETERMINED",
+        "defense": "READER_RIGHT"
+      },
+      "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00002",
+      "key": "EGOOCM:3419931",
+      "field": "targetGender",
+      "decision": "CORRECT",
+      "before": "UNISEX",
+      "after": "UNDETERMINED",
+      "previousSource": "FINAL_AQ_20260903",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:50:48+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "FIX_PROPOSED",
+        "proposal": "UNDETERMINED",
+        "reader": "UNDETERMINED",
+        "defense": "READER_RIGHT"
+      },
+      "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00003",
+      "key": "MUSINSA:4914036",
+      "field": "targetGender",
+      "decision": "CORRECT",
+      "before": "UNISEX",
+      "after": "UNDETERMINED",
+      "previousSource": "ORIGINAL_H_FALLBACK",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:51:49+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "NEEDS_HUMAN_LOOK",
+        "proposal": null,
+        "reader": "UNDETERMINED",
+        "defense": null,
+        "ask": {
+          "question": "여성용 결합 디자인으로 볼지(분홍 계열 문판과 34mm 소형 케이스)가 유일한 경계라 사람이 확인하면 좋겠습니다.",
+          "here": ""
+        }
+      },
+      "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00004",
+      "key": "MUSINSA:5391842",
+      "field": "targetGender",
+      "decision": "CORRECT",
+      "before": "UNISEX",
+      "after": "UNDETERMINED",
+      "previousSource": "ORIGINAL_H_FALLBACK",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:52:12+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "NEEDS_HUMAN_LOOK",
+        "proposal": null,
+        "reader": "UNDETERMINED",
+        "defense": null,
+        "ask": {
+          "question": "사람이 P05를 직접 보고 착용자 외형을 판단해 주기 바랍니다.",
+          "here": ""
+        }
+      },
+      "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00005",
+      "key": "MUSINSA:6031742",
+      "field": "targetGender",
+      "decision": "CONFIRM",
+      "before": "UNISEX",
+      "after": "UNISEX",
+      "previousSource": "ORIGINAL_H_FALLBACK",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:52:40+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "NEEDS_HUMAN_LOOK",
+        "proposal": null,
+        "reader": "MALE",
+        "defense": null,
+        "ask": {
+          "question": "P07의 여성이 쓴 프레임이 이 상품(Camelia 01 WINE)과 같은지 확인되지 않아 확신을 낮음으로 두었다. 같은 상품으로 확인되면 공용이 맞다.",
+          "here": ""
+        }
+      },
+      "constraintWarnings": []
+    }
+  ]
+}

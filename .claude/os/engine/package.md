@@ -30,7 +30,7 @@
 | 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` · `catalog-improvement-sweep` |
 | 에이전트 | `agents/catalog-golden-adjudicator.md` — 큐의 한 건이 정책 공백인가 GT 오류인가 실행 오류인가 |
 | 에이전트 | `agents/catalog-policy-cluster-scout.md` — 같은 이유로 막힌 군집 하나가 어떤 정책 결함인가 |
-| GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) — 계약 `contracts/gt-task.md` |
+| GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) · `gt_next.py`(«다음 후보 받기» 러너 — 준비·판독·화면을 한 번에 하나만) — 계약 `contracts/gt-task.md` |
 | GT 개선 워크플로우 | `workflows/gt-review.js` — 과제를 모른다. 판독자·반론자 유형도 인자로 받는다 |
 | 에이전트 | `agents/gt-blind-reader.md` — GT를 모른 채 사진과 정의만으로 칸을 읽는다 |
 | 에이전트 | `agents/gt-defender.md` — 판독이 GT와 갈린 칸에서 GT를 지킬 근거를 찾는다 |

@@ -439,6 +439,44 @@ class GtReviewTest(unittest.TestCase):
         self.assertIn('href="golden.html#q=A"', policy)
         self.assertIn("<h2>보관</h2>", policy)
 
+    def test_an_answered_question_reaches_the_next_readers_without_a_promotion_step(self) -> None:
+        # 옛 배치 — 물음이 메모에만 있고 칸마다의 표준 물음이 없다. 화면이 그 칸에 붙여 보인 물음이 기록에 남아야,
+        # 다음 배치(화면이 바뀐 뒤)에도 «이 판정은 그 물음의 답»이 이어진다.
+        out = self.fx.sweep({"A": [{**reading("sheen", "LOW", "LOW"), "observation": "조명 반사가 표면에 보입니다"}]})
+        raw = json.loads(out.read_text(encoding="utf-8"))
+        raw["result"]["items"][0]["reading"]["note"] = "P01에서 조명 반사만 보이는 표면을 광택이 있다고 볼 만큼인가요?"
+        out.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+        self.fx.task("finish", "--from", str(out))
+        asked = (self.fx.root / "gt/fixture-color-sheen/gt-review/asked.jsonl").read_text(encoding="utf-8")
+        self.assertIn('"field": "sheen"', asked)
+        # 말로 받은 판정 — 물음을 붙이지 않았어도 화면이 그 칸에 보인 물음의 답으로 이어진다.
+        self.fx.record("--key", "A", "--field", "sheen", "--decision", "CORRECT", "--value", "NONE", "--reviewer", "민준")
+        listed = json.loads(self.fx.task("qa").stdout)["answered"]
+        self.assertEqual([(r["key"], r["field"], r["answer"]) for r in listed], [("A", "sheen", "NONE")])
+
+        # 다음 배치 — 판독자 인자에 사람이 답한 경계가 실린다. 그 상품 자신(A)의 판독에는 빼라고 표시한다.
+        prepared = self.fx.task("prepare")
+        args = json.loads(prepared.stdout[prepared.stdout.index("{"):])["workflowArgs"]
+        self.assertEqual([q["question"] for q in args["common"]["answered"]], [listed[0]["question"]])
+        mine = [item for item in args["items"] if item.get("skipQa")]
+        self.assertTrue(all(q == listed[0]["id"] for item in mine for q in item["skipQa"]))
+
+    def test_every_page_script_parses(self) -> None:
+        # 화면 스크립트는 파이썬 문자열 안의 자바스크립트라 따옴표 하나가 빠져도 파이썬 테스트는 통과하고 화면만 죽는다.
+        # 그린 화면의 스크립트를 노드로 모두 읽어 본다(노드가 없으면 건너뛴다).
+        import shutil
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node가 없습니다")
+        self.fx.task("finish", "--from", str(self.fx.sweep({"A": [reading("sheen", "LOW")], "B": [reading("color", "RED", "LOW")]})))
+        for page in ("review.html", "policy.html", "golden.html"):
+            text = (self.fx.review_dir() / page).read_text(encoding="utf-8")
+            for n, body in enumerate(re.findall(r"<script(?![^>]*\b(?:src|type)=)[^>]*>(.*?)</script>", text, re.S)):
+                script = self.fx.root / f"{page}-{n}.js"
+                script.write_text(body, encoding="utf-8")
+                checked = subprocess.run([node, "--check", str(script)], capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 0, f"{page}의 스크립트 {n}: {checked.stderr[:400]}")
+
     def test_a_malformed_policy_stops_the_loader(self) -> None:
         definitions = self.fx.root / "definitions.md"
         base = definitions.read_text(encoding="utf-8")
@@ -1165,7 +1203,9 @@ class ScreenAndBatchTest(unittest.TestCase):
     def test_screen_says_what_a_button_does_and_many_values_are_checkboxes(self) -> None:
         self.fx.task("render")
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn("원본 GT는 아직 그대로입니다", page, "«반영해줘» 버튼의 결과가 GT는 아직 안 바뀌었다고 말한다")
+        self.assertIn("반영하기 — GT에 바로 넣기", page, "원본이 이 컴퓨터의 파일이면 버튼이 곧바로 넣는다고 이름이 말한다")
+        self.assertIn("GT에 넣었습니다", page)
+        self.assertNotIn("<th>키</th><th>항목</th>", page, "누른 뒤 목록 표를 펼치지 않는다 — 결과는 한 줄")
         self.assertNotIn("GT가 고쳐집니다", page)
         self.assertIn('class="pick"', page, "값 여럿은 체크 상자")
         self.assertNotIn("GT로 유지</button>", page, "AI가 GT와 같게 본 칸은 누를 것이 없다")
@@ -2450,6 +2490,49 @@ class ServerTest(unittest.TestCase):
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
         self.assertIn("answer.answered", page)
         self.assertIn("새 화면이 준비됐습니다", page)
+
+
+class ApplyButtonTest(unittest.TestCase):
+    """«반영하기» 버튼 한 번이 원본 GT를 바꾼다 — 목록만 만들고 «넣어줘»를 기다리지 않는다. GT를 바꾸므로 서버와 픽스처를 따로 둔다."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.fx = Fixture(Path(self.tmp.name))
+        self.fx.task("prepare")
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            self.port = probe.getsockname()[1]
+        self.server = subprocess.Popen([sys.executable, str(SCRIPTS / "serve_reports.py"), "--port", str(self.port)],
+                                       env=self.fx.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(50):
+            try:
+                socket.create_connection(("127.0.0.1", self.port), timeout=0.2).close()
+                break
+            except OSError:
+                time.sleep(0.1)
+
+    def tearDown(self) -> None:
+        self.server.terminate()
+        self.server.wait(timeout=5)
+        self.tmp.cleanup()
+
+    def test_one_press_puts_the_decisions_into_the_gt(self) -> None:
+        self.fx.save()
+        self.fx.record("--key", "B", "--field", "color", "--decision", "CORRECT", "--value", "RED", "--reviewer", "민준")
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        connection.request("POST", "/gt-export", json.dumps({"task": "fixture-color-sheen"}), {"Content-Type": "application/json"})
+        answer = json.loads(connection.getresponse().read())
+        self.assertTrue(answer["ok"], answer)
+        self.assertTrue(answer["summary"]["applied"])
+        self.assertEqual(answer["summary"]["linesChanged"], 1)
+        gt = {row["sku"]: row for row in map(json.loads, (self.fx.root / "data/gt.jsonl").read_text(encoding="utf-8").splitlines())}
+        self.assertEqual(gt["B"]["color"], "RED", "버튼 한 번에 원본이 바뀐다")
+        self.assertTrue(list((self.fx.root / "data").glob("gt.jsonl.before-gt-review-*")), "넣기 전 원본은 사본으로 남는다")
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        connection.request("POST", "/gt-export", json.dumps({"task": "fixture-color-sheen"}), {"Content-Type": "application/json"})
+        again = json.loads(connection.getresponse().read())
+        self.assertTrue(again["ok"], again)
+        self.assertFalse(again["summary"]["applied"], "다시 눌러도 넣을 것이 없으면 아무것도 바꾸지 않는다")
 
 
 @unittest.skipUnless(shutil.which("node"), "node가 없으면 워크플로우를 돌려 볼 수 없다")

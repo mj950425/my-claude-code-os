@@ -44,8 +44,9 @@ from typing import Any
 from catalog_profile import PROJECT_ROOT, discover_profiles, load_profile, output_root, relative_or_absolute
 from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page, apply, current_answers, reasked, definition_gaps, effective, export,
                           locked, read_ledger, record)
+from gt_next import gate
 from gt_images import ImageIndex, prepare as prepare_evidence, require_pillow
-from gt_review_render import call_name, change_moment, flow_steps
+from gt_review_render import call_name, change_moment, flow_steps, legacy_ask
 from gt_task import (
     authority,
     definition_policy,
@@ -268,6 +269,12 @@ def clear_previous_batch(root: Path) -> None:
 
 
 def cmd_prepare(args: argparse.Namespace) -> int:
+    # 한 번에 하나 — «다음 후보 받기» 러너가 도는 동안에는 준비하지 않는다(과제가 달라도). 러너 안에서 부른 것이면 그냥 지난다.
+    with gate():
+        return _prepare(args)
+
+
+def _prepare(args: argparse.Namespace) -> int:
     profile = find_profile(args.task)
     task = load_task(profile)
     check_one_ledger_per_gt(profile)
@@ -551,6 +558,16 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         },
         "worklist": relative_or_absolute(root / "worklist.json"),
     }
+    # 사람이 검수에서 답한 경계 — 다음 판독자가 같은 경계를 다시 묻지 않고 따르게. 그 상품 자신의 답은 빼고 준다(그건 이 칸의 정답이다).
+    answered = answered_questions(profile, task)
+    workflow_args["common"]["answered"] = [{"id": row["id"], "field": row["field"], "question": row["question"],
+                                            "answer": row["answer"], "answerName": row["answerName"]} for row in answered]
+    by_key: dict[str, list[str]] = {}
+    for row in answered:
+        by_key.setdefault(row["key"], []).append(row["id"])
+    for entry, item in zip(workflow_args["items"], items):
+        if by_key.get(item["key"]):
+            entry["skipQa"] = by_key[item["key"]]
     # 파일에는 GT 값도 판독 파일 이름도 없이 남긴다(무엇을 돌렸는지 되짚는 용도). 둘 다 아래 표준 출력에만 있다.
     write_json(root / "workflow-args.json", workflow_args)
     for entry in workflow_args["items"]:
@@ -785,6 +802,7 @@ def cmd_render(args: argparse.Namespace) -> int:
         raise TaskError("새 배치가 준비돼 이 결과는 화면에 올리지 않았습니다 — 새 배치의 판독을 기다려 주세요.")
     for path in written:
         print(relative_or_absolute(path))
+    record_asked(profile)
     remember_blind(root)
     return 0
 
@@ -941,6 +959,70 @@ def cmd_values(args: argparse.Namespace) -> int:
     return 0
 
 
+# 검수 문답 — 사람이 AI의 물음에 답하면 그 답은 곧 정책이다. 따로 옮기는 단계 없이 정책 페이지와 다음 판독으로 간다.
+# 정본은 원장(사람의 판정)이고, 그 판정이 어느 물음에 대한 답인지는 판정에 함께 남은 물음(`basedOn.ask`)이나,
+# 화면이 그 칸에 붙여 보인 물음의 기록(`asked.jsonl`)에서 읽는다. 뒤엣것은 표준 물음 전의 판정을 잇기 위해 있다 —
+# 화면(review.json)은 다음 배치에서 바뀌므로 «그때 무엇을 보였나»를 덧붙이기만 하는 기록으로 남겨야 이음이 끊기지 않는다.
+ASKED_LOG = "asked.jsonl"
+
+
+def record_asked(profile: dict[str, Any]) -> int:
+    """지금 화면이 칸에 붙여 보인 물음을 `asked.jsonl`에 덧붙인다(같은 배치·키·칸은 한 번). CLI의 render만 부른다 — 서버는 쓰지 않는다."""
+    from gt_decisions import gt_dir, locked, read_jsonl_file
+
+    review = read_json(review_root(profile) / "review.json") or {}
+    batch = review.get("batchId")
+    if not batch:
+        return 0
+    fields = {field["id"]: field for field in review.get("fields") or []}
+    path = gt_dir(profile) / ASKED_LOG
+    rows = []
+    with locked(profile):
+        seen = {(r.get("batchId"), r.get("key"), r.get("field")) for r in read_jsonl_file(path)} if path.is_file() else set()
+        for item in review.get("items") or []:
+            shown = {cell["field"]: cell["ask"] for cell in item["cells"] if cell.get("ask")}
+            if not shown:
+                cell, text = legacy_ask(item, fields)
+                if cell is not None:
+                    shown = {cell["field"]: {"question": text, "here": "", "legacy": True}}
+            for field_id, ask in shown.items():
+                if (batch, item["key"], field_id) in seen:
+                    continue
+                rows.append({"batchId": batch, "key": item["key"], "field": field_id, "question": ask["question"],
+                             "here": ask.get("here") or "", "kind": "legacy" if ask.get("legacy") else "standard",
+                             "shownAt": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        if rows:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return len(rows)
+
+
+def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """사람이 답한 AI의 물음 — 칸마다 지금 유효한 판정 하나. 정책 페이지(`/gt-qa`)와 다음 판독(`prepare`)이 같은 함수로 읽는다."""
+    from gt_decisions import gt_dir, read_jsonl_file
+
+    task = task or load_task(profile)
+    fields = {field["id"]: field for field in task["fields"]}
+    path = gt_dir(profile) / ASKED_LOG
+    shown = {(r.get("batchId"), r.get("key"), r.get("field")): r for r in read_jsonl_file(path)} if path.is_file() else {}
+    rows = []
+    for (key, field_id), entry in effective(read_ledger(profile)).items():
+        if entry["decision"] not in ("CORRECT", "CONFIRM") or field_id not in fields:
+            continue
+        ask = (entry.get("basedOn") or {}).get("ask") or shown.get((entry.get("batchId"), key, field_id)) or {}
+        if not str(ask.get("question") or "").strip():
+            continue
+        field = fields[field_id]
+        value = entry["after"] if entry["decision"] == "CORRECT" else entry["before"]
+        rows.append({"id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
+                     "fieldName": field.get("name") or field_id, "question": ask["question"], "here": ask.get("here") or "",
+                     "answer": value, "answerName": _value_name(field, value),
+                     "reviewer": entry.get("reviewer"), "decidedAt": entry.get("decidedAt")})
+    return sorted(rows, key=lambda row: (row["field"], row["decidedAt"] or ""))
+
+
 # 규칙 — 사람이 AI의 물음에 답한 판정을 정책(정의 문서)의 그 칸 절 `### 규칙`으로 옮긴다. 정본은 사람이 확인한 **규칙 문장**이고
 # AI의 물음은 그 규칙의 출처(`물음:`)로 남는다 — «물음 → 답»은 이번 상품에 붙은 말이라 다음 판독자에게 경계가 흐리다.
 # 옮긴 규칙은 다음 판독자가 칸 절째로 읽는다. 대체된 규칙은 `## 보관`으로 옮겨 칸 절에는 적용 중인 규칙만 남는다.
@@ -956,26 +1038,12 @@ def _policy(profile: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
 
 
 def qa_candidates(profile: dict[str, Any]) -> list[dict[str, Any]]:
-    """AI의 물음(`basedOn.ask`)을 보고 사람이 답한 판정. 칸마다 지금 유효한 판정 하나만 — 바꾼 답의 옛 줄은 옮기지 않는다."""
+    """규칙으로 다듬을 거리 — 답한 물음(`answered_questions`)에, 이미 규칙의 `물음:`으로 들어갔는지를 붙인다."""
     task = load_task(profile)
-    fields = {field["id"]: field for field in task["fields"]}
     policy = _policy(profile, task)
     asked_in_policy = {(rule["field"], rule.get("물음")) for rule in
                        [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"]] if rule.get("물음")}
-    rows = []
-    for (key, field_id), entry in effective(read_ledger(profile)).items():
-        ask = (entry.get("basedOn") or {}).get("ask") or {}
-        if not ask.get("question") or entry["decision"] not in ("CORRECT", "CONFIRM"):
-            continue
-        field = fields.get(field_id) or {}
-        value = entry["after"] if entry["decision"] == "CORRECT" else entry["before"]
-        rows.append({
-            "decisionId": entry["decisionId"], "key": key, "field": field_id, "fieldName": field.get("name") or field_id,
-            "question": ask["question"], "here": ask.get("here") or "",
-            "answer": value, "answerName": _value_name(field, value), "reviewer": entry.get("reviewer"),
-            "inPolicy": (field_id, ask["question"]) in asked_in_policy,
-        })
-    return sorted(rows, key=lambda row: (row["field"], row["question"], row["key"]))
+    return [{**row, "inPolicy": (row["field"], row["question"]) in asked_in_policy} for row in answered_questions(profile, task)]
 
 
 def _value_name(field: dict[str, Any], value: Any) -> str:

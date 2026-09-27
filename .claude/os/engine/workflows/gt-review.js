@@ -108,6 +108,21 @@ observation·why·note는 **한국어로** 쓴다. 읽는 사람은 코드를 �
 문장 안에서 값은 labelNames의 한국어 이름을 **글자 그대로** 부른다(바꿔 말하지 않는다 — 화면의 버튼과 같은 이름이어야 한다).
 코드(영문 허용값)는 value 칸에만 쓴다.`
 
+// 사람이 검수에서 이미 답한 경계 — 이 건의 칸에 걸린 것만, 이 상품 자신의 답은 빼고(그건 이 칸의 정답이다).
+function answeredFor(item) {
+  const names = {}
+  Object.entries(item.fieldNames || {}).forEach(([name, id]) => { names[id] = name })
+  const mine = new Set([...(item.fields || []), ...(item.quietFields || [])])
+  const skip = new Set(item.skipQa || [])
+  const rows = (item.answered || []).filter((q) => mine.has(q.field) && !skip.has(q.id))
+  if (!rows.length) return ''
+  return `
+
+사람이 검수에서 이미 답한 경계(정책의 «검수 문답»)다. 같은 경계에 걸리면 이 답을 따르고 다시 묻지 않는다.
+사진의 사정이 다르면 이 사진에 보이는 대로 판단한다 — 답을 이 상품의 값으로 옮겨 오지 않는다.
+${rows.map((q) => `- [${names[q.field] || q.field}] ${q.question} → ${q.answerName}`).join('\n')}`
+}
+
 function readerPrompt(item) {
   return `판독 파일 ${item.view} 하나를 읽고, 그 안의 건 하나를 판독한다.
 
@@ -125,7 +140,7 @@ fields에 적힌 필드마다, 정의 문서의 기준으로 증거에서 보이
 - 사진과 정의 문서로 가를 수 없는 경계에 걸리면, 그 칸에 askHuman을 남기고 confidence를 LOW로 둔다.
   question은 사진 번호도 이 상품 이야기도 없는 경계 물음이다(사람의 답이 정의 문서의 규칙이 된다).
   이 사진의 사정은 here에, 답마다 될 값은 options에 적는다. 정의 문서 칸 절의 «### 규칙»이 이미 가른 경계는 다시 묻지 않고 그 규칙을 따른다(«범위»가 있으면 그 카테고리 상품에만).
-- 사람에게 묻는 말을 note에 쓰지 않는다 — 화면은 askHuman만 사람에게 보인다.${COMMON}`
+- 사람에게 묻는 말을 note에 쓰지 않는다 — 화면은 askHuman만 사람에게 보인다.${answeredFor(item)}${COMMON}`
 }
 
 // 값을 «이름 (코드)»로. 반론 문장은 이 모양을 따라 쓰므로, 여기서 코드만 주면 화면에 코드가 샌다.

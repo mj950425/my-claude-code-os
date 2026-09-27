@@ -3,20 +3,20 @@
   "profileId": "clothing-thumbnail-observation",
   "gtSource": ".claude/gt/clothing-thumbnail-observation/gt.jsonl",
   "sourceDigest": "72f2006cbae0a58114edcaf40fcc74ee12190c05a0418b6b740bf2b776f13aa1",
-  "lastDecisionId": "GTD-00081",
+  "lastDecisionId": "GTD-00319",
   "upstream": null,
   "rows": {
     "source": 149,
     "corrected": 149
   },
-  "corrections": 23,
+  "corrections": 142,
   "alreadyApplied": 0,
-  "confirmations": 34,
+  "confirmations": 134,
   "thisBatch": {
-    "corrections": 16,
-    "confirmations": 24
+    "corrections": 119,
+    "confirmations": 100
   },
-  "linesToChange": 13,
+  "linesToChange": 73,
   "withdrawn": [],
   "confirmationsNotUpstream": 0,
   "newSinceLastList": null,
