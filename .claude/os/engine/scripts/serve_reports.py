@@ -33,6 +33,9 @@
 3. **사람의 클릭만 받는다.** JSON 본문만 받고 다른 출처의 요청은 거절한다. 브라우저의
    평범한 폼은 JSON을 보낼 수 없으므로, 다른 페이지가 몰래 판정을 심을 수 없다.
 
+**«다음 후보 받기»(`POST /gt-next`)도 서버가 쓰지 않는다.** 러너(`gt_next.py run`)를 떼어 띄우고, 상태(`GET /gt-next`)를 읽어 줄 뿐이다.
+준비·판독·화면은 러너가 쓴다. 한 번에 하나는 러너의 잠금이 지킨다.
+
 쓰고 나면 파생기를 다시 돌려 «방금 그것이 GT에 나갔는지, 미결 판례에 막혔는지»를
 그 자리에서 돌려준다. 그 갈림은 서버가 판단하지 않는다 — `build_gt_decisions.derive()`가 낸다.
 
@@ -47,6 +50,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.parse
 from datetime import datetime
 from http import HTTPStatus
@@ -62,6 +66,7 @@ from gt_decisions import current_answers as current_field_answers
 from gt_decisions import apply as apply_fields
 from gt_decisions import export as export_fields
 from gt_decisions import record as record_field
+from gt_next import lock_dir as next_lock_dir
 from gt_next import running as next_running
 from gt_next import status as next_status
 from gt_review import answered_questions, home_rows
@@ -69,6 +74,9 @@ from gt_task import TaskError, field_map, gt_value, load_gt, load_task
 from record_review_decision import DecisionRejected, record
 
 DEFAULT_PORT = 7391
+
+# «다음 후보 받기» — 러너가 잠금을 쥐고 제 상태를 쓸 때까지 기다리는 최대 시간(초). 파이썬 기동과 과제 읽기에 몇 초 걸린다.
+NEXT_START_WAIT = 30.0
 
 # 승인 본문이 이 크기를 넘으면 읽지 않는다. 판정 한 줄은 몇 백 바이트다.
 MAX_BODY = 64 * 1024
@@ -296,24 +304,40 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = self.read_submission()
             wanted = str(body.get("task") or "")
-            if not any(item.id == wanted and item.profile.get("gtTask") for item in scan()):
+            attribute = next((item for item in scan() if item.id == wanted and item.profile.get("gtTask")), None)
+            if attribute is None:
                 raise FieldDecisionRejected(f"GT 개선 과제를 찾지 못했습니다: {wanted}")
+            # 러너가 잠그는 자리와 같은 자리를 본다 — 과제의 산출물 폴더 옆(runs/.gt-next).
+            folder = next_lock_dir(attribute.profile)
             # 스킬도 이 문으로 온다 — «못 읽은 거 다시 봐줘»(reread)와 «20건씩»(limit)도 같은 러너가 돈다.
             extra = ["--reread"] if body.get("reread") is True else []
             if isinstance(body.get("limit"), int) and not isinstance(body.get("limit"), bool) and body["limit"] >= 0:
                 extra += ["--limit", str(body["limit"])]
         except (FieldDecisionRejected, DecisionRejected) as rejected:
             return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
-        now = next_running()
+        now = next_running(folder)
         if now is not None:
-            name = now.get("taskName") or now.get("task") or "다른 과제"
-            return self.send_json({"ok": False, "busy": True, "error": f"«{name}»의 다음 후보를 AI가 보는 중입니다 — "
-                                   "한 번에 하나만 돕니다. 끝난 뒤 다시 눌러 주세요."}, HTTPStatus.CONFLICT)
+            return self.send_json({"ok": False, "busy": True, "error": "이미 AI가 검수중입니다."}, HTTPStatus.CONFLICT)
         # 서버와 떨어져 돈다 — 서버를 다시 켜도(serve.sh restart) 판독은 멈추지 않는다.
-        subprocess.Popen([sys.executable, str(Path(__file__).with_name("gt_next.py")), "run", "--task", wanted, *extra],
-                         cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        return self.send_json({"ok": True, "started": wanted})
+        runner = subprocess.Popen([sys.executable, str(Path(__file__).with_name("gt_next.py")), "run", "--task", wanted, *extra],
+                                  cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        # 러너가 잠금을 쥐고 제 상태를 쓸 때까지 기다린 뒤 답한다. 곧바로 답하면 화면의 첫 조회가 러너보다 먼저 도착해
+        # 지난 실행의 상태를 이번 결과로 읽는다. 답에는 러너의 pid를 싣는다 — 화면과 스킬은 그 pid의 상태만 이번 것으로 본다.
+        deadline = time.monotonic() + NEXT_START_WAIT
+        while time.monotonic() < deadline:
+            state = next_status(folder)
+            if state.get("pid") == runner.pid:
+                return self.send_json({"ok": True, "started": wanted, "pid": runner.pid, "startedAt": state.get("startedAt")})
+            if runner.poll() is not None:
+                # 제 상태를 한 줄도 못 쓰고 끝났다 — 잠금을 못 얻었거나(3) 과제를 읽다 멈췄다.
+                if runner.returncode == 3:
+                    return self.send_json({"ok": False, "busy": True, "error": "이미 AI가 검수중입니다."}, HTTPStatus.CONFLICT)
+                return self.send_json({"ok": False, "error": "준비를 시작하지 못했습니다 — Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요."},
+                                      HTTPStatus.INTERNAL_SERVER_ERROR)
+            time.sleep(0.2)
+        return self.send_json({"ok": False, "error": "준비가 시작되지 않았습니다 — 잠시 뒤 다시 눌러 주세요."},
+                              HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def decide_field(self) -> None:
         """GT 개선 과제의 칸 하나. `/decide`와 같은 선을 지킨다 — JSON만, 로컬 출처만,
@@ -453,7 +477,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(HOME_PAGE.read_bytes(), "text/html; charset=utf-8")
 
         if route == "/gt-next":
-            return self.send_json(next_status())
+            # 과제를 주면 그 과제의 잠금 자리를 본다(러너와 같은 자리). 안 주면 기본 자리 — 지금 과제들은 모두 거기서 잠근다.
+            wanted = (query.get("task") or [""])[0]
+            attribute = next((item for item in found if item.id == wanted and item.profile.get("gtTask")), None)
+            return self.send_json(next_status(next_lock_dir(attribute.profile) if attribute else None))
 
         if route == "/gt-tasks":
             try:

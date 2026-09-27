@@ -128,6 +128,33 @@
         }
       },
       "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00006",
+      "key": "EGOOCM:3406354",
+      "field": "targetGender",
+      "decision": "CONFIRM",
+      "before": "FEMALE",
+      "after": "FEMALE",
+      "previousSource": "FINAL_AQ_20260903",
+      "basis": "definitions#targetGender",
+      "batchId": "2026-09-26T10:33:15+00:00-5d067c",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-27T08:55:04+00:00",
+      "supersedes": null,
+      "basedOn": {
+        "status": "NEEDS_HUMAN_LOOK",
+        "proposal": null,
+        "reader": "UNDETERMINED",
+        "defense": null,
+        "ask": {
+          "question": "판단이 갈리는 곳은 P04의 «커버낫 우먼» 소개 문구 하나입니다. 이 글을 정의 문서가 빼라고 한 브랜드 소개로 볼지, 여성 전용 라인을 밝힌 직접 문구로 볼지를 정의가 정하지 않았습니다.",
+          "here": ""
+        }
+      },
+      "constraintWarnings": []
     }
   ]
 }

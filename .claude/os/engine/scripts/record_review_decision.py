@@ -258,6 +258,9 @@ def record(
 
     되돌리지 않는다 — 원장은 이력이라 고쳐 쓰지 않고 `supersedes`로 덮는다.
     """
+    # 이 GT의 판정 원장을 골든셋 검수 과제로 옮긴 속성(`gt.ledger: "gtTask"`)은 여기로 받지 않는다 — 한 GT에 원장은 하나다.
+    if (profile.get("gt") or {}).get("ledger") == "gtTask":
+        raise DecisionRejected("이 GT의 판정은 골든셋 검수 화면(/gt/<과제ID>)에서 받습니다 — 감사 사이클의 판정 원장은 닫혀 있습니다.")
     if decision not in DECISIONS:
         raise DecisionRejected(f"모르는 판정 종류입니다: {decision}")
     if not str(product_key).strip():

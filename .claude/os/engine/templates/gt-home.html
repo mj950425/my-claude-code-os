@@ -144,7 +144,6 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     <div class="side-item" data-menu="policy"><a class="side-link" id="nav-policy" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu"></div></div>
     <div class="side-item" data-menu="golden"><a class="side-link" id="nav-golden" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋</a><div class="flyout" role="menu"></div></div>
   </nav>
-  <div class="side-others" id="others" hidden><p class="side-kicker">이 목록 밖의 GT</p><div id="other-list"></div></div>
 </aside>
 <main class="wrap">
   <header>
@@ -343,7 +342,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
                  golden: function (task) { return folder(task) + "golden.html"; }};
     document.querySelectorAll(".side-item[data-menu]").forEach(function (item) {
       var menu = item.querySelector(".flyout"); menu.textContent = "";
-      tasks.filter(function (task) { return item.dataset.menu === "review" || task.prepared; }).forEach(function (task) {
+      tasks.filter(function (task) { return item.dataset.menu === "review" || task.pages || task.prepared; }).forEach(function (task) {
         var a = el("a", "flyout-link"); a.href = paths[item.dataset.menu](task); a.setAttribute("role", "menuitem");
         a.appendChild(el("span", null, task.name));
         var left = n(task.waitingForHuman) + n(task.notRead);
@@ -351,15 +350,6 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
         menu.appendChild(a);
       });
       item.classList.toggle("has-menu", menu.children.length > 0);
-    });
-    document.getElementById("others").hidden = !others.length;
-    var ul = document.getElementById("other-list");
-    ul.textContent = "";
-    others.forEach(function (door) {
-      var link = el("a", "side-door", door.name + " →");
-      link.href = "/audit?a=" + encodeURIComponent(door.profile);
-      link.title = "이 GT는 다른 화면(감사 화면)에서 봅니다";
-      ul.appendChild(link);
     });
   }
 

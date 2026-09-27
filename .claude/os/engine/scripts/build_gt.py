@@ -123,6 +123,14 @@ def build(
     for source_path in corrections:
         applied_here = []
         for row in read_jsonl(source_path):
+            # 골든셋 검수 과제의 정정 파일(`gt-review/corrections.jsonl`)은 칸 단위 모양이다 — 키는 `id`, 새 값은 `after`,
+            # 고친 열은 `column`. 이 원장의 라벨 열(goldLabel)을 고친 줄만 같은 모양으로 읽는다(원장을 옮긴 속성이 쓴다).
+            if "after" in row and "column" in row:
+                if row.get("column") != "goldLabel":
+                    continue
+                row = {"productKey": row.get("id"), "goldLabel": row.get("after"), "goldSource": row.get("source"),
+                       "decisionId": row.get("decisionId"), "reviewer": row.get("reviewer"),
+                       "reviewedAt": row.get("decidedAt"), "reason": row.get("reason")}
             key = str(row.get("productKey") or "")
             entry = merged.get(key)
             if entry is None or not row.get("goldLabel"):

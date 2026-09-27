@@ -42,7 +42,6 @@ from __future__ import annotations
 import copy
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -451,9 +450,16 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
         raise TaskError(f"{pid}: gtTask.schemaVersion은 {TASK_SCHEMA}여야 합니다.")
     # 정답이 두 원장에 있으면 화면마다 다른 답을 그린다. 감사 사이클의 원장(`gt` 블록)을 쓰는
     # 속성은 그 사이클의 판정 원장으로 고친다. 두 문을 한 GT에 달지 않는다.
-    if profile.get("gt"):
-        raise TaskError(f"{pid}: gt 블록(감사 사이클 원장)과 gtTask를 함께 선언할 수 없습니다. "
-                        "한 GT에 판정 원장은 하나여야 합니다.")
+    # 예외는 하나 — 사이클이 GT를 **만들기만** 하고(계보 합치기) 판정 원장은 이 과제에 넘긴 경우(`gt.ledger: "gtTask"`).
+    # 그때도 두 블록은 같은 GT 파일을 가리켜야 한다. 사이클 쪽 판정 문(record_review_decision)은 이 표시를 보고 닫힌다.
+    cycle = profile.get("gt")
+    if cycle:
+        if not (isinstance(cycle, dict) and cycle.get("ledger") == "gtTask"):
+            raise TaskError(f"{pid}: gt 블록(감사 사이클 원장)과 gtTask를 함께 선언할 수 없습니다. "
+                            "한 GT에 판정 원장은 하나여야 합니다 — 원장을 이 과제로 옮기려면 gt 블록에 \"ledger\": \"gtTask\"를 적습니다.")
+        if project_path(str(cycle.get("path") or "")).resolve() != resolve(profile, task.get("gt") or {}).resolve():
+            raise TaskError(f"{pid}: gt 블록이 원장을 gtTask에 넘겼다면 두 블록이 같은 GT 파일을 가리켜야 합니다 "
+                            f"({cycle.get('path')} ≠ {(task.get('gt') or {}).get('path')}).")
     for key in ("keyField", "gt", "fields", "definitions"):
         if not task.get(key):
             raise TaskError(f"{pid}: gtTask.{key}가 필요합니다.")
@@ -473,7 +479,7 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
     fields = task["fields"]
     if not isinstance(fields, list) or not all(isinstance(f, dict) and f.get("id") for f in fields):
         raise TaskError(f"{pid}: gtTask.fields는 id를 가진 객체 목록이어야 합니다.")
-    for name in ("groupField", "titleField"):
+    for name in ("groupField", "titleField", "linkField"):
         if task.get(name) is not None and not isinstance(task[name], str):
             raise TaskError(f"{pid}: gtTask.{name}은 열 하나(문자열)만 적습니다 — 복합 키는 keyField에만 씁니다.")
     # 허용값·이름표의 정본은 정책(정의 문서)이다 — 필드 절의 `### 허용값`. 프로필에는 두지 않는다(둘이면 어긋난다).
@@ -674,8 +680,13 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
                 re.compile(str(pattern))
             except re.error as error:
                 raise TaskError(f"{pid}: authority.{grade}의 패턴 {pattern!r}가 정규식이 아닙니다 — {error}") from error
-    for role, name in (task.get("agents") or {}).items():
-        check_read_only_agent(pid, str(name))
+    if "agents" in task:
+        # 과제는 판독자·반론자를 고르지 않는다 — 역할 프롬프트는 모든 과제에 하나다. 과제마다 프롬프트를 고치기 시작하면
+        # 과제가 늘수록 프롬프트가 늘고, 판단 기준이 정의 문서와 프롬프트 두 곳에 갈린다.
+        raise TaskError(f"{pid}: gtTask.agents는 받지 않습니다 — 판독 프롬프트는 모든 과제에 공통입니다. "
+                        f"판단을 바꾸려면 정의 문서({task.get('definitions')})의 그 칸 절에 적으세요.")
+    for name in AGENTS.values():
+        check_read_only_agent(pid, name)
     upstream = task["gt"].get("upstream")
     if upstream is not None and (not isinstance(upstream, dict) or not upstream.get("kind")):
         raise TaskError(f"{pid}: gt.upstream은 {{kind, note, mirrorFields}} 객체여야 합니다.")
@@ -773,8 +784,12 @@ def agent_tools(head: str) -> set[str]:
     return set()
 
 
+# 판독자와 반론자 — 모든 과제가 같은 둘을 쓴다. 과제마다 다른 것은 정의 문서(무엇이 답인가)와 프로필(무엇을 읽는가)뿐이다.
+AGENTS = {"reader": "gt-blind-reader", "defender": "gt-defender"}
+
+
 def check_read_only_agent(pid: str, name: str) -> None:
-    """과제가 판독자·반론자를 바꿀 때, 그 에이전트가 읽기 도구만 가진 등록된 에이전트인지 본다(규칙 6).
+    """판독자·반론자가 읽기 도구만 가진 등록된 에이전트인지 본다(규칙 6).
     쓰기 도구를 가진 에이전트가 판독하면 «읽기만 한다»가 지시로만 남는다."""
     for path in (PROJECT_ROOT / ".claude" / "agents").rglob("*.md"):
         text = path.read_text(encoding="utf-8")

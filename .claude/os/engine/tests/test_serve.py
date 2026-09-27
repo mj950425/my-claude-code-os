@@ -211,7 +211,8 @@ class ProcessTest(unittest.TestCase):
                     return None
 
             opener = urllib.request.build_opener(NoRedirect)
-            door = listing["otherDoors"][0]["profile"]
+            # 가방은 골든셋 검수 과제로 옮겨 목록 안에 있지만, 감사 사이클 화면은 그대로 /audit로 열린다.
+            door = (listing["otherDoors"] or [{"profile": "bag-category-gender"}])[0]["profile"]
             try:
                 opener.open(f"http://127.0.0.1:{port}/audit?a={door}", timeout=5)
                 self.fail("감사 문이 리다이렉트하지 않았습니다.")

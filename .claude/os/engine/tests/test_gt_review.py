@@ -23,7 +23,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
 from pathlib import Path
@@ -460,6 +459,52 @@ class GtReviewTest(unittest.TestCase):
         self.assertEqual([q["question"] for q in args["common"]["answered"]], [listed[0]["question"]])
         mine = [item for item in args["items"] if item.get("skipQa")]
         self.assertTrue(all(q == listed[0]["id"] for item in mine for q in item["skipQa"]))
+
+    def test_golden_keys_link_to_the_product_page_the_profile_names(self) -> None:
+        # 주소 칸은 프로필이 선언한다(linkField). GT 행에 없으면 사진 원본 행(같은 키)에서 찾는다. http(s)만 링크로 쓴다.
+        images = self.fx.root / "data" / "images.jsonl"
+        rows = [json.loads(line) for line in images.read_text(encoding="utf-8").splitlines() if line.strip()]
+        for row in rows:
+            row["pdp"] = {"A": "https://shop.example/products/A", "B": "javascript:alert(1)"}.get(row["sku"])
+        images.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+        self.fx.profile["gtTask"]["linkField"] = "pdp"
+        self.fx.save()
+        self.fx.task("render")
+        page = (self.fx.review_dir() / "golden.html").read_text(encoding="utf-8")
+        self.assertIn('<a class="gkey" href="https://shop.example/products/A" target="_blank" rel="noopener"', page)
+        self.assertNotIn("javascript:", page)
+        self.assertIn('<span class="gkey">C</span>', page)
+
+    def test_golden_page_shows_a_small_photo_per_key(self) -> None:
+        # 골든셋 화면은 검수 화면의 접힌 상품처럼 카드 한 장에 대표 사진 · 키 · 칸별 값. 사진은 작게 줄여 화면 폴더에 둔다.
+        self.fx.task("render")
+        page = (self.fx.review_dir() / "golden.html").read_text(encoding="utf-8")
+        self.assertIn('class="gcard"', page)
+        self.assertNotIn("<table>", page)
+        thumbs = sorted((self.fx.review_dir() / "golden-thumbs").glob("*.jpg"))
+        self.assertTrue(thumbs, "사진 색인이 있는 과제는 키마다 작은 사진을 만든다")
+        self.assertIn(f'src="golden-thumbs/{thumbs[0].name}"', page)
+
+    def test_a_cycle_block_is_allowed_only_when_it_hands_its_ledger_over(self) -> None:
+        # 한 GT에 원장은 하나. 사이클 블록(gt)은 원장을 넘겼다고(ledger: gtTask) 밝히고, 같은 GT 파일을 가리킬 때만 함께 둔다.
+        gt_file = self.fx.profile["gtTask"]["gt"]["path"]
+        self.fx.profile["gt"] = {"path": gt_file}
+        self.fx.save()
+        self.assertIn("함께 선언할 수 없습니다", self.fx.task("status", check=False).stderr)
+        self.fx.profile["gt"] = {"path": str(self.fx.root / "other.jsonl"), "ledger": "gtTask"}
+        self.fx.save()
+        self.assertIn("같은 GT 파일", self.fx.task("status", check=False).stderr)
+        self.fx.profile["gt"] = {"path": gt_file, "ledger": "gtTask"}
+        self.fx.save()
+        self.assertEqual(self.fx.task("status", check=False).returncode, 0)
+
+    def test_policy_and_golden_pages_need_no_batch(self) -> None:
+        # 새로 붙인 과제도 정책·골든셋 메뉴에 곧바로 오른다 — 두 장은 배치(작업 목록·판독) 없이 쓴다.
+        for name in ("policy.html", "golden.html"):
+            (self.fx.review_dir() / name).unlink(missing_ok=True)
+        self.fx.task("pages")
+        for name in ("policy.html", "golden.html"):
+            self.assertTrue((self.fx.review_dir() / name).is_file(), name)
 
     def test_every_page_script_parses(self) -> None:
         # 화면 스크립트는 파이썬 문자열 안의 자바스크립트라 따옴표 하나가 빠져도 파이썬 테스트는 통과하고 화면만 죽는다.
@@ -1203,7 +1248,8 @@ class ScreenAndBatchTest(unittest.TestCase):
     def test_screen_says_what_a_button_does_and_many_values_are_checkboxes(self) -> None:
         self.fx.task("render")
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
-        self.assertIn("반영하기 — GT에 바로 넣기", page, "원본이 이 컴퓨터의 파일이면 버튼이 곧바로 넣는다고 이름이 말한다")
+        self.assertIn('id="do-export" title="답한 값을 GT에 바로 넣습니다">반영하기</button>', page,
+                      "원본이 이 컴퓨터의 파일이면 버튼이 곧바로 넣는다고 말한다(이름은 «반영하기», 뜻은 곁말에)")
         self.assertIn("GT에 넣었습니다", page)
         self.assertNotIn("<th>키</th><th>항목</th>", page, "누른 뒤 목록 표를 펼치지 않는다 — 결과는 한 줄")
         self.assertNotIn("GT가 고쳐집니다", page)
@@ -2342,10 +2388,11 @@ class ScreenAndBatchTest(unittest.TestCase):
         summary = json.loads(self.fx.task("export").stdout)
         self.assertEqual(summary["orphaned"][0]["key"], "B", "원장에는 있는데 GT에서 사라진 줄을 알린다")
 
-    def test_a_replacement_agent_must_be_read_only(self) -> None:
+    def test_a_task_cannot_choose_its_own_reader(self) -> None:
+        # 판독 프롬프트는 모든 과제에 공통이다 — 과제가 판독자를 고르는 칸은 없다(test_gt_prompts가 원칙을 지킨다).
         self.fx.profile["gtTask"]["agents"] = {"reader": "general-purpose"}
         self.fx.save()
-        self.assertIn("general-purpose", self.fx.task("prepare", check=False).stderr)
+        self.assertIn("gtTask.agents는 받지 않습니다", self.fx.task("prepare", check=False).stderr)
 
     def test_jargon_before_a_particle_is_caught(self) -> None:
         from gt_review import korean_warnings

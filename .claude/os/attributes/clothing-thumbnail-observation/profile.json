@@ -97,7 +97,7 @@
       }
     ],
     "images": {
-      "path": "tool/image-gender/gt-harness/data/thumbnail-model-gender-gt-20260831.jsonl",
+      "path": "tool/image-gender/gt-harness/data/thumbnail-observation-index-20260927.jsonl",
       "root": "source",
       "keyField": "id",
       "fileField": "localPath",
@@ -112,6 +112,7 @@
     "limit": 60,
     "columnNames": {
       "standardCategory": "표준 카테고리"
-    }
+    },
+    "linkField": "pdpUrl"
   }
 }

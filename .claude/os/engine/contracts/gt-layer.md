@@ -87,3 +87,14 @@ GT를 건드리는 판정은 **어느 정책 경계에 근거했는지**를 함�
 3. import 어댑터가 그 원장 하나만 읽게 한다.
 
 `gt` 블록이 없는 프로필은 이 단계를 건너뛴다. 계보가 하나뿐이면 합칠 것이 없다.
+
+## 원장을 골든셋 검수로 넘긴 속성
+
+사이클이 GT를 **만들기만** 하고 판정은 골든셋 검수 과제(`gtTask`)가 받게 할 수 있다 — `gt` 블록에 `"ledger": "gtTask"`를 적고,
+`gtTask.gt`가 같은 GT 파일(`.claude/gt/<id>/gt.jsonl`)을 가리킨다(로더가 확인한다). 그러면
+
+- 사이클의 판정 문(`record_review_decision.record`, 서버 `/decide`)은 닫힌다 — 한 GT에 원장은 하나다.
+- 사람의 판정은 `.claude/gt/<id>/gt-review/decisions.json`에 쌓이고, «반영하기»가 GT 파일에 바로 넣는다.
+- GT를 계보에서 다시 합칠 때는 검수 과제의 정정 파일(`gt-review/corrections.jsonl`, 칸 단위 모양)을 **마지막** `--corrections`로 넘긴다.
+  `build_gt.py`는 그 모양에서 라벨 열(`column: goldLabel`)을 고친 줄만 읽는다. 넘기지 않으면 다시 합칠 때 사람의 답이 사라진다.
+

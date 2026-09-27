@@ -44,10 +44,12 @@ from typing import Any
 from catalog_profile import PROJECT_ROOT, discover_profiles, load_profile, output_root, relative_or_absolute
 from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page, apply, current_answers, reasked, definition_gaps, effective, export,
                           locked, read_ledger, record)
-from gt_next import gate
+from gt_next import gate, lock_dir
 from gt_images import ImageIndex, prepare as prepare_evidence, require_pillow
 from gt_review_render import call_name, change_moment, flow_steps, legacy_ask
 from gt_task import (
+    AGENTS,
+    definition_texts,
     authority,
     definition_policy,
     next_rule_id,
@@ -63,7 +65,6 @@ from gt_task import (
     gt_value,
     in_range,
     is_many,
-    ledger_targets,
     load_gt,
     load_task,
     resolve,
@@ -73,7 +74,6 @@ WORKLIST_SCHEMA = "gt-review-worklist-v2"
 SWEEP_SCHEMA = "gt-review-sweep-v2"
 # 한 번에 사람 앞에 놓는 건수. 에이전트 수는 «건 × 2»를 넘지 않는다(판독 + 반론).
 DEFAULT_LIMIT = 8
-DEFAULT_AGENTS = {"reader": "gt-blind-reader", "defender": "gt-defender"}
 HANGUL = re.compile(r"[가-힣]")
 
 
@@ -156,16 +156,36 @@ def read_json(path: Path, default: Any = None) -> Any:
         return default
 
 
-def agreed_cells(root: Path) -> set[tuple[str, str, str | None]]:
-    """지난 판독에서 GT를 모르는 눈이 **그때의 GT와 같은 값**을 낸 칸. 사람 판정이 아니다 — 순서에만 쓴다."""
+def field_digests(profile: dict[str, Any], task: dict[str, Any]) -> dict[str, str]:
+    """칸마다 정의 문서의 그 절 지문. 판독자가 읽는 기준이 바뀌었는지 가른다 — 바뀌었으면 AI의 옛 동의는 이제 근거가 아니다."""
+    definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+    return {field: hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] for field, text in definition_texts(definitions).items()}
+
+
+def agreed_cells(root: Path, digests: dict[str, str] | None = None) -> set[tuple[str, str, str | None]]:
+    """지난 판독에서 GT를 모르는 눈이 **그때의 GT와 같은 값**을 낸 칸. 사람 판정이 아니다(원장에 적지 않는다).
+
+    `digests`를 주면 그 칸 절이 그때와 같은 동의만 센다 — 정책이 바뀐 뒤의 옛 동의는 버린다. 지문이 없는 옛 줄은 센다
+    (지문을 적기 전의 동의다 — 버리면 이미 끝낸 칸이 한꺼번에 다시 올라온다)."""
     path = root / "agreed.jsonl"
     cells: set[tuple[str, str, str | None]] = set()
     if path.is_file():
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 row = json.loads(line)
+                if digests is not None and row.get("policy") and row["policy"] != digests.get(str(row["field"])):
+                    continue
                 cells.add((str(row["key"]), str(row["field"]), row.get("gtValue")))
     return cells
+
+
+# AI의 동의로 끝나는 칸 — 이 신호 하나로만 뽑힌 칸이다(«사람 확인 전 라벨이니 한 번 보자»). GT를 모르는 눈이 같은 값을 냈으면
+# 그 확인은 끝났다. 모순·허용값 밖·답한 뒤 바뀜 같은 신호가 함께 있으면 동의가 있어도 계속 올린다.
+SETTLED_BY_AGREEMENT = frozenset({"GT_REFERENCE_ONLY"})
+
+
+def settled_by_agreement(cell: dict[str, Any], agreed: set[tuple[str, str, str | None]]) -> bool:
+    return (cell["key"], cell["field"], cell["current"]) in agreed and set(cell.get("signals") or []) <= SETTLED_BY_AGREEMENT
 
 
 def blind_cells(root: Path) -> set[tuple[str, str, str | None]]:
@@ -254,7 +274,7 @@ def cmd_tasks(_: argparse.Namespace) -> int:
 # 배치가 바뀌어도 남기는 것. 이 밖의 것은 전부 지운다(남길 것 목록 방식).
 # export는 사람에게 «이 파일을 붙여 넣어 주세요»라고 건넨 목록이라, «다음 거» 한 번에 사라지면 안 된다.
 # 지울 것 목록으로 두면 옛 판의 파일(키가 든 판독 목록 같은)이 이름이 달라 살아남는다.
-KEEP_ACROSS_BATCHES = {"agreed.jsonl", "shown.jsonl", "blind.jsonl", "export"}
+KEEP_ACROSS_BATCHES = {"agreed.jsonl", "shown.jsonl", "blind.jsonl", "export", "golden-thumbs"}  # golden-thumbs: 골든셋 화면의 작은 사진 — 배치와 무관해 다시 줄이지 않게 남긴다
 
 
 def clear_previous_batch(root: Path) -> None:
@@ -270,7 +290,7 @@ def clear_previous_batch(root: Path) -> None:
 
 def cmd_prepare(args: argparse.Namespace) -> int:
     # 한 번에 하나 — «다음 후보 받기» 러너가 도는 동안에는 준비하지 않는다(과제가 달라도). 러너 안에서 부른 것이면 그냥 지난다.
-    with gate():
+    with gate(lock_dir(find_profile(args.task))):
         return _prepare(args)
 
 
@@ -289,7 +309,13 @@ def _prepare(args: argparse.Namespace) -> int:
     latest_turn = max(shown.values(), default=0) + 1  # 지금 넘기는 칸은 파일의 어느 줄보다 뒤다
     for row in skipped:
         shown[(row["key"], row["field"], row["gtValue"])] = latest_turn
-    items = group_items(task, found, gt_rows, agreed_cells(root), shown)
+    # AI가 GT를 모른 채 같은 값을 낸 칸은 끝났다 — 다시 올리지 않는다. GT가 바뀌거나(값이 달라져 동의가 안 맞는다) 그 칸의 정의 절이
+    # 바뀌면(지문이 달라진다) 다시 후보가 된다. 사람이 누른 판정이 아니므로 원장에는 여전히 적지 않는다.
+    agreed = agreed_cells(root, field_digests(profile, task))
+    settled = [cell for cell in found if settled_by_agreement(cell, agreed)]
+    found = [cell for cell in found if not settled_by_agreement(cell, agreed)]
+    counts["settledByAgreement"] = len(settled)
+    items = group_items(task, found, gt_rows, agreed, shown)
     only = set(args.key or [])
     if only:
         items = [item for item in items if item["key"] in only]
@@ -536,7 +562,7 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         path = reader / f"{token}.json"
         write_json(path, view)
         views[item["id"]] = relative_or_absolute(path)
-    agents = {**DEFAULT_AGENTS, **(task.get("agents") or {})}
+    agents = dict(AGENTS)  # 모든 과제에 공통 — 과제는 판독자를 고르지 않는다(gt_task.AGENTS)
     workflow_args = {
         "task": profile["id"],
         "batchId": worklist["batchId"],
@@ -685,10 +711,11 @@ def sweep_warnings(profile: dict[str, Any], value: dict[str, Any]) -> dict[str, 
 
 
 def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, Any],
-                       task_fields: list[dict[str, Any]] | None = None) -> None:
-    """GT를 모르는 눈이 GT와 같은 값을 확신 있게 낸 칸을 적어 둔다. 원장이 아니다 — 다음 준비의 순서에만 쓴다."""
+                       task_fields: list[dict[str, Any]] | None = None, digests: dict[str, str] | None = None) -> None:
+    """GT를 모르는 눈이 GT와 같은 값을 확신 있게 낸 칸을 적어 둔다. 원장이 아니다 — 다음 준비가 그 칸을 끝난 것으로 본다.
+    그 칸 절의 지문(`policy`)을 함께 적는다 — 정의 문서의 그 절이 바뀌면 옛 동의는 근거가 되지 않는다."""
     path = root / "agreed.jsonl"
-    known = agreed_cells(root)
+    known = agreed_cells(root, digests)
     current = {item["id"]: {cell["field"]: cell["current"] for cell in item["cells"]} for item in worklist["items"]}
     keys = {item["id"]: item["key"] for item in worklist["items"]}
     # 모순·범위 밖 칸은 적지 않는다. 판독이 모순의 두 칸에 다 «맞다»고 했다면 GT가 맞다는 뜻이 아니라 판독이
@@ -720,8 +747,9 @@ def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, An
                 cell = (keys[item["id"]], reading["field"], gt)
                 if cell not in known:
                     known.add(cell)
-                    lines.append(json.dumps({"key": cell[0], "field": cell[1], "gtValue": gt,
-                                             "batchId": sweep.get("batchId")}, ensure_ascii=False))
+                    lines.append(json.dumps({"key": cell[0], "field": cell[1], "gtValue": gt, "batchId": sweep.get("batchId"),
+                                             **({"policy": digests[cell[1]]} if digests and cell[1] in digests else {})},
+                                            ensure_ascii=False))
     if lines:
         with path.open("a", encoding="utf-8") as handle:
             handle.write("\n".join(lines) + "\n")
@@ -775,7 +803,8 @@ def cmd_finish(args: argparse.Namespace) -> int:
             value = {**value, "items": list(merged.values())}
         value["warnings"] = sweep_warnings(profile, value)
         write_json_atomic(root / "sweep-raw.json", value)
-        remember_agreement(root, current, value, load_task(profile)["fields"])
+        task_now = load_task(profile)
+        remember_agreement(root, current, value, task_now["fields"], field_digests(profile, task_now))
     args.sweep = None
     return cmd_render(args)
 
@@ -806,6 +835,19 @@ def cmd_render(args: argparse.Namespace) -> int:
     remember_blind(root)
     return 0
 
+
+def cmd_pages(args: argparse.Namespace) -> int:
+    """정책·골든셋 두 장만 쓴다 — 배치(작업 목록·판독)가 없어도 된다. 과제를 새로 붙였을 때 메뉴에 곧바로 오르게."""
+    from gt_decisions import _write_atomic
+    from gt_review_render import render_golden_html, render_policy_html
+
+    profile = find_profile(args.task)
+    root = review_root(profile)
+    root.mkdir(parents=True, exist_ok=True)
+    for name, build in (("policy.html", render_policy_html), ("golden.html", lambda p: render_golden_html(p, root))):
+        _write_atomic(root / name, build(profile))
+        print(relative_or_absolute(root / name))
+    return 0
 
 def cmd_record(args: argparse.Namespace) -> int:
     """말로 받은 판정. 사람이 본 GT 값(--expect)이 늘 있어야 한다 — 화면의 버튼과 같은 선이다."""
@@ -896,6 +938,8 @@ def home_rows() -> dict[str, Any]:
             "gtHome": home,
             "gtHomeNote": upstream.get("note"),
             "problem": problem,
+            # 정책·골든셋 두 장이 있는가 — 배치와 무관한 읽기 전용 화면이라, 아직 검수를 돌리지 않은 과제도 메뉴에 오른다.
+            "pages": (review_root(profile) / "policy.html").is_file() and (review_root(profile) / "golden.html").is_file(),
             **{name: status.get(name) for name in (
                 "prepared", "preparing", "failed", "preparedAt", "page", "remainingItems", "waitingForHuman",
                 "holdsUnconfirmed", "alternativesUnconfirmed", "notRead", "staleOnPage", "heldOnThisPage", "decisions",
@@ -931,7 +975,7 @@ def values_of(profile: dict[str, Any], only: str | None = None) -> dict[str, Any
             value = gt_value(task, field, row)
             for part in (value.split(MANY_SEPARATOR) if value and is_many(field) else [value] if value else []):
                 counts[part] = counts.get(part, 0) + 1
-        mine = [entry for (key, name), entry in latest.items() if name == field["id"]]
+        mine = [entry for (_, name), entry in latest.items() if name == field["id"]]
         used = {label: [] for label in field["labels"]}
         for old, new in (field.get("legacy") or {}).items():
             used.setdefault(new, []).append(f"legacy {old}→{new}")
@@ -1305,6 +1349,9 @@ def main() -> int:
         command = sub.add_parser(name)
         command.add_argument("--task", required=True)
         command.set_defaults(run=runner)
+    pages = sub.add_parser("pages", help="정책·골든셋 두 장만 쓴다(배치가 없어도 된다)")
+    pages.add_argument("--task", required=True)
+    pages.set_defaults(run=cmd_pages)
     vals = sub.add_parser("values", help="정책의 값마다 GT 칸·판정 수 — 값을 빼거나 바꾸기 전에 본다. 아무것도 쓰지 않는다")
     vals.add_argument("--task", required=True)
     vals.add_argument("--field")

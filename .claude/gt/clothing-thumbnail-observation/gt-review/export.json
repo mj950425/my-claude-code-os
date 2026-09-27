@@ -2,21 +2,21 @@
   "schemaVersion": "gt-review-export-v4",
   "profileId": "clothing-thumbnail-observation",
   "gtSource": ".claude/gt/clothing-thumbnail-observation/gt.jsonl",
-  "sourceDigest": "72f2006cbae0a58114edcaf40fcc74ee12190c05a0418b6b740bf2b776f13aa1",
-  "lastDecisionId": "GTD-00319",
+  "sourceDigest": "28e24c93400ad5beacb89d4de64e060884040f8407fa2323fca04cf6bb59a8ca",
+  "lastDecisionId": "GTD-00541",
   "upstream": null,
   "rows": {
     "source": 149,
     "corrected": 149
   },
-  "corrections": 142,
-  "alreadyApplied": 0,
-  "confirmations": 134,
+  "corrections": 0,
+  "alreadyApplied": 165,
+  "confirmations": 324,
   "thisBatch": {
-    "corrections": 119,
-    "confirmations": 100
+    "corrections": 2,
+    "confirmations": 121
   },
-  "linesToChange": 73,
+  "linesToChange": 0,
   "withdrawn": [],
   "confirmationsNotUpstream": 0,
   "newSinceLastList": null,
@@ -26,9 +26,7 @@
   "orphaned": [],
   "outOfPolicy": [],
   "definitionGaps": {},
-  "newColumns": [
-    "fieldSources"
-  ],
+  "newColumns": [],
   "constraintViolationsAfter": [],
   "appliedToSource": false,
   "files": {

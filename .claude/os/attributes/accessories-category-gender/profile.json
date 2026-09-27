@@ -125,6 +125,7 @@
     "columnNames": {
       "standardCategory": "표준 카테고리",
       "productName": "상품명"
-    }
+    },
+    "linkField": "pdpUrl"
   }
 }

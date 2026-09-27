@@ -15,13 +15,22 @@
 | 선언 | `profile.json` — 라벨·신호 11종·어댑터 경로 |
 | 목표 | `goal.md` — 정책과 골든셋이 충돌할 때의 귀책 원칙 |
 | 소유 정책 | `policy/policy.md` + `policy/precedents/BG-*.md` |
-| 어댑터 | `adapters/import_bag_category_gender_sources.py` · `adapters/audit_bag_category_gender.py` · `adapters/arbiter_bag_category_gender.py` |
+| 골든셋 검수 정의 | `definitions.md` — `policy/policy.md`의 허용값·근거 우선순위를 옮긴 골든셋 검수(gtTask)의 정책. 검수 규칙·문답이 여기 쌓인다 |
+| 어댑터 | `adapters/import_bag_category_gender_sources.py` · `adapters/audit_bag_category_gender.py` · `adapters/arbiter_bag_category_gender.py` · `adapters/import_bag_review_images.py`(골든셋 검수의 사진 색인·상세 조각 사본) |
 | 진입점 | `run.sh` |
 | 테스트 | `tests/test_bag_policy_evidence.py` · `tests/test_arbiter.py` |
 | 스킬 | `skills/` — `bag-category-gender-os` · `bag-policy-import` · `bag-golden-import` · `bag-policy-golden-audit` · `bag-policy-question` · `bag-golden-decision` · `bag-review-progress` · `bag-ambiguity-review` · `bag-category-gender-interview` |
 | 에이전트 | 없다. 상품 판정과 인터뷰는 공유 `catalog-*` 에이전트에 `profile.json`을 넘긴다 |
 | 진입점 링크 | `.claude/skills/<이름>` → 여기. 실체는 이 패키지가 소유한다 |
 | 산출물 | `.claude/os/runs/bag-category-gender/` (재생성 가능, 소유가 아니라 출력) |
+
+## 판정 원장 — 골든셋 검수로 옮겼다 (2026-09-28)
+
+이 GT의 판정 원장은 **골든셋 검수 과제**(`profile.json`의 `gtTask`, 화면 `/gt/bag-category-gender`)가 갖는다.
+`gt` 블록은 계보를 합쳐 GT를 **만들기만** 한다(`"ledger": "gtTask"`) — 사이클의 판정 문(`/decide`·`record_review_decision`)은 닫혀 있다.
+옮길 때 사이클 원장(`runs/bag-category-gender/review/decisions.json`)의 판정은 0건이라 잃은 답이 없다.
+GT를 계보에서 다시 합칠 때는 `.claude/gt/bag-category-gender/gt-review/corrections.jsonl`을 마지막 `--corrections`로 넘긴다
+([gt-layer.md](../../engine/contracts/gt-layer.md) «원장을 골든셋 검수로 넘긴 속성»).
 
 ## 규칙
 

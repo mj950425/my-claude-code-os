@@ -12,14 +12,23 @@ export const meta = {
 // 에이전트가 직접 읽는다. args는 포인터와 «판독 뒤 반론이 필요한가»를 가를 GT 값만 나른다.
 // GT 값은 판독자 프롬프트에 절대 넣지 않는다 — 넣는 순간 판독자는 «무엇이 보이는가» 대신
 // «무엇이 답인가»를 먼저 정한다.
-const TASK = args.task
-const BATCH = args.batchId
-const WORKLIST = args.worklist
-const DEFINITIONS = args.definitions
-const AGENTS = Object.assign({ reader: 'gt-blind-reader', defender: 'gt-defender' }, args.agents || {})
-// 건마다 같은 필드 설명(허용값·이름표 등)은 args.common에 한 번만 실어도 된다 — 건이 많으면 인자가 같은 목록을 수십 번 되풀이한다.
-const ITEMS = (args.items || []).map(item => Object.assign({}, args.common || {}, item))
-const GT = args.gt || {}
+// 인자는 둘 중 한 곳에서 온다. 스킬이 부르면 Workflow의 args, 러너(gt_next.py)가 부르면 아래 줄에 박힌 JSON이다 —
+// 러너는 이 줄을 배치의 인자로 바꾼 사본을 부른다. 큰 JSON을 AI가 옮겨 적으면 조용히 깨진다(실제로 건 0으로 돌았다).
+// 문자열로 감싸 온 인자도 받는다. 인자가 비었으면 판독자를 하나도 부르지 않고 빈 결과를 내는 대신 멈춘다.
+const INPUT = typeof args === 'string' ? JSON.parse(args) : (args || {})
+if (!INPUT.task || !INPUT.batchId || !Array.isArray(INPUT.items)) {
+  throw new Error('gt-review: 인자가 비었습니다(task·batchId·items). prepare가 낸 workflowArgs를 그대로 넣어야 합니다')
+}
+const TASK = INPUT.task
+const BATCH = INPUT.batchId
+const WORKLIST = INPUT.worklist
+const DEFINITIONS = INPUT.definitions
+// 판독자·반론자는 모든 과제에 공통이다(gt_task.AGENTS가 정하고 prepare가 넘긴다). 과제는 프롬프트를 바꾸지 못한다 —
+// 판단을 바꾸는 자리는 정의 문서 하나다. 이 파일에도 과제·필드·허용값 이름을 적지 않는다(test_gt_review가 확인한다).
+const AGENTS = Object.assign({ reader: 'gt-blind-reader', defender: 'gt-defender' }, INPUT.agents || {})
+// 건마다 같은 필드 설명(허용값·이름표 등)은 INPUT.common에 한 번만 실어도 된다 — 건이 많으면 인자가 같은 목록을 수십 번 되풀이한다.
+const ITEMS = (INPUT.items || []).map(item => Object.assign({}, INPUT.common || {}, item))
+const GT = INPUT.gt || {}
 const SEP = '|'
 
 // 사람에게 묻는 말 — 칸마다 이 모양 하나로만 받는다. 메모(note)에 섞인 물음을 화면이 문장으로 골라내면 칸을 모르고, 빠지고, 엉뚱한 문장이 잡힌다.
@@ -200,69 +209,85 @@ let missingRole = null
 // 에이전트 유형이 없다는 하네스의 오류만 가른다. 다른 «not found»(파일 등)를 유형 부재로 읽으면 배치 전체를 버린다.
 const AGENT_MISSING = /agent type ['"]?[\w:-]+['"]? not found/i
 
-const results = await pipeline(
-  ITEMS,
-  async (item) => {
-    if (missingRole === 'reader') return null
-    try {
-      return await agent(readerPrompt(item), {
-        agentType: AGENTS.reader, label: `판독 ${item.id}`, phase: '증거 판독', schema: READING_SCHEMA,
-      })
-    } catch (error) {
-      if (AGENT_MISSING.test(String((error && error.message) || error))) { missingAgent = AGENTS.reader; missingRole = 'reader' }
-      throw error
-    }
-  },
-  async (reading, item) => {
-    if (!reading) return { id: item.id, reading: null, defense: null }
-    const gt = GT[item.id] || {}
-    // 사람에게 묻는 칸은 확신 낮음이다 — 물으면서 확신 높음이면 반론만 불리고 물음은 묻힌다.
-    reading.readings = (reading.readings || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) },
-      r.askHuman && r.askHuman.question ? { confidence: 'LOW' } : {}))
-    const alts = (args.alternatives || {})[item.id] || {}
-    // 대체 정답(사람이 같이 맞다고 적어 둔 값)을 낸 판독은 어긋난 것이 아니다 — 반론을 부르지 않는다.
-    // 한 칸에 서로 다른 두 값을 낸 판독은 화면에서 «사람이 볼 칸»이 된다(merge와 같은 규칙) — 반론할 거리가 아니다.
-    const valuesByField = {}
-    reading.readings.forEach((r) => { (valuesByField[r.field] = valuesByField[r.field] || new Set()).add(String(r.value)) })
-    // 한 필드의 판독이 여럿이면 마지막 것 하나만 본다(merge와 같은 규칙) — 같은 값을 두 번 적어도 반론은 한 번.
-    const lastByField = {}
-    reading.readings.forEach((r) => { lastByField[r.field] = r })
-    const disputed = Object.values(lastByField)
-      // 후보 칸, 그리고 후보가 아닌 칸(quietFields) — 뒤엣것은 판독이 확신 있게 GT와 다를 때만(아래 조건 그대로) 반론한다.
-      .filter((r) => item.fields.includes(r.field) || (item.quietFields || []).includes(r.field))
-      .filter((r) => valuesByField[r.field].size === 1)
-      .filter((r) => r.value && r.confidence === 'HIGH' && canonical(r.value) !== canonical(gt[r.field])
-        // 대체 정답은 GT가 있을 때만 본다(빈 GT에는 대체할 정답이 없다) — cell_status와 같은 규칙.
-        && !(gt[r.field] !== null && gt[r.field] !== undefined && (alts[r.field] || []).map(canonical).includes(canonical(r.value)))
-        // 허용값 밖의 값은 화면에서 «사람이 볼 칸»이 된다(cell_status와 같은 규칙) — 반론할 거리가 아니다.
-        && inLabels(item, r.field, r.value))
-      .map((r) => Object.assign({}, r, { gt: gt[r.field] === undefined ? null : gt[r.field] }))
-    // GT와 같은 답이면 반론을 부르지 않는다. GT를 모르는 눈이 같은 값을 냈다는 것이 이미 근거다.
-    if (!disputed.length || missingRole === 'defender') return { id: item.id, reading, defense: null }
-    try {
-      const defense = await agent(defensePrompt(item, disputed), {
-        agentType: AGENTS.defender, label: `반론 ${item.id}`, phase: 'GT 편 반론', schema: DEFENSE_SCHEMA,
-      })
-      if (defense) defense.rebuttals = (defense.rebuttals || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) }))
-      return { id: item.id, reading, defense }
-    } catch (error) {
-      if (AGENT_MISSING.test(String((error && error.message) || error))) { missingAgent = AGENTS.defender; missingRole = missingRole || 'defender' }
-      return { id: item.id, reading, defense: null }
-    }
-  },
-)
+async function readStage(item) {
+  if (missingRole === 'reader') return null
+  let reading
+  try {
+    reading = await agent(readerPrompt(item), {
+      agentType: AGENTS.reader, label: `판독 ${item.id}`, phase: '증거 판독', schema: READING_SCHEMA,
+    })
+  } catch (error) {
+    if (AGENT_MISSING.test(String((error && error.message) || error))) { missingAgent = AGENTS.reader; missingRole = 'reader' }
+    throw error
+  }
+  if (!reading) return null
+  // 사람에게 묻는 칸은 확신 낮음이다 — 물으면서 확신 높음이면 반론만 불리고 물음은 묻힌다.
+  reading.readings = (reading.readings || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) },
+    r.askHuman && r.askHuman.question ? { confidence: 'LOW' } : {}))
+  return reading
+}
+
+async function defendStage(reading, item) {
+  if (!reading) return { id: item.id, reading: null, defense: null }
+  const gt = GT[item.id] || {}
+  const alts = (INPUT.alternatives || {})[item.id] || {}
+  // 대체 정답(사람이 같이 맞다고 적어 둔 값)을 낸 판독은 어긋난 것이 아니다 — 반론을 부르지 않는다.
+  // 한 칸에 서로 다른 두 값을 낸 판독은 화면에서 «사람이 볼 칸»이 된다(merge와 같은 규칙) — 반론할 거리가 아니다.
+  const valuesByField = {}
+  reading.readings.forEach((r) => { (valuesByField[r.field] = valuesByField[r.field] || new Set()).add(String(r.value)) })
+  // 한 필드의 판독이 여럿이면 마지막 것 하나만 본다(merge와 같은 규칙) — 같은 값을 두 번 적어도 반론은 한 번.
+  const lastByField = {}
+  reading.readings.forEach((r) => { lastByField[r.field] = r })
+  const disputed = Object.values(lastByField)
+    // 후보 칸, 그리고 후보가 아닌 칸(quietFields) — 뒤엣것은 판독이 확신 있게 GT와 다를 때만(아래 조건 그대로) 반론한다.
+    .filter((r) => item.fields.includes(r.field) || (item.quietFields || []).includes(r.field))
+    .filter((r) => valuesByField[r.field].size === 1)
+    .filter((r) => r.value && r.confidence === 'HIGH' && canonical(r.value) !== canonical(gt[r.field])
+      // 대체 정답은 GT가 있을 때만 본다(빈 GT에는 대체할 정답이 없다) — cell_status와 같은 규칙.
+      && !(gt[r.field] !== null && gt[r.field] !== undefined && (alts[r.field] || []).map(canonical).includes(canonical(r.value)))
+      // 허용값 밖의 값은 화면에서 «사람이 볼 칸»이 된다(cell_status와 같은 규칙) — 반론할 거리가 아니다.
+      && inLabels(item, r.field, r.value))
+    .map((r) => Object.assign({}, r, { gt: gt[r.field] === undefined ? null : gt[r.field] }))
+  // GT와 같은 답이면 반론을 부르지 않는다. GT를 모르는 눈이 같은 값을 냈다는 것이 이미 근거다.
+  if (!disputed.length || missingRole === 'defender') return { id: item.id, reading, defense: null }
+  try {
+    const defense = await agent(defensePrompt(item, disputed), {
+      agentType: AGENTS.defender, label: `반론 ${item.id}`, phase: 'GT 편 반론', schema: DEFENSE_SCHEMA,
+    })
+    if (defense) defense.rebuttals = (defense.rebuttals || []).map((r) => Object.assign({}, r, { field: fieldId(item, r.field) }))
+    return { id: item.id, reading, defense }
+  } catch (error) {
+    if (AGENT_MISSING.test(String((error && error.message) || error))) { missingAgent = AGENTS.defender; missingRole = missingRole || 'defender' }
+    return { id: item.id, reading, defense: null }
+  }
+}
+
+// 단계 — 러너(gt_next.py)는 판독(read)과 반론(defend)을 **따로** 부른다. 판독 단계의 인자에는 GT가 없고, 반론 단계는 판독이 모두
+// 끝난 뒤에만 GT를 받는다. 판독자가 도는 동안 판독 파일 이름과 GT를 잇는 파일이 디스크 어디에도 없게 하려는 것이다(눈가림).
+// 인자에 stage가 없으면 예전처럼 한 번에 둘 다 한다.
+const STAGE = INPUT.stage || 'both'
+const READINGS = INPUT.readings || {}
+const results = STAGE === 'read'
+  ? await pipeline(ITEMS, async (item) => {
+    const reading = await readStage(item)
+    return reading ? { id: item.id, reading, defense: null } : null
+  })
+  : STAGE === 'defend'
+    ? await pipeline(ITEMS.filter((item) => READINGS[item.id]), (item) => defendStage(READINGS[item.id], item))
+    : await pipeline(ITEMS, readStage, defendStage)
 
 const kept = results.filter(Boolean)
 if (missingAgent) {
   log(`에이전트 유형 ${missingAgent}가 이 세션에 없다 — 대신 세우지 않고 멈춘다. Claude Code를 다시 시작하면 등록된다`)
 }
 const unread = ITEMS.filter((item) => !kept.some((r) => r.id === item.id && r.reading)).map((item) => item.id)
-if (unread.length) log(`판독이 돌아오지 않은 건: ${unread.join(', ')} — 화면에 «AI가 못 읽음»으로 남는다`)
+if (unread.length && STAGE !== 'defend') log(`판독이 돌아오지 않은 건: ${unread.join(', ')} — 화면에 «AI가 못 읽음»으로 남는다`)
 
 return {
   schemaVersion: 'gt-review-sweep-v2',
   task: TASK,
   batchId: BATCH,
+  stage: STAGE,
   worklist: WORKLIST,
   needsRestart: missingAgent ? { agentType: missingAgent, role: missingRole } : null,
   items: kept,

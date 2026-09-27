@@ -1,7 +1,7 @@
 {
   "schemaVersion": "catalog-data-profile-v1",
   "id": "bag-category-gender",
-  "displayName": "가방 성별 정책·골든셋 감사",
+  "displayName": "가방 대상 고객 성별 골든셋",
   "attributeName": "대상 고객 성별",
   "subjectName": "가방 상품",
   "outputRoot": ".claude/os/runs/bag-category-gender",
@@ -44,7 +44,8 @@
     ],
     "corrections": {
       "pattern": "^bags-product-gt-user-corrections-(\\d{8})\\.jsonl$"
-    }
+    },
+    "ledger": "gtTask"
   },
   "labels": [
     "MALE",
@@ -144,5 +145,88 @@
       "path": "../core-catalog-platfom/docs/gender/core-ai-infer-logic.md",
       "note": "외부 구현의 판정 재료 대조. 근거 우선순위 후보"
     }
-  ]
+  ],
+  "gtTask": {
+    "schemaVersion": "gt-task-v1",
+    "unit": "상품",
+    "keyField": "productKey",
+    "groupField": "standardCategory",
+    "titleField": "productName",
+    "titleAsEvidence": true,
+    "linkField": "pdpUrl",
+    "definitions": ".claude/os/attributes/bag-category-gender/definitions.md",
+    "gt": {
+      "path": ".claude/gt/bag-category-gender/gt.jsonl",
+      "root": "project",
+      "sourceField": "goldSource"
+    },
+    "authority": {
+      "trusted": [
+        "^USER_",
+        "HUMAN_REVIEW",
+        "FINAL",
+        "^MJ_"
+      ],
+      "reference": [
+        "^CODEX_",
+        "FALLBACK"
+      ]
+    },
+    "correctionSourcePrefix": "USER_GT_REVIEW",
+    "fields": [
+      {
+        "id": "targetGender",
+        "name": "대상 고객 성별",
+        "gtField": "goldLabel",
+        "fillMissing": false,
+        "unknownLabel": "UNDETERMINED"
+      }
+    ],
+    "images": {
+      "path": ".claude/os/runs/bag-category-gender/golden/bag-image-index.jsonl",
+      "root": "project",
+      "keyField": "productKey",
+      "joinField": "productKey",
+      "listField": "images",
+      "fileField": "file",
+      "fileRoot": "output",
+      "idField": "imageId",
+      "roleField": "role",
+      "roles": [
+        "THUMBNAIL",
+        "DETAIL_TILE"
+      ],
+      "maxImages": 16,
+      "preTiledRoles": [
+        "DETAIL_TILE"
+      ],
+      "preTiledRule": {
+        "name": "ccp-batch-image-composer-tile-ranges",
+        "version": "v2-band-then-seam",
+        "by": "gt-harness work/hat-bag-policy-20260917/bags-detail-manifest.json",
+        "decoder": "harness-pillow"
+      },
+      "contextFields": [
+        "standardCategory"
+      ],
+      "roleNames": {
+        "THUMBNAIL": "대표 썸네일",
+        "DETAIL_TILE": "상세 조각"
+      }
+    },
+    "limit": 60,
+    "prerequisite": {
+      "adapter": ".claude/os/attributes/bag-category-gender/adapters/import_bag_review_images.py",
+      "note": "사진 색인과 상세 조각 사본(runs/ 아래)은 이 가져오기가 만든다. 지워졌으면 다시 돌린다."
+    },
+    "evidence": {
+      "textFields": [
+        "productName"
+      ]
+    },
+    "columnNames": {
+      "standardCategory": "표준 카테고리",
+      "productName": "상품명"
+    }
+  }
 }

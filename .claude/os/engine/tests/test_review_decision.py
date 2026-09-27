@@ -83,6 +83,14 @@ class BindingTest(Harness):
         # 무엇을 골라야 하는지가 거절 문장 안에 있어야 한다.
         self.assertIn("PR-1", str(refused.exception))
 
+    def test_a_ledger_handed_to_the_review_task_takes_no_cycle_decision(self) -> None:
+        """한 GT에 원장은 하나 — 원장을 골든셋 검수로 옮긴 속성은 사이클 문을 닫는다."""
+        profile, root = self.build([self.OPEN])
+        profile["gt"] = {"path": "gt.jsonl", "ledger": "gtTask"}
+        with self.assertRaises(module().DecisionRejected) as refused:
+            self.put(profile, root, no_precedent=True)
+        self.assertIn("골든셋 검수", str(refused.exception))
+
     def test_naming_no_precedent_is_itself_an_answer(self) -> None:
         """«걸리는 판례가 없다»는 판단이다. 그런 판정이 쌓이는 것이 아직 없는 판례를 가리킨다."""
         profile, root = self.build([self.OPEN])

@@ -50,7 +50,6 @@ from gt_task import (
     gt_source,
     gt_value,
     in_range,
-    is_many,
     key_fields,
     key_parts,
     load_gt_rows,
@@ -879,7 +878,3 @@ def apply(profile: dict[str, Any], confirm: bool) -> dict[str, Any]:
     pending = [item for item in built["corrections"] if not item.get("applied")]
     return {"target": str(source), "corrections": len(pending), "confirmations": len(built["confirmations"]),
             "linesToChange": changed_lines(rows, corrected), "applied": True, "backup": str(backup)}
-
-
-def many_hint(profile: dict[str, Any], field: str) -> bool:
-    return is_many(field_map(load_task(profile))[field])

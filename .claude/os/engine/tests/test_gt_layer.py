@@ -115,6 +115,21 @@ class HumanDecisionReachesTheLedgerTest(BuildGtTest):
         self.assertEqual(rows["P1"]["correctedBy"]["reviewer"], "mj")
         self.assertIn("리본", rows["P1"]["correctedBy"]["reason"])
 
+    def test_a_review_task_correction_file_is_read_in_its_own_shape(self) -> None:
+        # 원장을 골든셋 검수로 옮긴 속성은 그 과제의 정정 파일(칸 단위: id·column·after)을 넘긴다. 라벨 열만 읽는다.
+        rows, _ = self.build(
+            [dict(self.LINEAGE[0], rows=list(self.LINEAGE[0]["rows"]))],
+            corrections=[
+                {"id": "P1", "keyFields": {"productKey": "P1"}, "field": "targetGender", "column": "goldLabel",
+                 "before": "MALE", "after": "FEMALE", "source": "USER_GT_REVIEW_CORRECT_20260928",
+                 "decisionId": "GTD-00001", "reviewer": "mj", "reason": "리본"},
+                {"id": "P1", "field": "other", "column": "note", "after": "무시"},
+            ],
+        )
+        self.assertEqual(rows["P1"]["goldLabel"], "FEMALE")
+        self.assertEqual(rows["P1"]["goldSource"], "USER_GT_REVIEW_CORRECT_20260928")
+        self.assertEqual(rows["P1"]["correctedBy"]["decisionId"], "GTD-00001")
+
     def test_a_confirmation_keeps_the_label_and_marks_it(self) -> None:
         """유지는 변경이 아니다. 라벨은 그대로 두고 «사람이 봤다»만 붙는다."""
         rows, index = self.build(

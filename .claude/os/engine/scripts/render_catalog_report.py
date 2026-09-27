@@ -33,7 +33,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from page_style import STYLE, head  # noqa: F401 — 다른 모듈이 여기서 가져가던 이름을 잇는다
+from page_style import head
 from catalog_profile import PROJECT_ROOT, default_profile, load_profile, output_root, project_path, relative_or_absolute
 
 import sys  # noqa: E402

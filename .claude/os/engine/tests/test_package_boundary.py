@@ -202,7 +202,7 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
     정하지 않은 새 키가 조용히 늘면 어휘 검사가 그 값을 못 본다 — 이번에 roleNames가 그랬다."""
 
     # 값이 과제의 어휘를 담을 수 있어 어휘 수집이 보는 키, 그리고 엔진의 구조·수치라 어휘가 아닌 키.
-    REVIEWED_TASK = {"schemaVersion", "unit", "keyField", "groupField", "titleField", "titleAsEvidence", "definitions",
+    REVIEWED_TASK = {"schemaVersion", "unit", "keyField", "groupField", "titleField", "titleAsEvidence", "linkField", "definitions",
                      "definitionsRoot", "gt", "authority", "correctionSourcePrefix", "fields", "constraints",
                      "images", "evidence", "columnNames", "prerequisite", "agents", "limit"}
     REVIEWED_IMAGES = {"path", "root", "keyField", "joinField", "listField", "fileField", "fileRoot", "fileBase", "idField",
