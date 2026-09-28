@@ -53,6 +53,8 @@ from gt_task import (
     authority,
     definition_policy,
     next_rule_id,
+    reader_policy,
+    rule_line,
     gt_source,
     SIGNALS,
     TaskError,
@@ -526,6 +528,13 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
     definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
     reader = root / "reader"
     views: dict[str, str] = {}
+    labels = {fid: [str(label) for label in spec["labels"]] for fid, spec in fields.items()}
+    many = {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()}
+    # 사례(조회층) — 사람이 AI의 물음에 답한 기록. 규칙이 된 것은 정책 파일에 이미 있고, 여기에는 물음·답·그 사진의 사정이 있다.
+    cases = reader_cases(profile, task, definitions)
+    given = read_json(root / "policy-given.json") or {}
+    if given.get("batchId") != worklist["batchId"]:
+        given = {"batchId": worklist["batchId"], "items": {}}
     for item in items:
         # 판독자 몫은 따로 복사한 사진에 **아무 데도 적지 않는** 무작위 이름을 붙인다. 사람 화면의 사진 경로는
         # 작업 목록에 있지만 이 이름은 없다 — 판독자가 자기 파일 이름으로 작업 목록을 뒤져 키를 찾을 실마리가 없다.
@@ -543,9 +552,18 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
             if role_name:
                 picture["role"] = role_name
             pictures.append(picture)
+        # 필수층 — 이 상품에 걸리는 정의·허용값·규칙만 잘라 쓴 정책 파일. 판독자는 원래 정의 문서를 열지 않는다.
+        policy_text, policy_meta = reader_policy(definitions, labels, many, item.get("context") or {})
+        policy_path = reader / f"{token}.policy.md"
+        policy_path.parent.mkdir(parents=True, exist_ok=True)
+        policy_path.write_text(policy_text, encoding="utf-8")
+        given["items"][item["id"]] = policy_meta
+        # 조회층 — 사례 목록(제목)과 사례 파일. 이 상품 자신의 답은 싣지 않는다(그건 이 칸의 정답이다).
+        cases_index = write_reader_cases(folder / "cases", [case for case in cases if case["key"] != item["key"]])
         view = {
-            "schemaVersion": "gt-review-reader-view-v4",
-            "definitions": relative_or_absolute(definitions),
+            "schemaVersion": "gt-review-reader-view-v5",
+            "policy": relative_or_absolute(policy_path),
+            **({"cases": relative_or_absolute(cases_index)} if cases_index else {}),
             # 필드는 **과제가 선언한 순서로 전부** 준다. 후보 칸만 신호 순서대로 주면, 어느 칸이 다투는 칸이고
             # 어느 칸이 이미 끝났는지가 목록 모양으로 새어 나간다. 판독이 쓰이는 것은 후보 칸뿐이다.
             "fields": [{"id": field["id"], "name": field.get("name") or field["id"], "labels": field["labels"],
@@ -562,6 +580,8 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         path = reader / f"{token}.json"
         write_json(path, view)
         views[item["id"]] = relative_or_absolute(path)
+    # 무엇을 실었는지는 사람 쪽에 남긴다 — 판독이 인용한 규칙(rulesApplied)이 실제로 받은 규칙인지 finish가 대조한다.
+    write_json(root / "policy-given.json", given)
     agents = dict(AGENTS)  # 모든 과제에 공통 — 과제는 판독자를 고르지 않는다(gt_task.AGENTS)
     workflow_args = {
         "task": profile["id"],
@@ -584,16 +604,7 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         },
         "worklist": relative_or_absolute(root / "worklist.json"),
     }
-    # 사람이 검수에서 답한 경계 — 다음 판독자가 같은 경계를 다시 묻지 않고 따르게. 그 상품 자신의 답은 빼고 준다(그건 이 칸의 정답이다).
-    answered = answered_questions(profile, task)
-    workflow_args["common"]["answered"] = [{"id": row["id"], "field": row["field"], "question": row["question"],
-                                            "answer": row["answer"], "answerName": row["answerName"]} for row in answered]
-    by_key: dict[str, list[str]] = {}
-    for row in answered:
-        by_key.setdefault(row["key"], []).append(row["id"])
-    for entry, item in zip(workflow_args["items"], items):
-        if by_key.get(item["key"]):
-            entry["skipQa"] = by_key[item["key"]]
+    # 사람이 검수에서 답한 경계는 프롬프트에 싣지 않는다 — 규칙이 된 것은 건마다의 정책 파일에, 나머지는 사례 목록(판독 파일의 cases)에 있다.
     # 파일에는 GT 값도 판독 파일 이름도 없이 남긴다(무엇을 돌렸는지 되짚는 용도). 둘 다 아래 표준 출력에만 있다.
     write_json(root / "workflow-args.json", workflow_args)
     for entry in workflow_args["items"]:
@@ -605,6 +616,43 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
     # 경고도 함께 낸다 — 스킬이 작업 목록(GT 값이 든 파일)을 열지 않고 사람에게 알릴 문장을 고르게.
     print(json.dumps({"workflowArgs": workflow_args, "warnings": worklist.get("warnings") or {}}, ensure_ascii=False, indent=2))
     return 0
+
+
+def reader_cases(profile: dict[str, Any], task: dict[str, Any], definitions: Path) -> list[dict[str, Any]]:
+    """판독자가 조회할 사례 — 사람이 AI의 물음에 답한 판정마다 하나. 규칙으로 옮겨졌으면 그 규칙 ID를 붙인다.
+    키는 사람 쪽 대조(자기 상품 빼기)에만 쓰고 사례 파일에는 적지 않는다."""
+    fields = field_map(task)
+    policy = definition_policy(definitions, {fid: [str(c) for c in spec["labels"]] for fid, spec in fields.items()},
+                               {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()})
+    by_question = {(rule["field"], rule.get("물음")): rule for rules in policy["rules"].values() for rule in rules if rule.get("물음")}
+    cases = []
+    for row in answered_questions(profile, task):
+        rule = by_question.get((row["field"], row["question"]))
+        cases.append({"key": row["key"], "field": row["field"], "fieldName": row["fieldName"], "question": row["question"],
+                      "here": row.get("here") or "", "answer": row["answer"], "answerName": row["answerName"],
+                      "rule": rule["id"] if rule else None, "ruleText": rule_line(rule) if rule else None,
+                      "decidedAt": row.get("decidedAt")})
+    return cases
+
+
+def write_reader_cases(folder: Path, cases: list[dict[str, Any]]) -> Path | None:
+    """사례 목록(index.json — 제목만)과 사례 파일(C01.json …)을 쓴다. 사례가 없으면 아무것도 쓰지 않는다.
+    사례 번호는 배치 안에서만 뜻이 있다 — 판정 ID를 쓰면 판독자가 원장에서 그 키를 찾을 실마리가 된다."""
+    if not cases:
+        return None
+    folder.mkdir(parents=True, exist_ok=True)
+    index = []
+    for number, case in enumerate(cases, 1):
+        case_id = f"C{number:02d}"
+        detail = {"id": case_id, "field": case["field"], "fieldName": case["fieldName"], "question": case["question"],
+                  "answer": case["answer"], "answerName": case["answerName"], "here": case["here"],
+                  "rule": case["rule"], "ruleText": case["ruleText"], "decidedAt": case["decidedAt"]}
+        write_json(folder / f"{case_id}.json", detail)
+        index.append({"id": case_id, "field": case["field"], "fieldName": case["fieldName"], "title": case["question"],
+                      "answerName": case["answerName"], "rule": case["rule"], "file": relative_or_absolute(folder / f"{case_id}.json")})
+    path = folder / "index.json"
+    write_json(path, {"schemaVersion": "gt-review-cases-v1", "cases": index})
+    return path
 
 
 def reread(profile: dict[str, Any], task: dict[str, Any], root: Path) -> int:
@@ -707,7 +755,25 @@ def sweep_warnings(profile: dict[str, Any], value: dict[str, Any]) -> dict[str, 
     jargon |= {str(name) for name in (task.get("evidence") or {}).get("textFields") or []}
     codes = {spec["id"]: {str(code): str(name) for code, name in (spec.get("labelNames") or {}).items()}
              for spec in task["fields"]}
-    return {"notKorean": korean_warnings(value, jargon, codes)}
+    return {"notKorean": korean_warnings(value, jargon, codes), "rulesUnknown": rule_warnings(review_root(profile), value)}
+
+
+def rule_warnings(root: Path, value: dict[str, Any]) -> list[dict[str, Any]]:
+    """판독이 인용한 규칙(rulesApplied) 가운데 그 건의 정책 파일에 없던 것 — 받지 않은 규칙을 따랐다고 적었거나(지어냄),
+    범위 밖이라 뺀 규칙을 댔다. 어느 쪽이든 그 칸의 판독 근거를 사람이 한 번 더 봐야 한다. 받은 규칙은 준비가 남긴
+    `policy-given.json`에 있다 — 배치가 다르면 대조하지 않는다."""
+    given = read_json(root / "policy-given.json") or {}
+    if not given.get("items") or given.get("batchId") != value.get("batchId"):
+        return []
+    found = []
+    for item in value.get("items") or []:
+        rules = ((given["items"].get(item.get("id")) or {}).get("rules")) or {}
+        for reading in (item.get("reading") or {}).get("readings") or []:
+            cited = [str(rule) for rule in reading.get("rulesApplied") or []]
+            unknown = [rule for rule in cited if rule not in (rules.get(str(reading.get("field"))) or [])]
+            if unknown:
+                found.append({"item": item.get("id"), "field": reading.get("field"), "rules": unknown})
+    return found
 
 
 def remember_agreement(root: Path, worklist: dict[str, Any], sweep: dict[str, Any],
@@ -1003,7 +1069,7 @@ def cmd_values(args: argparse.Namespace) -> int:
     return 0
 
 
-# 검수 문답 — 사람이 AI의 물음에 답하면 그 답은 곧 정책이다. 따로 옮기는 단계 없이 정책 페이지와 다음 판독으로 간다.
+# 검수 문답 — 사람이 AI의 물음에 답하면 그 답은 곧 사례다. 따로 옮기는 단계 없이 정책 페이지와 다음 판독의 사례 목록(조회층)으로 간다.
 # 정본은 원장(사람의 판정)이고, 그 판정이 어느 물음에 대한 답인지는 판정에 함께 남은 물음(`basedOn.ask`)이나,
 # 화면이 그 칸에 붙여 보인 물음의 기록(`asked.jsonl`)에서 읽는다. 뒤엣것은 표준 물음 전의 판정을 잇기 위해 있다 —
 # 화면(review.json)은 다음 배치에서 바뀌므로 «그때 무엇을 보였나»를 덧붙이기만 하는 기록으로 남겨야 이음이 끊기지 않는다.
@@ -1069,7 +1135,7 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
 
 # 규칙 — 사람이 AI의 물음에 답한 판정을 정책(정의 문서)의 그 칸 절 `### 규칙`으로 옮긴다. 정본은 사람이 확인한 **규칙 문장**이고
 # AI의 물음은 그 규칙의 출처(`물음:`)로 남는다 — «물음 → 답»은 이번 상품에 붙은 말이라 다음 판독자에게 경계가 흐리다.
-# 옮긴 규칙은 다음 판독자가 칸 절째로 읽는다. 대체된 규칙은 `## 보관`으로 옮겨 칸 절에는 적용 중인 규칙만 남는다.
+# 옮긴 규칙은 다음 판독자의 정책 파일(필수층)에 실린다. 대체된 규칙은 `## 보관`으로 옮겨 칸 절에는 적용 중인 규칙만 남는다.
 # 옮기는 일은 사람이 고른 판정(`--add`)과 사람이 확인한 문장(`--rule`)으로, `--yes`가 있을 때만 한다. 서버는 부르지 않는다.
 def _definitions_path(profile: dict[str, Any]) -> Path:
     spec = profile.get("gtTask") or {}
@@ -1214,19 +1280,150 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
     text = _append_to_block(text, field_id, "### 규칙", lines)
     if replace:
         text = _append_to_block(text, "보관", None, plan["archive"])
+    _commit_policy(profile, path, original, text, history, new_version, today)
+    plan["applied"] = True
+    return plan
+
+
+def _commit_policy(profile: dict[str, Any], path: Path, original: str, text: str, history: str,
+                   new_version: int | None, today: str) -> None:
+    """고친 정책을 쓴다 — 변경 이력 한 줄, 머리의 version·updatedAt. 쓴 뒤 정책 전체를 다시 읽어 로더가 멈추는 모양이면 되돌린다.
+    규칙을 넣는 문(qa·rule)은 모두 여기를 지난다 — 문이 둘이면 이력이 한쪽에만 남는다."""
     text = _append_to_block(text, "변경 이력", None, [history])
     if new_version:
         text = re.sub(r"^version:\s*\d+\s*$", f"version: {new_version}", text, count=1, flags=re.M)
     text = re.sub(r"^updatedAt:.*$", f"updatedAt: {today}", text, count=1, flags=re.M)
     path.write_text(text, encoding="utf-8")
     try:
-        # 넣은 뒤 정책 전체를 다시 읽는다 — 로더가 멈추는 모양이면 되돌린다.
         load_task(profile)
     except TaskError:
         path.write_text(original, encoding="utf-8")
         raise
+
+
+# 규칙을 사람이 직접 쓴다 — 문답에서 오지 않은 규칙(더하기), 있는 규칙 고치기, 빼기. 고치기와 빼기도 줄을 지우지 않는다:
+# 옛 규칙은 `## 보관`으로 가고 `대체:`가 무엇으로 바뀌었는지(또는 폐지) 남긴다 — 옛 판정이 어느 규칙 위에 섰는지 되짚을 수 있어야 한다.
+# 고친 규칙은 새 ID를 받는다. 같은 ID의 문장이 바뀌면 «R3을 따랐다»는 옛 판독이 무엇을 따랐는지 모르게 된다.
+RULE_ACTIONS = ("add", "edit", "retire")
+
+
+def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: str, confirm: bool,
+                text: str | None = None, value: str | None = None, scope: str | None = None,
+                rule_id: str | None = None, reason: str | None = None) -> dict[str, Any]:
+    reviewer = (reviewer or "").strip()
+    if action not in RULE_ACTIONS:
+        raise DecisionRejected(f"규칙 작업은 {' · '.join(RULE_ACTIONS)} 가운데 하나입니다.")
+    if not reviewer:
+        raise DecisionRejected("누가 정책을 고치는지 이름을 적어 주세요(--reviewer).")
+    if ((profile.get("gtTask") or {}).get("definitionsRoot") or "project") != "project":
+        raise DecisionRejected("정의 문서가 이 저장소 밖에 있습니다 — 그 저장소에서 고쳐 주세요.")
+    task = load_task(profile)
+    fields = field_map(task)
+    if field_id not in fields:
+        # 이름으로 불러도 받는다 — 운영팀은 칸 이름으로 말한다.
+        by_name = {str(spec.get("name")): fid for fid, spec in fields.items() if spec.get("name")}
+        if field_id not in by_name:
+            raise DecisionRejected(f"칸 «{field_id}»이 이 과제에 없습니다 — {', '.join(fields)} 가운데 하나입니다.")
+        field_id = by_name[field_id]
+    field = fields[field_id]
+    path = _definitions_path(profile)
+    policy = _policy(profile, task)
+    active = {rule["id"]: rule for rule in policy["rules"].get(field_id, [])}
+    today = datetime.now(timezone.utc).date().isoformat()
+    original = path.read_text(encoding="utf-8")
+    version = re.search(r"^version:\s*(\d+)\s*$", original, re.M)
+    new_version = int(version.group(1)) + 1 if version else None
+    stamp = f"- {today} · " + (f"v{new_version} · " if new_version else "")
+    name = field.get("name") or field_id
+
+    def check_value(code: str | None) -> str | None:
+        if not code:
+            return None
+        parts = [part for part in code.split(MANY_SEPARATOR) if part] if is_many(field) else [code]
+        odd = [part for part in parts if part not in [str(label) for label in field["labels"]]]
+        if odd:
+            raise DecisionRejected(f"«{', '.join(odd)}»은 {name}의 허용값이 아닙니다 — "
+                                   f"{', '.join(str(label) for label in field['labels'])} 가운데서 고릅니다(값을 더하려면 «값 추가»).")
+        return MANY_SEPARATOR.join(parts)
+
+    body = original
+    plan: dict[str, Any] = {"definitions": relative_or_absolute(path), "action": action, "field": field_id, "applied": False}
+    if action == "add":
+        if not (text or "").strip():
+            raise DecisionRejected("넣을 규칙 문장을 --text로 주세요. 이 상품을 떠나서도 통하는 한 문장이어야 합니다.")
+        new_id = next_rule_id(policy, field_id)
+        code = check_value(value)
+        lines = [f"- `{new_id}` {text.strip()}" + (f" → `{code}`" if code else ""),
+                 f"  - 출처: 직접 작성 · {today} · {reviewer}"]
+        if (scope or "").strip():
+            lines.append(f"  - 범위: {scope.strip()}")
+        body = _append_to_block(body, field_id, "### 규칙", lines)
+        plan.update(rule=lines, ruleId=new_id)
+        history = stamp + f"{name} {new_id} 추가 — 직접 작성({reviewer})"
+    else:
+        if not rule_id or rule_id not in active:
+            raise DecisionRejected(f"{name}의 적용 중인 규칙에 «{rule_id}»가 없습니다 — "
+                                   + (f"지금 규칙: {', '.join(active)}" if active else "지금 규칙이 없습니다") + ".")
+        old = active[rule_id]
+        body, taken = _remove_rule(body, field_id, rule_id)
+        taken[0] = taken[0].replace(f"- `{rule_id}` ", f"- `{field_id}/{rule_id}` ", 1)
+        if action == "edit":
+            new_id = next_rule_id(policy, field_id)
+            new_text = (text or "").strip() or old["text"]
+            code = old.get("value") if value is None else check_value(value)
+            new_scope = old.get("범위") if scope is None else scope.strip()
+            if (new_text, code, new_scope or None) == (old["text"], old.get("value"), old.get("범위") or None):
+                raise DecisionRejected(f"{rule_id}에서 바뀌는 것이 없습니다 — 문장(--text)·값(--value)·범위(--scope) 중 하나를 바꿔 주세요.")
+            lines = [f"- `{new_id}` {new_text}" + (f" → `{code}`" if code else "")]
+            if old.get("물음"):
+                lines.append(f"  - 물음: {old['물음']}")  # 이 규칙을 낳은 물음은 고쳐도 같다 — 사례와 규칙을 잇는 줄이다
+            lines.append(f"  - 출처: 직접 작성 · {today} · {reviewer} · {rule_id} 고침")
+            if new_scope:
+                lines.append(f"  - 범위: {new_scope}")
+            if old.get("근거"):
+                lines.append(f"  - 근거: {old['근거']}")
+            archive = taken + [f"  - 대체: {new_id} · {today} · {reviewer}"]
+            body = _append_to_block(body, field_id, "### 규칙", lines)
+            plan.update(rule=lines, ruleId=new_id, replaces=rule_id)
+            history = stamp + f"{name} {new_id} 추가, {rule_id} 대체 — 직접 고침({reviewer})"
+        else:
+            if not (reason or "").strip():
+                raise DecisionRejected("규칙을 빼는 이유를 --reason으로 주세요 — 보관에 남아 다음 사람이 읽습니다.")
+            archive = taken + [f"  - 대체: 없음(폐지) · {today} · {reviewer} · {reason.strip()}"]
+            plan.update(retired=rule_id)
+            history = stamp + f"{name} {rule_id} 폐지 — {reason.strip()}({reviewer})"
+        body = _append_to_block(body, "보관", None, archive)
+        plan["archive"] = archive
+    plan["history"] = history
+    if not confirm:
+        return plan
+    _commit_policy(profile, path, original, body, history, new_version, today)
     plan["applied"] = True
     return plan
+
+
+def rule_list(profile: dict[str, Any]) -> dict[str, Any]:
+    task = load_task(profile)
+    policy = _policy(profile, task)
+    fields = field_map(task)
+    return {"task": profile["id"], "definitions": relative_or_absolute(_definitions_path(profile)),
+            "fields": [{"field": fid, "name": spec.get("name") or fid,
+                        "rules": [{k: v for k, v in rule.items() if k != "field"} for rule in policy["rules"].get(fid, [])]}
+                       for fid, spec in fields.items()],
+            "archive": policy["archive"]}
+
+
+def cmd_rule(args: argparse.Namespace) -> int:
+    profile = find_profile(args.task)
+    if not args.action:
+        print(json.dumps(rule_list(profile), ensure_ascii=False, indent=2))
+        return 0
+    if not args.field:
+        raise DecisionRejected("어느 칸의 규칙인지 --field로 주세요(칸 ID나 이름).")
+    print(json.dumps(rule_change(profile, args.action, args.field, args.reviewer or "", args.yes, text=args.text,
+                                 value=args.value, scope=args.scope, rule_id=args.id, reason=args.reason),
+                     ensure_ascii=False, indent=2))
+    return 0
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
@@ -1365,6 +1562,18 @@ def main() -> int:
     qa.add_argument("--replace", help="이 규칙이 대체하는 같은 칸의 규칙 ID(R0 같은) — 보관으로 옮긴다")
     qa.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇을 넣을지만 말한다")
     qa.set_defaults(run=cmd_qa)
+    rule = sub.add_parser("rule", help="정책의 규칙을 보고, 사람이 직접 더하거나(add) 고치거나(edit) 뺀다(retire)")
+    rule.add_argument("action", nargs="?", choices=RULE_ACTIONS, help="없으면 지금 규칙 목록만 본다")
+    rule.add_argument("--task", required=True)
+    rule.add_argument("--field", help="칸 ID나 칸 이름")
+    rule.add_argument("--id", help="고치거나 뺄 규칙 ID(R1 같은)")
+    rule.add_argument("--text", help="규칙 문장. 이 상품을 떠나서도 통하는 한 문장(edit에서 없으면 그대로)")
+    rule.add_argument("--value", help="규칙이 가리키는 허용값 코드. 값 여럿 필드는 «A|B». edit에서 «»(빈 문자열)이면 값을 뗀다")
+    rule.add_argument("--scope", help="걸리는 상품 카테고리 이름(쉼표로 여럿). edit에서 «»(빈 문자열)이면 모든 상품")
+    rule.add_argument("--reason", help="retire의 이유 — 보관에 남는다")
+    rule.add_argument("--reviewer", help="고치는 사람")
+    rule.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")
+    rule.set_defaults(run=cmd_rule)
     app = sub.add_parser("apply")
     app.add_argument("--task", required=True)
     app.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")

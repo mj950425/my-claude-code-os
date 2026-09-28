@@ -23,17 +23,19 @@
 사람은 그 화면에서 답할 수 없었다. 터미널을 열고, 상품 키를 옮겨 적고, 플래그 여섯 개를
 채워야 한 건이 기록됐다. **읽는 자리와 답하는 자리가 갈려 있으면 답은 안 쌓인다.**
 
-그래서 문을 냈다 — **원장마다 하나씩, 둘이다.** `POST /decide`는 감사 사이클의 원장(`runs/<id>/review/decisions.json`)에,
-`POST /gt-decide`는 GT 개선 과제의 원장(`.claude/gt/<id>/gt-review/decisions.json`)에 쓴다. 읽는 문은
-`/decided`(사이클)·`/gt-decided`(과제)와 화면으로 보내는 `/gt/<과제ID>`다. 두 쓰기 문이 지키는 선은 같다.
+그래서 문을 냈다 — **원장마다 하나씩, 셋이다.** `POST /decide`는 감사 사이클의 원장(`runs/<id>/review/decisions.json`)에,
+`POST /gt-decide`는 GT 개선 과제의 원장(`.claude/gt/<id>/gt-review/decisions.json`)에, `POST /incr-decide`는 증분 검수의 원장
+(`.claude/incr/<id>/decisions.jsonl`)에 쓴다. 읽는 문은 `/decided`(사이클)·`/gt-decided`(과제)·`/incr-data`(증분)와 화면으로 보내는
+`/gt/<과제ID>`·`/incr`다. 세 쓰기 문이 지키는 선은 같다.
 
-1. **원장 말고는 아무것도 쓰지 않는다.** 보고서도 GT도 정책도 서버가 건드리지 않는다.
+1. **원장과 그 파생물 말고는 아무것도 쓰지 않는다.** 보고서도 정책도 서버가 건드리지 않는다. 파생물은 둘이다 — «반영하기»(`/gt-export`,
+   정정 목록을 만들고 원본 GT에 넣는다)와 «결과 파일 만들기»(`/incr-export`, 증분 원장에서 라벨 붙은 줄). 둘 다 CLI와 같은 함수다.
 2. **규격은 서버가 정하지 않는다.** `record_review_decision.record()`·`gt_decisions.record()`를 그대로 지난다 —
    터미널로 들어온 판정과 버튼으로 들어온 판정이 같은 검사를 받아야 원장이 한 벌로 남는다.
 3. **사람의 클릭만 받는다.** JSON 본문만 받고 다른 출처의 요청은 거절한다. 브라우저의
    평범한 폼은 JSON을 보낼 수 없으므로, 다른 페이지가 몰래 판정을 심을 수 없다.
 
-**«다음 후보 받기»(`POST /gt-next`)도 서버가 쓰지 않는다.** 러너(`gt_next.py run`)를 떼어 띄우고, 상태(`GET /gt-next`)를 읽어 줄 뿐이다.
+**«다음 후보 받기»(`POST /gt-next`)와 증분의 «AI 추론»(`POST /incr-run`)도 서버가 쓰지 않는다.** 러너(`gt_next.py run`)를 떼어 띄우고, 상태(`GET /gt-next`)를 읽어 줄 뿐이다.
 준비·판독·화면은 러너가 쓴다. 한 번에 하나는 러너의 잠금이 지킨다.
 
 쓰고 나면 파생기를 다시 돌려 «방금 그것이 GT에 나갔는지, 미결 판례에 막혔는지»를
@@ -71,6 +73,7 @@ from gt_next import running as next_running
 from gt_next import status as next_status
 from gt_review import answered_questions, home_rows
 from gt_task import TaskError, field_map, gt_value, load_gt, load_task
+import incr_review
 from record_review_decision import DecisionRejected, record
 
 DEFAULT_PORT = 7391
@@ -87,6 +90,8 @@ LANDING_ARTIFACT = "gtFixesReport"
 # 첫 화면 — GT 개선 과제 목록. 고정된 파일 한 장이고 과제를 모른다: 목록과 수는 /gt-tasks(JSON)에서 읽는다.
 # 서버가 화면을 그리지 않는다는 선은 그대로다 — 이 파일을 보내고, 수는 엔진의 status와 같은 함수가 센다.
 HOME_PAGE = Path(__file__).resolve().parent.parent / "templates" / "gt-home.html"
+# 증분 검수 — 목록과 검수 화면이 한 장이다(주소의 task·batch로 가른다). 이것도 고정 파일이고 수는 /incr-tasks·/incr-data(JSON)에서 온다.
+INCR_PAGE = Path(__file__).resolve().parent.parent / "templates" / "incr.html"
 
 MIME = {
     ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -389,6 +394,61 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": str(error)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         return self.send_json({"ok": True, "decision": entry})
 
+    def incr_post(self, route: str) -> None:
+        """증분 검수의 세 문 — 판정(`/incr-decide` → 증분 원장), AI 추론 띄우기(`/incr-run` → 러너를 떼어 띄우기만),
+        결과 파일(`/incr-export` → 원장의 파생물). 셋 다 CLI와 **같은 함수**다(`incr_review.record`·`start`·`export`)."""
+        try:
+            body = self.read_submission()
+            wanted = str(body.get("task") or "")
+            attribute = next((item for item in scan() if item.id == wanted and item.profile.get("gtTask")), None)
+            if attribute is None:
+                raise incr_review.IncrRejected(f"과제를 찾지 못했습니다: {wanted}")
+            # 쓰는 문은 묶음을 암묵으로 고르지 않는다 — 같은 키가 두 묶음에 있으면 판정이 엉뚱한 묶음에 적힌다.
+            if not body.get("batch"):
+                raise incr_review.IncrRejected("어느 묶음에서 누른 것인지 알 수 없습니다 — 화면을 새로고침해 주세요.")
+            batch = incr_review.pick_batch(attribute.profile, str(body["batch"]))
+            if route == "/incr-decide":
+                if "expectedAi" not in body:
+                    raise incr_review.IncrRejected("화면이 보여 준 AI 제안이 요청에 없습니다 — 화면을 새로고침해 주세요.")
+                entry = incr_review.record(
+                    attribute.profile, batch, key=str(body.get("key") or ""), field=str(body.get("field") or ""),
+                    decision=str(body.get("decision") or ""), reviewer=str(body.get("reviewer") or ""),
+                    value=body.get("value"), reason=str(body.get("reason") or ""), expected_ai=body.get("expectedAi"),
+                    channel="screen-bulk" if body.get("bulk") is True else "screen")
+                # 수는 status가 센 그대로 돌려준다 — 화면이 원장을 다시 세지 않게(규칙 8).
+                return self.send_json({"ok": True, "decision": entry, "status": incr_review.status(attribute.profile, batch)})
+            if route == "/incr-export":
+                return self.send_json(incr_review.export(attribute.profile, batch))
+            folder = next_lock_dir(attribute.profile)
+            if next_running(folder) is not None:
+                return self.send_json({"ok": False, "busy": True, "error": incr_review.BUSY}, HTTPStatus.CONFLICT)
+            runner = incr_review.start(attribute.profile, batch, reread=body.get("reread") is True)
+            # 러너가 잠금을 쥐고 제 상태(pid)를 쓸 때까지 기다린 뒤 답한다 — «다음 후보 받기»와 같은 이유(곧바로 답하면 화면의 첫 조회가
+            # 러너보다 먼저 와서 «아무것도 안 돈다»로 읽고 멈춘다). 잠금을 못 얻고 끝났으면(3) 바쁨이다.
+            deadline = time.monotonic() + NEXT_START_WAIT
+            while time.monotonic() < deadline:
+                state = incr_review.runner_state(attribute.profile, batch)
+                if state.get("pid") == runner.pid:
+                    if state.get("phase") == "failed":  # 잠금을 못 얻은 러너가 남긴 «바쁨»
+                        return self.send_json({"ok": False, "busy": True, "error": state.get("message") or incr_review.BUSY},
+                                              HTTPStatus.CONFLICT)
+                    return self.send_json({"ok": True, "started": batch, "pid": runner.pid})
+                if runner.poll() is not None:
+                    if runner.returncode == 3:
+                        return self.send_json({"ok": False, "busy": True, "error": incr_review.BUSY},
+                                              HTTPStatus.CONFLICT)
+                    return self.send_json({"ok": False, "error": "AI 추론을 시작하지 못했습니다 — Claude에게 «증분 AI 다시 돌려줘»라고 말해 주세요."},
+                                          HTTPStatus.INTERNAL_SERVER_ERROR)
+                time.sleep(0.2)
+            return self.send_json({"ok": False, "error": "AI 추론이 시작되지 않았습니다 — 잠시 뒤 다시 눌러 주세요."},
+                                  HTTPStatus.INTERNAL_SERVER_ERROR)
+        except (incr_review.IncrRejected, DecisionRejected) as rejected:
+            return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
+        except (TaskError, OSError, ValueError, KeyError) as error:
+            self.log_message("incr 설정 문제: %s", error)
+            return self.send_json({"ok": False, "error": "과제 설정이나 증분 파일에 문제가 있습니다 — Claude에게 알려 주세요."},
+                                  HTTPStatus.INTERNAL_SERVER_ERROR)
+
     def local_host(self) -> bool:
         """Host 머리가 이 컴퓨터를 가리키는가. DNS 리바인딩(남의 이름이 127.0.0.1로 풀리는 페이지)은
         같은 출처로 원장·GT·사진을 읽을 수 있다 — Origin 검사는 쓰기만 막으므로 읽기도 여기서 막는다."""
@@ -409,6 +469,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.export_field_list()
         if (parsed.path.rstrip("/") or "/") == "/gt-next":
             return self.start_next()
+        if (parsed.path.rstrip("/") or "/") in ("/incr-decide", "/incr-run", "/incr-export"):
+            return self.incr_post(parsed.path.rstrip("/"))
         if (parsed.path.rstrip("/") or "/") != "/decide":
             return self.fail(HTTPStatus.NOT_FOUND, "그런 자리는 없습니다.")
 
@@ -481,6 +543,30 @@ class Handler(BaseHTTPRequestHandler):
             wanted = (query.get("task") or [""])[0]
             attribute = next((item for item in found if item.id == wanted and item.profile.get("gtTask")), None)
             return self.send_json(next_status(next_lock_dir(attribute.profile) if attribute else None))
+
+        if route == "/incr" and INCR_PAGE.is_file():
+            return self.send(INCR_PAGE.read_bytes(), "text/html; charset=utf-8")
+
+        if route == "/incr-tasks":
+            try:
+                return self.send_json(incr_review.home_rows())
+            except (TaskError, OSError, ValueError) as error:
+                self.log_message("incr-tasks 설정 문제: %s", error)
+                return self.send_json({"ok": False, "error": "증분 검수 목록을 읽지 못했습니다."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        if route == "/incr-data":
+            wanted = (query.get("task") or [""])[0]
+            item = next((entry for entry in found if entry.id == wanted and entry.profile.get("gtTask")), None)
+            if item is None:
+                return self.send_json({"ok": False, "error": f"과제를 찾지 못했습니다: {wanted}"}, HTTPStatus.NOT_FOUND)
+            try:
+                batch = incr_review.pick_batch(item.profile, (query.get("batch") or [""])[0] or None)
+                return self.send_json(incr_review.screen_data(item.profile, batch))
+            except incr_review.IncrRejected as rejected:
+                return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.NOT_FOUND)
+            except (TaskError, OSError, ValueError) as error:
+                self.log_message("incr-data 설정 문제: %s", error)
+                return self.send_json({"ok": False, "error": "증분 검수 화면을 읽지 못했습니다."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
         if route == "/gt-tasks":
             try:

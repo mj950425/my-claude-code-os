@@ -13,6 +13,8 @@ __pycache__/
 # golden/ 색인이 추적하므로 파일 자체는 재현물이다.
 # 1GB가 넘어 git에 넣지 않는다. import 어댑터를 다시 돌리면 복구된다.
 .claude/os/runs/*/asset/
+# 사진 파일이 없는 자리(서버)에서 색인의 확인된 주소로 받아 둔 사진. 같은 이유로 재현물이다(engine/scripts/gt_images.py 머리말 4).
+.claude/os/runs/*/url-cache/
 
 # 심사가 판독기 주장을 되짚으려고 다시 내려받은 장면 타일. 같은 이유로 재현물이다 —
 # 어느 장면을 왜 받았는지는 scenes/index.json이 남기고, 그 색인은 추적한다.
@@ -25,6 +27,12 @@ __pycache__/
 # 없다 — 사람 판정이 아니다), export/는 원장·건넨 기록에서 다시 만든다.
 # 작업 목록과 화면에는 그 배치 칸들의 지금 GT 값이 들어 있다 — 추적하면 정답의 사본이 이 저장소에 생긴다(규칙 4).
 .claude/os/runs/*/gt-review/
+# 증분 검수의 작업 자리(사진·판독자 사본·AI 판독·작업 목록·러너 상태). 재현물이다 — 사람의 답은 .claude/incr/<id>/decisions.jsonl에 있고
+# AI 판독은 «AI 추론»을 다시 누르면 생긴다.
+.claude/os/runs/*/incr/
+.claude/incr/*/.lock
+# 증분 결과 파일 — 원장(decisions.jsonl)과 밀어넣은 원본에서 export가 다시 만든다. 라벨의 사본을 두 벌 두지 않는다(규칙 4).
+.claude/incr/*/labeled/
 # 판정 원장을 쓸 때 잡는 잠금 파일. 원장 옆에 생기지만 내용이 없는 이 컴퓨터의 순간 상태다.
 .claude/gt/*/gt-review/decisions.lock
 
@@ -35,3 +43,6 @@ __pycache__/
 
 # «넣어줘»가 GT 원본 옆에 남기는 되돌리기용 사본. 이력은 git이 갖는다 — 커밋하지 않는다.
 *.before-gt-review-*
+
+# 파이썬 가상 환경(requirements.txt). 이 머신의 설치물이다.
+.venv/

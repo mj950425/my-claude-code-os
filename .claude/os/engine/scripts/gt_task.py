@@ -40,6 +40,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 import sys
@@ -280,7 +281,7 @@ def definition_texts(path: Path) -> dict[str, str]:
 
 
 # 정책의 규칙 — 검수에서 자란다. 칸 절의 `### 규칙`에는 적용 중인 규칙만, 대체된 규칙은 `## 보관`에 둔다.
-# 판독자는 칸 절을 통째로 읽으니, 걸러내는 코드 없이 «지금 정책 전체»만 읽는다.
+# 판독자는 `reader_policy`가 그 상품에 걸리는 규칙만 잘라 준 칸 절을 읽는다(범위 밖·보관은 빠진다).
 #   - `R1` <규칙 문장> → `<허용값 코드>`        (→ 뒤는 없어도 된다 — 값으로 이어지지 않는 안내 규칙)
 #     - 물음: <이 규칙을 낳은 AI의 물음>          (검수 문답일 때)
 #     - 출처: <검수 문답 · 날짜 · 사람 · 판정 ID | 직접 작성 · 날짜 · 사람>   (반드시)
@@ -381,6 +382,79 @@ def definition_policy(path: Path, labels: dict[str, list[str]], many: dict[str, 
         if twice:
             raise TaskError(f"정의 문서 `## {field_id}`의 규칙 ID가 겹칩니다(보관 포함): {', '.join(twice)} — ID는 한 번만 씁니다.")
     return {"purpose": purpose, "rules": rules, "archive": archive}
+
+
+# 판독자에게 가는 정책 — 필수층. 판독자는 원래 정의 문서를 열지 않고, 코드가 이 상품에 걸리는 것만 잘라 쓴 파일 하나를 읽는다.
+# 무엇을 뺄지는 **절 이름과 규칙의 `범위:`** 로만 정한다(«관련 있어 보인다»는 판단이 없다) — 걸리는 규칙이 말없이 빠지지 않는다.
+# 뺀 것: 목적(사진 속 증거가 아니다) · 보관(대체된 규칙) · 변경 이력 · 범위가 이 상품 카테고리와 맞지 않는 규칙.
+# 규칙의 딸린 줄 가운데 물음·출처·근거도 뺀다 — 근거는 다른 상품의 키이고, 물음과 답은 사례(조회층)에 있다.
+READER_DROPPED_SECTIONS = (PURPOSE_SECTION, ARCHIVE_SECTION, "변경 이력")
+_SCOPE_SPLIT = re.compile(r"[›>]")  # «/»로 끊지 않는다 — 카테고리 이름 안에 있다(셔츠/블라우스)
+
+
+def category_parts(context: dict[str, Any] | None) -> set[str]:
+    """상품 맥락 값(카테고리 경로 같은)을 마디로 — `범위:`의 카테고리 이름과 맞춰 보는 단위다."""
+    parts: set[str] = set()
+    for value in (context or {}).values():
+        for piece in _SCOPE_SPLIT.split(str(value or "")):
+            if piece.strip():
+                parts.add(piece.strip())
+    return parts
+
+
+def rule_scope(rule: dict[str, Any]) -> list[str]:
+    return [name.strip() for name in str(rule.get("범위") or "").split(",") if name.strip()]
+
+
+def rule_line(rule: dict[str, Any]) -> str:
+    return f"- `{rule['id']}` {rule['text']}" + (f" → `{rule['value']}`" if rule.get("value") else "")
+
+
+def reader_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool] | None,
+                  context: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
+    """이 상품의 판독자가 받을 정책 글과, 무엇을 싣고 뺐는지(사람 쪽 기록 — 판독자 파일에는 쓰지 않는다).
+
+    카테고리를 모르면(맥락이 없는 과제) 범위가 있는 규칙도 싣고 `범위:` 줄을 남긴다 — 빼면 걸리는 규칙을 잃고,
+    판독자는 예전처럼 범위를 보고 따른다. 규칙 ID는 그대로 둔다 — 판독자가 `rulesApplied`로 인용하는 이름이다."""
+    policy = definition_policy(path, labels, many)
+    raw = path.read_text(encoding="utf-8")
+    head = re.match(r"^---\n.*?\n---\n", raw, re.S)
+    body = raw[head.end():] if head else raw
+    parts = category_parts(context)
+    known = bool(parts)
+    kept: dict[str, list[str]] = {}
+    dropped: dict[str, list[str]] = {}
+    out: list[str] = []
+    heads = list(_SECTION_HEAD.finditer(body))
+    out.append((body[:heads[0].start()] if heads else body).strip())
+    for n, match in enumerate(heads):
+        name = match.group(1).strip()
+        if name in READER_DROPPED_SECTIONS:
+            continue
+        text = body[match.end():(heads[n + 1].start() if n + 1 < len(heads) else len(body))].strip("\n")
+        if name in labels:
+            rules_head = re.search(r"^###\s+규칙\s*$", text, re.M)
+            if rules_head:
+                rest = text[rules_head.end():]
+                cut = re.search(r"^###\s", rest, re.M)
+                tail = rest[cut.start():] if cut else ""
+                lines = []
+                for rule in policy["rules"].get(name, []):
+                    scope = rule_scope(rule)
+                    if scope and known and not (set(scope) & parts):
+                        dropped.setdefault(name, []).append(rule["id"])
+                        continue
+                    kept.setdefault(name, []).append(rule["id"])
+                    lines.append(rule_line(rule))
+                    if scope and not known:
+                        lines.append(f"  - 범위: {', '.join(scope)}")
+                block = "\n".join(lines) if lines else "(이 상품에 걸리는 규칙이 없습니다)"
+                text = text[:rules_head.start()] + "### 규칙\n\n" + block + ("\n\n" + tail.strip("\n") if tail.strip() else "")
+        out.append(f"## {name}\n\n{text.strip()}")
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    meta = {"source": str(path.name), "sha256": digest, "rules": kept, "dropped": dropped,
+            "categoryKnown": known}
+    return "\n\n".join(part for part in out if part) + "\n", meta
 
 
 def next_rule_id(policy: dict[str, Any], field_id: str) -> str:

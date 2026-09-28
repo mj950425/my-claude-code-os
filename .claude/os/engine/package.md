@@ -6,7 +6,7 @@
 
 | 종류 | 파일 |
 |---|---|
-| 계약 | `contracts/customization-boundary.md` · `contracts/policy-layer.md` · `contracts/gt-layer.md`(사이클 GT 계보·판정 원장) · `contracts/gt-task.md`(GT 개선 과제) · `contracts/declared-leaks.json` |
+| 계약 | `contracts/customization-boundary.md` · `contracts/policy-layer.md` · `contracts/gt-layer.md`(사이클 GT 계보·판정 원장) · `contracts/gt-task.md`(GT 개선 과제) · `contracts/incremental-review.md`(증분 검수) · `contracts/declared-leaks.json` |
 | 목표 | `goal.md` — 프로세스 전체가 무엇을 성공으로 보는가 |
 | 오케스트레이터 | `scripts/run_catalog_cycle.py` |
 | 프로필 해석 | `scripts/catalog_profile.py` |
@@ -30,11 +30,12 @@
 | 스킬 | `skills/` — `catalog-data-os` · `catalog-policy-golden-audit` · `catalog-review-decision` · `catalog-audit-report` · `catalog-improvement-sweep` |
 | 에이전트 | `agents/catalog-golden-adjudicator.md` — 큐의 한 건이 정책 공백인가 GT 오류인가 실행 오류인가 |
 | 에이전트 | `agents/catalog-policy-cluster-scout.md` — 같은 이유로 막힌 군집 하나가 어떤 정책 결함인가 |
-| GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) · `gt_next.py`(«다음 후보 받기» 러너 — 준비·판독·화면을 한 번에 하나만) — 계약 `contracts/gt-task.md` |
+| GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) · `gt_next.py`(«다음 후보 받기» 러너 — 준비·판독·화면을 한 번에 하나만) · `gt_agent.py`(러너의 자식 — 워크플로우를 Claude Agent SDK로 부른다, 구독 OAuth만) — 계약 `contracts/gt-task.md` |
+| 증분 검수 | `scripts/incr_review.py` · `scripts/incr_render.py`(화면 `templates/incr.html`을 골든셋 검수와 같은 스타일 상수로 생성) — 새로 들어온 데이터(라벨 없음)를 골든셋 검수와 같은 과제 선언·판독자·잠금으로 AI가 먼저 읽고(워크플로우 `read` 단계만), 사람은 `/incr` 화면에서 클릭으로 확정한다. 원장은 `.claude/incr/<과제>/decisions.jsonl` — 계약 `contracts/incremental-review.md` |
 | GT 개선 워크플로우 | `workflows/gt-review.js` — 과제를 모른다. 판독자·반론자 유형도 인자로 받는다 |
 | 에이전트 | `agents/gt-blind-reader.md` — GT를 모른 채 사진과 정의만으로 칸을 읽는다 |
 | 에이전트 | `agents/gt-defender.md` — 판독이 GT와 갈린 칸에서 GT를 지킬 근거를 찾는다 |
-| 스킬 | `skills/gt-improve` — 데이터 운영팀의 단일 진입점 «GT 개선해줘» |
+| 스킬 | `skills/gt-improve` — 데이터 운영팀의 단일 진입점 «GT 개선해줘» · `skills/incr-review` — «증분 넣어줘»·«증분 검수» |
 | 진입점 링크 | `.claude/skills/<이름>` · `.claude/agents/engine/<이름>.md` → 여기. 실체는 이 패키지가 소유한다 |
 
 ## 의존

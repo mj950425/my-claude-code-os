@@ -22,7 +22,6 @@ if (!INPUT.task || !INPUT.batchId || !Array.isArray(INPUT.items)) {
 const TASK = INPUT.task
 const BATCH = INPUT.batchId
 const WORKLIST = INPUT.worklist
-const DEFINITIONS = INPUT.definitions
 // 판독자·반론자는 모든 과제에 공통이다(gt_task.AGENTS가 정하고 prepare가 넘긴다). 과제는 프롬프트를 바꾸지 못한다 —
 // 판단을 바꾸는 자리는 정의 문서 하나다. 이 파일에도 과제·필드·허용값 이름을 적지 않는다(test_gt_review가 확인한다).
 const AGENTS = Object.assign({ reader: 'gt-blind-reader', defender: 'gt-defender' }, INPUT.agents || {})
@@ -73,9 +72,11 @@ const READING_SCHEMA = {
           evidenceImageIds: { type: 'array', items: { type: 'string' }, description: '값을 정한 사진의 imageId(P01 같은). 글이 근거면 비운다' },
           observation: { type: 'string', description: '무엇이 보였는지 한국어로 한두 문장. 정의 문서의 어느 기준에 걸렸는지 포함' },
           definitionGap: { type: 'boolean', description: '정의 문서가 이 경우를 다루지 않아 기준 밖에서 판단해야 했으면 true' },
+          rulesApplied: { type: 'array', items: { type: 'string' }, description: '정책 파일 «### 규칙»에서 이 값을 정하는 데 따른 규칙의 ID(R1 같은). 따른 규칙이 없으면 빈 배열' },
+          casesOpened: { type: 'array', items: { type: 'string' }, description: '사례 목록에서 열어 본 사례의 ID(C01 같은). 열지 않았으면 빈 배열' },
           askHuman: ASK_SCHEMA,
         },
-        required: ['field', 'value', 'confidence', 'evidenceImageIds', 'observation'],
+        required: ['field', 'value', 'confidence', 'evidenceImageIds', 'observation', 'rulesApplied'],
       },
     },
     note: { type: 'string', description: '건 전체에 대한 한국어 요약. 증거가 부족했다면 무엇이 없었는지. 사람에게 묻는 말은 여기 쓰지 않고 그 칸의 askHuman에 쓴다' },
@@ -105,8 +106,11 @@ const DEFENSE_SCHEMA = {
   required: ['rebuttals'],
 }
 
+// 정책은 건마다 따로 잘라 둔 파일 하나다(판독 파일의 policy) — 이 상품에 걸리는 정의·허용값·규칙만 있다. 원래 정의 문서는 열지 않는다.
+// 사람이 검수에서 답한 기록은 프롬프트에 싣지 않는다. 규칙이 된 것은 정책 파일에, 나머지는 사례 목록(판독 파일의 cases)에 있고 필요할 때 연다.
 const COMMON = `
-정의 문서: ${DEFINITIONS} — 필드마다 «## <필드ID>» 절이 있다. 네가 답할 필드의 절을 먼저 전부 읽는다.
+정책 파일: 판독 파일의 policy가 가리키는 파일 하나 — 이 상품에 걸리는 정의·허용값·규칙만 잘라 둔 것이다.
+필드마다 «## <필드ID>» 절이 있다. 네가 답할 필드의 절을 먼저 전부 읽는다. 원래 정의 문서는 열지 않는다.
 사진 경로는 프로젝트 루트(지금 작업 폴더) 기준이다.
 
 Read·Grep·Glob만 쓴다. 어떤 파일도 만들거나 고치지 않는다. 사진을 잘라 저장하지 않는다 —
@@ -117,39 +121,33 @@ observation·why·note는 **한국어로** 쓴다. 읽는 사람은 코드를 �
 문장 안에서 값은 labelNames의 한국어 이름을 **글자 그대로** 부른다(바꿔 말하지 않는다 — 화면의 버튼과 같은 이름이어야 한다).
 코드(영문 허용값)는 value 칸에만 쓴다.`
 
-// 사람이 검수에서 이미 답한 경계 — 이 건의 칸에 걸린 것만, 이 상품 자신의 답은 빼고(그건 이 칸의 정답이다).
-function answeredFor(item) {
-  const names = {}
-  Object.entries(item.fieldNames || {}).forEach(([name, id]) => { names[id] = name })
-  const mine = new Set([...(item.fields || []), ...(item.quietFields || [])])
-  const skip = new Set(item.skipQa || [])
-  const rows = (item.answered || []).filter((q) => mine.has(q.field) && !skip.has(q.id))
-  if (!rows.length) return ''
-  return `
-
-사람이 검수에서 이미 답한 경계(정책의 «검수 문답»)다. 같은 경계에 걸리면 이 답을 따르고 다시 묻지 않는다.
-사진의 사정이 다르면 이 사진에 보이는 대로 판단한다 — 답을 이 상품의 값으로 옮겨 오지 않는다.
-${rows.map((q) => `- [${names[q.field] || q.field}] ${q.question} → ${q.answerName}`).join('\n')}`
-}
+// 사례 목록 — 조회층. 목록(제목)은 작고, 자세한 것은 사례 파일에 있다. 판독자가 필요할 때만 연다.
+const CASES = `
+- 판독 파일에 cases가 있으면 그것은 **사례 목록**이다 — 사람이 검수에서 AI의 물음에 답한 기록의 제목(물음)과 답이다.
+  정책이 아니라 사례다. 규칙이 된 사례(rule이 있는 것)는 정책 파일의 그 규칙을 따른다.
+  askHuman을 남기기 **전에** 이 목록에서 같은 경계를 찾는다. 있으면 그 사례 파일을 열어 보고 그 답을 따르며 다시 묻지 않는다 —
+  사진의 사정이 다르면 이 사진에 보이는 대로 판단한다(답을 이 상품의 값으로 옮겨 오지 않는다).
+  연 사례의 ID를 casesOpened에 적는다. 목록에 없는 사례 파일은 열지 않는다.`
 
 function readerPrompt(item) {
   return `판독 파일 ${item.view} 하나를 읽고, 그 안의 건 하나를 판독한다.
 
 그 파일의 images에 있는 사진을 **전부** Read로 연다. text가 있으면 그 글도 증거다.
 context가 있으면 함께 읽는다 — 답이 아니라 «무엇을 파는 상품인가» 같은 맥락이다.
-fields에 적힌 필드마다, 정의 문서의 기준으로 증거에서 보이는 값을 허용값으로 답한다.
+fields에 적힌 필드마다, 정책 파일의 기준으로 증거에서 보이는 값을 허용값으로 답한다.
 
 - 이 건의 정답은 모른다. 찾아 읽지도 않는다. 판독 파일·그 파일이 가리키는 사진·
-  정의 문서 말고는 아무것도 열지 않는다 — 판독 파일이 있는 폴더의 다른 파일, 작업 목록, GT 파일,
+  정책 파일·사례 목록과 그 목록의 사례 파일 말고는 아무것도 열지 않는다 — 판독 파일이 있는 폴더의 다른 파일, 작업 목록, GT 파일,
   지난 화면(review.json·review.html·sweep-raw.json)은 열지 않는다.
-- 사진 여러 장이 같은 칸에 다른 답을 주면, 정의 문서가 그 경우를 어떻게 다루는지 따르고
+- 사진 여러 장이 같은 칸에 다른 답을 주면, 정책 파일이 그 경우를 어떻게 다루는지 따르고
   정의가 말하지 않으면 confidence를 LOW로 두고 observation에 갈린 사진을 적는다.
 - 증거로 가를 수 없으면 value를 빈 문자열로, confidence를 LOW로 둔다. 추측으로 채우지 않는다.
 - evidenceImageIds에는 네가 실제로 연 사진의 imageId(P01 같은)만 적는다.
-- 사진과 정의 문서로 가를 수 없는 경계에 걸리면, 그 칸에 askHuman을 남기고 confidence를 LOW로 둔다.
+- 사진과 정책 파일로 가를 수 없는 경계에 걸리면, 그 칸에 askHuman을 남기고 confidence를 LOW로 둔다.
   question은 사진 번호도 이 상품 이야기도 없는 경계 물음이다(사람의 답이 정의 문서의 규칙이 된다).
-  이 사진의 사정은 here에, 답마다 될 값은 options에 적는다. 정의 문서 칸 절의 «### 규칙»이 이미 가른 경계는 다시 묻지 않고 그 규칙을 따른다(«범위»가 있으면 그 카테고리 상품에만).
-- 사람에게 묻는 말을 note에 쓰지 않는다 — 화면은 askHuman만 사람에게 보인다.${answeredFor(item)}${COMMON}`
+  이 사진의 사정은 here에, 답마다 될 값은 options에 적는다. 정책 파일 칸 절의 «### 규칙»이 이미 가른 경계는 다시 묻지 않고 그 규칙을 따른다(«범위»가 적힌 규칙은 그 카테고리 상품에만).
+- 값을 정하는 데 따른 규칙이 있으면 그 ID를 rulesApplied에 적는다. 걸리는 규칙을 따르지 않았다면 observation에 왜인지 적는다.
+- 사람에게 묻는 말을 note에 쓰지 않는다 — 화면은 askHuman만 사람에게 보인다.${CASES}${COMMON}`
 }
 
 // 값을 «이름 (코드)»로. 반론 문장은 이 모양을 따라 쓰므로, 여기서 코드만 주면 화면에 코드가 샌다.
@@ -169,7 +167,7 @@ GT를 모르는 판독자가 증거만 보고 아래 칸에서 지금 GT와 다�
 ${lines}
 
 네 일은 판독을 확인해 주는 것이 아니라 **지금 GT를 지키는 것**이다. 그 건의 사진을 전부 열고,
-정의 문서의 기준으로 GT 값이 맞다고 볼 근거를 찾는다. 판독자가 놓친 사진, 정의의 예외 조항,
+정책 파일의 기준으로 GT 값이 맞다고 볼 근거를 찾는다. 판독자가 놓친 사진, 정의의 예외 조항,
 판독자가 기준을 잘못 적용한 자리를 본다. GT가 빈칸인 칸은 판독 값보다 나은 값이 있는지 본다.
 
 - 근거를 찾으면 GT_STANDS. 찾지 못하면 READER_RIGHT — 억지로 반박하지 않는다.

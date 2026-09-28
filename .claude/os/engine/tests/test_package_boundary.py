@@ -207,7 +207,8 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
                      "images", "evidence", "columnNames", "prerequisite", "agents", "limit"}
     REVIEWED_IMAGES = {"path", "root", "keyField", "joinField", "listField", "fileField", "fileRoot", "fileBase", "idField",
                        "roleField", "roles", "roleNames", "matchField", "entryField", "tileRoles", "tileRule", "sourceIndexField",
-                       "sourceListComplete", "preTiledRoles", "preTiledRule", "contextFields", "maxImages", "maxEdge"}
+                       "sourceListComplete", "preTiledRoles", "preTiledRule", "contextFields", "maxImages", "maxEdge",
+                       "urlField", "urlSha256Field"}
     # 안쪽 블록도 같다 — 새 키의 값이 과제 어휘면 어휘 수집이 봐야 한다(rowCheck의 탭 이름처럼).
     REVIEWED_NESTED = {
         "gt": {"path", "root", "sourceField", "fieldSourcesField", "supersededBy", "upstream"},
@@ -326,6 +327,8 @@ class GtHarnessKnowsNoTaskTest(unittest.TestCase):
             images = task.get("images") or {}
             for key in ("roles", "tileRoles", "preTiledRoles", "contextFields"):
                 words |= {str(item) for item in images.get(key) or []}
+            # 주소·해시 열 이름은 그 팩의 색인이 정한 어휘다(가져오기 어댑터가 쓴다) — 엔진 문서가 알면 안 된다.
+            words |= {str(images[key]) for key in ("urlField", "urlSha256Field") if images.get(key)}
             for key in ("keyField", "titleField", "groupField"):
                 value = task.get(key)
                 words |= {str(item) for item in (value if isinstance(value, list) else [value] if value else [])}

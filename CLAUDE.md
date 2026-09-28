@@ -80,10 +80,12 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 하려는 일 | 여는 문서 |
 |---|---|
 | **GT를 고친다 (데이터 운영팀의 단일 진입점)** | 스킬 `gt-improve` — «GT 개선해줘». 계약 [gt-task.md](.claude/os/engine/contracts/gt-task.md) |
+| **새로 들어온 데이터를 검수한다 (증분 검수)** | 스킬 `incr-review` — «증분 넣어줘». 화면 `/incr`. 계약 [incremental-review.md](.claude/os/engine/contracts/incremental-review.md) |
 | 사이클을 돌린다 | 스킬 `catalog-data-os` → 속성 스킬 (`bag-category-gender-os`) |
 | 산출물을 브라우저에서 본다 | `./serve.sh start` → http://127.0.0.1:7391 |
 | GT 정정 후보를 승인한다 | 위 화면의 각 조서 아래 **판정** 칸. 근거 판례·정책 규칙을 함께 고른다 |
-| 판독기에게 정책을 넘긴다 | `policy/rule-briefs/<규칙ID>.md`를 **내용째로**. 손으로 발췌하지 않는다 |
+| 판독기에게 정책을 넘긴다 | `policy/rule-briefs/<규칙ID>.md`를 **내용째로**. 손으로 발췌하지 않는다 · GT 개선 과제는 `prepare`가 건마다 자른다(아래 «GT 개선 하네스») |
+| GT 개선 과제의 규칙을 더하고·고치고·뺀다 | 스킬 `gt-improve` «규칙 추가해줘» — `gt_review.py rule add\|edit\|retire`. 계약 [gt-task.md](.claude/os/engine/contracts/gt-task.md) «정책 문서의 모양» |
 | 이 결과로 판정을 시작해도 되는지 본다 | 스킬 `catalog-run-review` · [handoff.md](.claude/os/review/contracts/handoff.md) |
 | 다음에 무엇을 고칠지 고른다 (GT·정책 개선 포인트) | 스킬 `catalog-improvement-sweep` |
 | 판독기가 든 근거가 사진과 맞는지 되짚는다 | 스킬 `catalog-evidence-recheck` |
@@ -100,6 +102,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 
 ```
 serve.sh        산출물을 로컬 웹으로 띄우는 진입점. 실체는 engine/scripts/serve_reports.py
+.claude/incr/<id>/ 증분 검수: batches/(밀어넣은 원본) · decisions.jsonl(사람 판정 원장) · labeled/(파생 결과)
 .claude/gt/<id>/  감사 사이클 GT: gt.jsonl·lineage.json·from-decisions/ · GT 개선 과제: gt-review/(원장·건넨 기록과 그 파생물 — 규칙 4)와, 원본이 이 레포에 있으면 gt.jsonl
 .claude/os/
   engine/       공통 코어. 속성을 모른다        contracts/ scripts/ skills/ agents/ workflows/ templates/ tests/
@@ -169,6 +172,10 @@ GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT�
 있는 화면을 크롬으로 연다(`/gt/<과제ID>`). 버튼이 원장 `.claude/gt/<과제ID>/gt-review/decisions.json`에
 남기고, «반영해줘»가 운영 하네스의 사용자 정정 원장과 같은 모양의 정정 파일을 만든다.
 
+판독자에게 정책을 통째로 밀어 넣지 않는다. **규칙은 누가 썼든 필수**라 준비(`prepare`)가 건마다 그 상품에 걸리는 정의·허용값·규칙만
+잘라 정책 파일로 주고(`범위:`로만 거른다 — 판단으로 고르지 않는다), **사람이 답한 문답은 사례**라 목록(제목)만 주고 판독자가 필요할 때 연다.
+판독자가 모르는 규칙은 찾아볼 생각도 못 하므로 규칙은 조회에 두지 않는다. 판독은 따른 규칙을 `rulesApplied`로 적고, 받지 않은 규칙을 대면 화면이 알린다.
+
 단위는 (키, 필드) 한 칸이라 상품 성별(필드 하나)과 썸네일 관찰 메타데이터(필드 여럿)가 같은 코드로 돈다.
 워크플로우 `gt-review.js`는 과제를 모른다 — 필드·허용값·정의·사진은 전부 프로필이 가리키는 파일에 있다.
 한 GT에 원장은 하나다 — 감사 사이클의 원장(`gt` 블록)을 가진 프로필에는 `gtTask`를 선언할 수 없다(원장을 넘긴 `gt.ledger: "gtTask"`만 예외 — 가방).
@@ -230,18 +237,19 @@ GT와 우연히 일치, 정책이 답을 못 내는 공백, 정책 실행과 GT�
 **서버는 아무 화면도 그리지 않는다.** 그래서 숫자를 만들 자리 자체가 없다 —
 세는 일은 보고서와 엔진(`status`)이 하고 서버는 리다이렉트와 고정 파일·JSON 전달만 한다. `test_serve.py`가 그것을 확인한다.
 
-**쓰는 자리는 원장마다 하나, 둘이다 — 승인.** 감사 사이클은 `POST /decide` → `runs/<id>/review/decisions.json`,
-GT 개선 과제는 `POST /gt-decide` → `.claude/gt/<id>/gt-review/decisions.json`. 둘 다 CLI와 같은 기록 함수
-(`record_review_decision.record` · `gt_decisions.record`)를 지난다. 읽는 문은 `/decided`·`/gt-decided`, 과제 화면은 `/gt/<과제ID>`다.
+**쓰는 자리는 원장마다 하나, 셋이다 — 승인.** 감사 사이클은 `POST /decide` → `runs/<id>/review/decisions.json`,
+GT 개선 과제는 `POST /gt-decide` → `.claude/gt/<id>/gt-review/decisions.json`, 증분 검수는 `POST /incr-decide` →
+`.claude/incr/<id>/decisions.jsonl`. 셋 다 CLI와 같은 기록 함수(`record_review_decision.record` · `gt_decisions.record` ·
+`incr_review.record`)를 지난다. 읽는 문은 `/decided`·`/gt-decided`·`/incr-data`, 과제 화면은 `/gt/<과제ID>`·`/incr`다.
 
 아래는 감사 사이클의 문에 대한 이야기다. 「GT 정정 후보」의 각 조서에 판정 칸이 있어서, 읽던
 자리에서 그대로 답한다. 전에는 터미널을 열고 상품 키를 옮겨 적어야 했고, 그래서 답이
 안 쌓였다. 버튼은 `POST /decide`로 가고 그 요청은 CLI와 **같은 기록 함수**를 지난다 —
 문이 둘이면 규격도 둘이 되고, 원장에 검증된 줄과 안 된 줄이 섞인다.
-서버는 두 판정 원장과, GT 개선 화면의 «반영하기» 버튼(`POST /gt-export` — CLI `export`·`apply --yes`와 같은 함수)이 쓰는 것 말고는 아무것도 쓰지 않는다. 그 버튼은 원장의 파생물(정정·확인 목록과 표지)을 만들고 **곧바로 원본 GT(`gtTask.gt`가 가리키는 파일)에 넣는다** — 넣기 전 원본은 옆에 사본으로 남는다. 원본이 시트인 과제에서는 그 버튼도 미리 보기만 한다(건넨 기록을 남기지 않는다 — 파일에 넣어도 새로 고침에서 덮인다). 보고서도 정책도 건드리지 않는다.
+서버는 세 판정 원장과, 증분 검수의 «결과 파일 만들기»(`POST /incr-export` — 증분 원장의 파생물 `labeled/`), GT 개선 화면의 «반영하기» 버튼(`POST /gt-export` — CLI `export`·`apply --yes`와 같은 함수)이 쓰는 것 말고는 아무것도 쓰지 않는다. 그 버튼은 원장의 파생물(정정·확인 목록과 표지)을 만들고 **곧바로 원본 GT(`gtTask.gt`가 가리키는 파일)에 넣는다** — 넣기 전 원본은 옆에 사본으로 남는다. 원본이 시트인 과제에서는 그 버튼도 미리 보기만 한다(건넨 기록을 남기지 않는다 — 파일에 넣어도 새로 고침에서 덮인다). 보고서도 정책도 건드리지 않는다.
 GT 개선 화면의 «다음 후보 받기»(`POST /gt-next`)는 러너 `gt_next.py`를 떼어 띄우기만 한다 — 준비·판독(워크플로우)·화면은 러너가 쓰고,
-러너는 헤드리스 Claude Code(`claude -p`, 도구·권한을 좁혀)에 워크플로우를 두 단계로 맡긴다 — 판독(GT 없음)이 모두 끝난 뒤에야 반론(GT 있음). 판독자가 도는 동안 GT가 든 파일이 없게 하려는 것이다. **워크플로우는 한 번에 하나만 돈다** — 러너와 `prepare`가 잠금
-하나(`runs/.gt-next/lock`)를 나눠 쥐고, 스킬의 «다음 거»도 같은 문으로 온다. 상태는 `GET /gt-next`.
+러너는 헤드리스 Claude Code 세션(도구·권한을 좁혀)에 워크플로우를 두 단계로 맡긴다 — 세션은 자식 `gt_agent.py`가 Claude Agent SDK로 띄우고 **구독(OAuth)으로만** 돈다(로그인 또는 `claude setup-token`의 `CLAUDE_CODE_OAUTH_TOKEN`, API 키는 넘기지 않는다 — 의존은 `requirements.txt`, `serve.sh`는 `.venv`를 쓴다) — 판독(GT 없음)이 모두 끝난 뒤에야 반론(GT 있음). 판독자가 도는 동안 GT가 든 파일이 없게 하려는 것이다. **워크플로우는 한 번에 하나만 돈다** — 러너와 `prepare`가 잠금
+하나(`runs/.gt-next/lock`)를 나눠 쥐고, 스킬의 «다음 거»도 같은 문으로 온다. 상태는 `GET /gt-next`. 증분 검수의 «AI 추론»(`POST /incr-run`)도 같은 잠금을 쥔 러너(`incr_review.py run`)를 떼어 띄우기만 하고, 워크플로우의 판독 단계만 부른다(반론 없음).
 
 재판독 판정(`run-review/recheck.html`)은 심사 산출물이라 요약의 `artifacts`에 없다.
 메뉴가 사라져 링크로는 닿지 않으므로 주소로 연다 —

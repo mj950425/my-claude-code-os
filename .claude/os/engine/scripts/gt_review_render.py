@@ -1266,6 +1266,17 @@ body.only-ask .decide .cell.GT_HOLDS{display:none}
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 .reload-now{font:inherit;font-size:13.5px;font-weight:600;min-height:36px;padding:0 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+/* 좁은 화면 — 맨 끝에 둔다(위의 기본 규칙이 뒤에 오면 같은 무게라 이긴다). 골든셋 검수·증분 검수가 함께 쓴다.
+   진행률 줄은 세로로 쌓이는데(EXTRA_STYLE), 진행률 칸의 기준 크기(380px)가 세로에서는 높이가 되어 빈 칸이 생겼다. */
+@media (max-width:640px){
+  .progress-block{flex:0 0 auto;width:100%}
+  .title-side,.status-side{width:100%}
+  .who{flex:1 1 auto;white-space:nowrap}.who input{width:100%;min-width:0}
+  .masthead-top{flex-wrap:wrap;gap:4px 12px}
+  /* 값이 많은 칸의 선택기는 줄을 바꾼다 — 한 줄로 이으면 화면 오른쪽 밖으로 밀린다 */
+  .decide .cell .act.chips{flex-wrap:wrap}
+  .decide .cell .act.chips button.chip{flex:1 1 30%;min-width:0;border-top:1px solid var(--rule);margin-top:-1px}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 """
 
@@ -1277,28 +1288,35 @@ SIDEBAR_ICONS = {
     "home": "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
     "policy": "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5",
     "golden": "M3 5h18M3 12h18M3 19h18M8 5v14",
+    "incr": "M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
 }
 
 
 def sidebar_html(active: str, task_id: str | None, base: str = "") -> str:
-    """`active`는 review·policy·golden·home. `base`는 이 과제 화면 폴더로 가는 앞머리(같은 폴더면 빈 문자열)."""
+    """`active`는 home·review·incr·policy·golden. `base`는 이 과제 화면 폴더로 가는 앞머리(같은 폴더면 빈 문자열).
+    과제가 없는 화면(증분 검수)에서는 골든셋 검수·정책·골든셋이 첫 화면으로 가고, 과제는 펼쳐지는 목록에서 고른다."""
     e = html.escape
+    if task_id is None:
+        base = None
 
     def link(key: str, label: str, href: str) -> str:
         current = ' aria-current="page"' if active == key or (key == "home" and active == "home") else ""
-        # 마우스를 올리거나 키보드로 오면 오른쪽에 과제 목록이 펼쳐진다 — 어느 과제의 홈·정책·골든셋으로 갈지 고른다(목록은 스크립트가 채운다).
+        # 마우스를 올리거나 키보드로 오면 오른쪽에 과제 목록이 펼쳐진다 — 어느 과제의 골든셋 검수·증분 검수·정책·골든셋으로 갈지
+        # 고른다(목록은 SIDEBAR_SCRIPT가 채운다 — 골든셋 쪽은 /gt-tasks, 증분 검수는 /incr-tasks).
         menu = key != "home"  # 홈은 첫 화면 하나 — 고를 것이 없다
-        return (f'<div class="side-item"{f' data-menu="{key}"' if menu else ""}><a class="side-link{" on" if current else ""}" href="{e(href)}"{current}>'
+        return (f'<div class="side-item"{f' data-menu="{key}"' if menu else ""}><a class="side-link{" on" if current else ""}" href="{e(href)}"{current}'
+                f'{' aria-haspopup="true"' if menu else ""}>'
                 f'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" '
                 f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{SIDEBAR_ICONS[key]}"></path></svg>{e(label)}</a>'
                 + (f'<div class="flyout" role="menu" aria-label="{e(label)} — 고르기"></div>' if menu else "") + '</div>')
 
-    return (f'<aside class="side" data-task="{e(task_id or "")}" data-base="{e(base)}">'
+    return (f'<aside class="side" data-task="{e(task_id or "")}" data-base="{e(base or "")}">'
             '<a class="side-brand" href="/"><span class="side-logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
             'stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>데이터 운영</a>'
             '<nav class="side-nav" aria-label="주 메뉴">'
-            + link("home", "홈", "/") + link("review", "골든셋 검수", base + "review.html") + link("policy", "정책", base + "policy.html")
-            + link("golden", "골든셋", base + "golden.html")
+            + link("home", "홈", "/") + link("review", "골든셋 검수", "/" if base is None else base + "review.html")
+            + link("incr", "증분 검수", "/incr") + link("policy", "정책", "/" if base is None else base + "policy.html")
+            + link("golden", "골든셋", "/" if base is None else base + "golden.html")
             + '</nav>'
             '</aside>')
 
@@ -1308,26 +1326,70 @@ SIDEBAR_SCRIPT = r"""
   const side = document.querySelector('aside.side');
   if (!side || location.protocol === 'file:') return;
   const me = side.dataset.task;
+  // 증분 화면은 과제를 주소(?task=)로 안다 — 그 과제를 목록에서 «지금»으로 칠한다.
+  const incrMe = location.pathname === '/incr' ? new URLSearchParams(location.search).get('task') : null;
   const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  // 메뉴 하나를 채운다 — 네 메뉴(골든셋 검수·증분 검수·정책·골든셋)가 같은 함수를 쓴다. 과제 이름은 두 목록이 같은 이름(name)이고,
+  // 수는 서버가 센 그대로다. 부모 줄의 수는 자식 수의 합(수가 있는 메뉴만). 과제 없는 화면(증분)에서 부모 링크가 첫 화면(«/»)이면
+  // 첫 과제로 보낸다 — 첫 화면의 사이드바와 같은 동작.
+  const fill = (key, rows) => {
+    const item = side.querySelector('.side-item[data-menu="' + key + '"]');
+    if (!item) return;
+    const menu = item.querySelector('.flyout'); menu.textContent = '';
+    rows.forEach(row => {
+      const a = make('a', 'flyout-link' + (row.on ? ' on' : '') + (row.empty ? ' empty' : ''));
+      a.href = row.href; a.setAttribute('role', 'menuitem');
+      a.appendChild(make('span', null, row.name));
+      if (row.count) a.appendChild(make('span', 'side-count', String(row.count)));
+      else if (row.empty) a.appendChild(make('span', 'side-empty', row.empty));
+      menu.appendChild(a);
+    });
+    item.classList.toggle('has-menu', menu.children.length > 0);
+    const link = item.querySelector('a.side-link');
+    if (!link) return;
+    link.setAttribute('aria-haspopup', 'true');
+    if (link.getAttribute('href') === '/' && rows.length) link.href = (rows.find(row => row.on) || rows.find(row => !row.empty) || rows[0]).href;
+    const total = rows.reduce((sum, row) => sum + (row.count || 0), 0);
+    let badge = link.querySelector('.side-count');
+    if (key === 'review' || key === 'incr') {
+      if (!badge) { badge = make('span', 'side-count'); link.appendChild(badge); }
+      badge.textContent = String(total); badge.hidden = !total;
+    }
+  };
   fetch('/gt-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(listing => {
     if (!listing) return;
     const pages = {review: task => task.page || ('/gt/' + encodeURIComponent(task.task)),
                    policy: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/policy.html',
                    golden: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/golden.html'};
-    document.querySelectorAll('.side-item[data-menu]').forEach(item => {
-      const menu = item.querySelector('.flyout'); menu.textContent = '';
-      (listing.tasks || []).filter(task => item.dataset.menu === 'review' || task.pages || task.prepared).forEach(task => {
-        const a = make('a', 'flyout-link' + (task.task === me ? ' on' : ''));
-        a.href = pages[item.dataset.menu](task); a.setAttribute('role', 'menuitem');
-        a.appendChild(make('span', null, task.name));
-        const left = (task.waitingForHuman || 0) + (task.notRead || 0);
-        if (item.dataset.menu === 'review' && left) a.appendChild(make('span', 'side-count', String(left)));
-        menu.appendChild(a);
-      });
-      item.classList.toggle('has-menu', menu.children.length > 0);
+    ['review', 'policy', 'golden'].forEach(key => {
+      fill(key, (listing.tasks || []).filter(task => key === 'review' || task.pages || task.prepared).map(task => ({
+        href: pages[key](task), name: task.name, on: task.task === me,
+        count: key === 'review' ? (task.waitingForHuman || 0) + (task.notRead || 0) : 0})));
     });
-    // 감사 사이클(과제 목록 밖의 GT)로 가는 문은 사이드바에 두지 않는다 — 운영 화면은 골든셋 검수 과제만 다룬다. 감사 화면은 /audit 주소로 연다.
   }).catch(() => {});
+  fetch('/incr-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(incr => {
+    if (!incr) return;
+    fill('incr', (incr.tasks || []).map(task => ({href: '/incr?task=' + encodeURIComponent(task.task), name: task.menuName || task.name,
+                                                on: task.task === incrMe, count: task.itemsLeft || 0,
+                                                empty: (task.batches || []).length ? '' : '증분 없음'})));
+  }).catch(() => {});
+
+  // 메뉴 글쇠 — ↓ 목록으로 들어가 다음, ↑ 이전(맨 위에서 부모로), Esc 닫고 부모로. 골든셋·증분·정책·골든셋 메뉴가 같다.
+  side.addEventListener('keydown', (event) => {
+    const item = event.target.closest('.side-item.has-menu');
+    if (!item || !['ArrowDown', 'ArrowUp', 'Escape'].includes(event.key)) return;
+    item.classList.remove('closed');
+    const parent = item.querySelector('a.side-link');
+    const links = [...item.querySelectorAll('.flyout a')];
+    const now = links.indexOf(event.target);
+    event.preventDefault();
+    if (event.key === 'Escape') { item.classList.add('closed'); parent.focus(); return; }  // 포커스는 부모에 남긴다 — 다음 Tab이 제자리에서 이어진다
+    if (event.key === 'ArrowDown') (links[now + 1] || links[0]).focus();
+    else if (now <= 0) parent.focus(); else links[now - 1].focus();
+  });
+  side.addEventListener('focusout', (event) => { const item = event.target.closest('.side-item'); if (item && !item.contains(event.relatedTarget)) item.classList.remove('closed'); });
+  side.addEventListener('mouseleave', () => side.querySelectorAll('.side-item.closed').forEach((item) => item.classList.remove('closed')));
+  // 감사 사이클(과제 목록 밖의 GT)로 가는 문은 사이드바에 두지 않는다 — 운영 화면은 골든셋 검수 과제만 다룬다. 감사 화면은 /audit 주소로 연다.
 })();
 """
 
@@ -1352,21 +1414,28 @@ html{zoom:var(--zoom)}
   box-shadow:0 12px 32px -8px rgba(15,23,42,.25),0 0 0 1px var(--rule)}
 .flyout::before{content:"";position:absolute;left:-8px;top:0;width:8px;height:100%}
 .side-item.has-menu:hover .flyout,.side-item.has-menu:focus-within .flyout{display:flex;flex-direction:column;gap:2px}
+.side-item.closed .flyout{display:none!important}  /* Esc로 닫은 메뉴 — 포커스는 부모에 남는다 */
 .flyout-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap}
 .flyout-link:hover,.flyout-link:focus-visible{background:#F1F5F9;color:var(--ink)}
 .flyout-link.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
 .side-link.on,.side-task.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
 .side-task{justify-content:space-between;font-size:14px}
 .side-count{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:#F1F5F9;color:var(--muted)}
+.side-link .side-count{margin-left:auto}
+.side-count[hidden]{display:none}
+.side-empty{font-size:12px;color:#94A3B8}
+.flyout-link.empty{color:var(--faint)}
 .side-task.on .side-count{background:#fff;color:var(--accent-ink)}
 .side-kicker{padding:0 12px 6px;font-size:12px;font-weight:600;color:var(--faint);margin:0}
 .side-others{margin-top:auto;padding:14px;border-radius:12px;background:var(--paper)}
 .side-others .side-kicker{padding:0 0 4px}
 .side-door{display:block;font-size:13.5px;font-weight:500;color:var(--accent)}
 @media (max-width:900px){
-  .shell{grid-template-columns:1fr}
-  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px}
-  .side-nav{flex-direction:row}.side-group,.side-others{display:none}
+  .shell{grid-template-columns:minmax(0,1fr)}  /* 1fr(=minmax(auto,1fr))이면 한 줄 메뉴의 폭만큼 화면 전체가 넓어진다 */
+  .side{min-width:0;position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px}
+  /* 좁은 화면 — 메뉴는 줄을 바꿔 두 줄이 된다. 가로 스크롤(overflow)은 펼침 목록까지 잘라 내므로 쓰지 않는다 */
+  .side-nav{flex-direction:row;flex-wrap:wrap;max-width:100%}.side-group,.side-others{display:none}
+  .side-link{white-space:nowrap}  /* «골든셋 검/수»처럼 낱말 가운데서 끊지 않는다 */
   .shell > .wrap{width:calc(100% - 32px)}
   .flyout{left:0;top:calc(100% + 4px)}.flyout::before{display:none}
 }
@@ -1703,6 +1772,12 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
         low = " (확신 낮음)" if reading.get("confidence") == "LOW" else ""
         reader_html = (f'<b>{e(_label(field, reading.get("value")))}</b>{low}'
                        + (f' — [{evidence}] {e(_ai(reading.get("observation")))}' if reading.get("observation") else ""))
+        cited = [str(rule) for rule in reading.get("rulesApplied") or []]
+        if cited:
+            known = field.get("ruleTexts") or {}
+            reader_html += '<br><span class="sub">따른 정책 규칙 — ' + " · ".join(
+                f'{e(rule)} {e(known[rule])}' if rule in known else f'{e(rule)} (정책에 없는 규칙입니다 — 근거를 직접 봐 주세요)'
+                for rule in cited) + "</span>"
     else:
         reader_html = "(답이 돌아오지 않음)"
     defense_html = (f'<b>{e(defense_text)}</b>' + (f' — [{defense_ids}] {e(_ai(rebuttal.get("why")))}' if rebuttal else ""))
@@ -1829,8 +1904,18 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
         value_notes = definition_value_notes(definitions_path)
     except (OSError, KeyError, TaskError):
         texts, value_notes = {}, {}
+    # 판독이 따랐다고 적은 규칙(rulesApplied)을 문장으로 보이려고 — 규칙 ID만 보이면 사람이 정책 페이지를 열어 찾아야 한다.
+    try:
+        rule_texts: dict[str, dict[str, str]] = {}
+        policy_now = definition_policy(definitions_path, {f["id"]: [str(c) for c in f.get("labels") or []] for f in fields.values()},
+                                       {f["id"]: f.get("cardinality") == "many" for f in fields.values()})
+        for field_id, rules in policy_now["rules"].items():
+            rule_texts[field_id] = {rule["id"]: rule["text"] for rule in rules}
+    except (OSError, KeyError, TaskError, NameError):
+        rule_texts = {}
     column_names = task.get("columnNames") or {}
     for field_id, field in fields.items():
+        field["ruleTexts"] = rule_texts.get(field_id) or {}
         field["textNames"] = _names_for_text(fields, field, column_names)
         field["valueNotes"] = value_notes.get(field_id) or {}
         if texts.get(field_id):
@@ -1950,10 +2035,14 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
     if (review.get("warnings") or {}).get("notKorean"):
         warn = (f'<p class="notice">AI 설명 일부가 한국어가 아닙니다({e(", ".join(review["warnings"]["notKorean"]))}). '
                 '판정에는 문제가 없지만, 읽기 어려우면 Claude에게 «이 건 한국어로 다시 봐줘»라고 말해 주세요.</p>')
+    if (review.get("warnings") or {}).get("rulesUnknown"):
+        odd = review["warnings"]["rulesUnknown"]
+        warn += (f'<p class="notice">AI가 이 상품에 주지 않은 정책 규칙을 따랐다고 적은 칸이 있습니다'
+                 f'({e(", ".join(sorted({str(row.get("item")) for row in odd})))}). 그 칸은 근거를 직접 보고 골라 주세요.</p>')
     body = f"""<div class="shell">{sidebar_html("review", review["profileId"])}<div class="wrap">
 <header class="masthead">
   <div class="masthead-top"><p class="kicker crumbs"><a href="/">홈</a> / {e(str(profile.get('subjectName') or ''))}{f" · {e(str(unit))} 단위" if unit else ""}</p><p id="made" data-at="{e(str(review['basedOn']['worklist'] or ''))}"></p></div>
-  <div class="title-row"><h1>{e(name)}</h1><div class="title-side"><nav class="pager" aria-label="페이지"{' hidden' if total <= PAGE_SIZE else ''}><button type="button" id="page-prev" aria-label="이전 페이지">‹</button><span id="page-now"></span><button type="button" class="page-next">다음 페이지 →</button></nav><label class="who">판정하는 사람 <input id="reviewer" placeholder="이름"></label></div></div>
+  <div class="title-row"><h1>{e(name)}</h1><div class="title-side"><nav class="pager" aria-label="페이지"><button type="button" id="page-prev" aria-label="이전 페이지"{' hidden' if total <= PAGE_SIZE else ''}>‹</button><span id="page-now"{' hidden' if total <= PAGE_SIZE else ''}></span><button type="button" class="page-next">다음 페이지 →</button></nav><label class="who">판정하는 사람 <input id="reviewer" placeholder="이름"></label></div></div>
   <div class="actions">
     <div id="export-out" hidden aria-live="polite"></div>
   </div>
@@ -2000,11 +2089,29 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
     return page.replace("</style>", EXTRA_STYLE + THEME_STYLE + SIDEBAR_STYLE + "</style>", 1) + body
 
 
-PAGE_STYLE = """
+# 카드·표·알약 — 정책·골든셋 두 장과 증분 검수의 목록(incr_render)이 함께 쓴다. 한 벌이어야 두 화면이 같은 표로 보인다.
+LIST_STYLE = """
+.card{background:#fff;border-radius:16px;padding:22px 24px;margin-top:20px;box-shadow:var(--shadow)}
+.card h2{font-size:17px;font-weight:700;margin:0 0 4px}
+.card .sub{font-size:13px;color:var(--faint);margin:0 0 14px}
+.table{margin-top:16px;background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:auto}
+.table table{width:100%;border-collapse:collapse;font-size:13.5px}
+.table th{position:sticky;top:0;background:var(--paper);text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:10px 14px;white-space:nowrap}
+.table td{padding:10px 14px;box-shadow:inset 0 1px 0 #F1F5F9;white-space:nowrap}
+.table tr:hover td{background:#FAFCFF}
+.table td.key{font-weight:600}
+.table .empty{color:#94A3B8;font-style:italic}
+.table .pill{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
+.pill.out{background:var(--bad-soft);color:var(--bad)}
+.pill.to{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.table .src{color:var(--faint);font-size:12.5px}
+"""
+
+PAGE_STYLE = LIST_STYLE + """
 .page-head{padding:28px 0 8px;display:flex;flex-direction:column;gap:6px}
 .page-head h1{font-size:clamp(1.5rem,2.6vw,1.75rem);font-weight:700;letter-spacing:-.02em;margin:0}
 .page-head .lead{margin:0}
-.card{background:#fff;border-radius:16px;padding:22px 24px;margin-top:20px;box-shadow:var(--shadow)}
 .goal-row{display:grid;grid-template-columns:110px 1fr;gap:12px;padding:6px 0;font-size:14px}
 .goal-row>span{color:var(--muted)}
 .goal-row .deftext p{margin:0}
@@ -2013,8 +2120,6 @@ PAGE_STYLE = """
 .policy-rules .tag.from-review{background:#FEF3C7;color:#92400E}
 .policy-rules li.struck{color:var(--muted)}
 .policy-rules li.struck .rule-text{text-decoration:line-through}
-.card h2{font-size:17px;font-weight:700;margin:0 0 4px}
-.card .sub{font-size:13px;color:var(--faint);margin:0 0 14px}
 .values{list-style:none;padding:0;margin:0 0 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
 .values li{padding:12px 14px;border-radius:12px;background:var(--paper);font-size:13.5px;line-height:1.55;color:var(--muted)}
 .values strong.vn{display:block;color:var(--ink);font-size:14.5px;margin-bottom:2px}
@@ -2030,18 +2135,6 @@ details.src .deftext{font-size:13.5px;line-height:1.65;color:var(--muted);paddin
 .filters input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .filters label{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
 .filters .shown{margin-left:auto;font-size:13px;color:var(--faint)}
-.table{margin-top:16px;background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:auto}
-.table table{width:100%;border-collapse:collapse;font-size:13.5px}
-.table th{position:sticky;top:0;background:var(--paper);text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:10px 14px;white-space:nowrap}
-.table td{padding:10px 14px;box-shadow:inset 0 1px 0 #F1F5F9;white-space:nowrap}
-.table tr:hover td{background:#FAFCFF}
-.table td.key{font-weight:600}
-.table .empty{color:#94A3B8;font-style:italic}
-.table .pill{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
-.pill.out{background:var(--bad-soft);color:var(--bad)}
-.pill.to{background:var(--accent-soft);color:var(--accent-ink)}
-.pill.ok{background:var(--ok-soft);color:var(--ok)}
-.table .src{color:var(--faint);font-size:12.5px}
 /* 골든셋 카드 — 검수 화면의 접힌 상품처럼: 왼쪽 대표 사진, 오른쪽 키와 칸별 값 */
 .gcards{display:flex;flex-direction:column;gap:12px;margin-top:16px}
 .gcard{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;padding:16px 20px;background:#fff;border-radius:16px;box-shadow:var(--shadow)}

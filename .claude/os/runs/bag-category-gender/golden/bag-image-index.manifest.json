@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-27T15:05:30+00:00",
+  "generatedAt": "2026-09-28T06:14:58+00:00",
   "by": ".claude/os/attributes/bag-category-gender/adapters/import_bag_review_images.py",
   "sources": {
     "gt": {
@@ -12,6 +12,11 @@
     },
     "gallery": {
       "path": ".claude/os/runs/bag-category-gender/golden/bag-product-gallery.jsonl"
+    },
+    "thumbnailUrls": {
+      "path": "tool/image-gender/gt-harness/data/bags-product-context-gt-20260903.jsonl",
+      "sha256": "7394c58a03b6d76a436e6909c513e970e221d7fb594c6020916fb618c048733b",
+      "field": "prodRepresentativeThumbnailUrl"
     }
   },
   "detailTileRule": {
@@ -22,9 +27,181 @@
     "aspect": 1.5,
     "minTilePx": 64
   },
+  "urlVerification": {
+    "threshold": 20.0,
+    "urls": 3836,
+    "verified": 9144,
+    "rejected": [
+      {
+        "productKey": "EGOOCM:3412173",
+        "imageId": "D01T01",
+        "url": "https://samsonite.speedgabia.com/SR/1.TOPBOTTOM/HEAD_SR.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "EGOOCM:3412701",
+        "imageId": "T01",
+        "url": "https://img.29cm.co.kr/item/202608/11f1a521be5dd4bdb18df7e3a80847da.jpg",
+        "difference": 127.26
+      },
+      {
+        "productKey": "EGOOCM:3417183",
+        "imageId": "D01T01",
+        "url": "https://assetscdn49.styleship.com/assets/columbia/data/SabangNet/common_image/detail_top.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "EGOOCM:3417334",
+        "imageId": "D01T01",
+        "url": "https://assetscdn49.styleship.com/assets/columbia/data/SabangNet/common_image/detail_top.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "EGOOCM:3424925",
+        "imageId": "T01",
+        "url": "https://img.29cm.co.kr/item/202508/11f0780187c21838964a3fff26905a41.jpg",
+        "difference": 93.14
+      },
+      {
+        "productKey": "EGOOCM:3426183",
+        "imageId": "T01",
+        "url": "https://img.29cm.co.kr/item/202608/11f19f6066434f5485e19d1a8660f45e.jpg",
+        "difference": 86.3
+      },
+      {
+        "productKey": "EGOOCM:3465791",
+        "imageId": "D03T02",
+        "url": "http://gi.esmplus.com/gfitflop/JAAH/notice.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "EGOOCM:3470856",
+        "imageId": "D04T01",
+        "url": "https://mathematik.speedgabia.com/Common_ban/04_Style.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "EGOOCM:3470856",
+        "imageId": "D04T02",
+        "reason": "원본을 잘라도 그 번호의 조각이 없습니다"
+      },
+      {
+        "productKey": "MUSINSA:4816021",
+        "imageId": "D01T01",
+        "url": "https://assetscdn49.styleship.com/assets/columbia/data/SabangNet/common_image/detail_top.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:4880929",
+        "imageId": "D02T01",
+        "url": "https://sbskorea.esellersimg.co.kr/President/YM2098_2026/Walktrip_page_01_02.png",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:4970995",
+        "imageId": "D01T01",
+        "url": "https://image.msscdn.net/display/images/common/2022/10/07/dd9dc92457964bde85ba10940b8b8204.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:4999626",
+        "imageId": "D02T01",
+        "url": "https://toossa.com/goodsimg/ilban/KOLON/images/IRO_top.jpg",
+        "difference": 106.55
+      },
+      {
+        "productKey": "MUSINSA:4999626",
+        "imageId": "D02T02",
+        "url": "https://toossa.com/goodsimg/ilban/KOLON/images/IRO_top.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:4999626",
+        "imageId": "D02T03",
+        "url": "https://toossa.com/goodsimg/ilban/KOLON/images/IRO_top.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:4999626",
+        "imageId": "D02T04",
+        "reason": "원본을 잘라도 그 번호의 조각이 없습니다"
+      },
+      {
+        "productKey": "MUSINSA:5016388",
+        "imageId": "D01T01",
+        "url": "https://samsonite.speedgabia.com/AT/1.TOPBOTTOM/HEAD_AT.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5359905",
+        "imageId": "D01T01",
+        "url": "https://akcdn-beipril.cafe24img.com/%EB%B2%A0%EC%9D%B4%ED%94%84%EB%A6%B4/%EC%83%81%EC%84%B8%20%EC%83%81%EB%8B%A8%20%EB%94%94%ED%8C%8C%EC%9D%B8.jpg",
+        "difference": 55.39
+      },
+      {
+        "productKey": "MUSINSA:5359905",
+        "imageId": "D01T02",
+        "url": "https://akcdn-beipril.cafe24img.com/%EB%B2%A0%EC%9D%B4%ED%94%84%EB%A6%B4/%EC%83%81%EC%84%B8%20%EC%83%81%EB%8B%A8%20%EB%94%94%ED%8C%8C%EC%9D%B8.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5359905",
+        "imageId": "D01T03",
+        "url": "https://akcdn-beipril.cafe24img.com/%EB%B2%A0%EC%9D%B4%ED%94%84%EB%A6%B4/%EC%83%81%EC%84%B8%20%EC%83%81%EB%8B%A8%20%EB%94%94%ED%8C%8C%EC%9D%B8.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5359905",
+        "imageId": "D01T04",
+        "reason": "원본을 잘라도 그 번호의 조각이 없습니다"
+      },
+      {
+        "productKey": "MUSINSA:5359905",
+        "imageId": "D01T05",
+        "reason": "원본을 잘라도 그 번호의 조각이 없습니다"
+      },
+      {
+        "productKey": "MUSINSA:5364018",
+        "imageId": "D01T01",
+        "url": "https://guess.godohosting.com/online/top_banner2020.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5364237",
+        "imageId": "D01T01",
+        "url": "https://guess.godohosting.com/online/top_banner2020.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5364248",
+        "imageId": "D01T01",
+        "url": "https://guess.godohosting.com/online/top_banner2020.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:5848884",
+        "imageId": "D01T01",
+        "url": "https://image.msscdn.net/display/images/common/2026/03/24/7a1d9ee6b7294f7ea5ed63dc9044809b.jpg",
+        "difference": null
+      },
+      {
+        "productKey": "MUSINSA:6525213",
+        "imageId": "D02T01",
+        "url": "https://ddle211.hgodo.com/BRAND/19_TO/TORY_TOP.jpg",
+        "difference": null
+      }
+    ],
+    "failed": [
+      {
+        "productKey": "MUSINSA:5382920",
+        "imageId": "T01",
+        "reason": "받지 못했습니다: HTTPError: HTTP Error 404: Not Found"
+      }
+    ]
+  },
   "products": 500,
   "productsWithImages": 497,
-  "copiedThisRun": 8278,
+  "copiedThisRun": 0,
   "droppedImageReferences": [
     {
       "productKey": "MUSINSA:1224086",

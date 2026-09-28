@@ -214,6 +214,11 @@ class Fixture:
         return path
 
 
+def _path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
 def reading(field: str, value: str, confidence: str = "HIGH") -> dict:
     return {"field": field, "value": value, "confidence": confidence, "evidenceImageIds": ["P01"], "observation": "보인다"}
 
@@ -453,12 +458,126 @@ class GtReviewTest(unittest.TestCase):
         listed = json.loads(self.fx.task("qa").stdout)["answered"]
         self.assertEqual([(r["key"], r["field"], r["answer"]) for r in listed], [("A", "sheen", "NONE")])
 
-        # 다음 배치 — 판독자 인자에 사람이 답한 경계가 실린다. 그 상품 자신(A)의 판독에는 빼라고 표시한다.
+        # 다음 배치 — 사람이 답한 경계는 프롬프트가 아니라 사례 목록(조회층)으로 간다. 그 상품 자신(A)의 판독자에게는 싣지 않는다
+        # (그건 그 칸의 정답이다). 목록에는 제목(물음)과 답만, 사례 파일에 그 사진의 사정이 있다. 키와 판정 ID는 어디에도 없다.
         prepared = self.fx.task("prepare")
         args = json.loads(prepared.stdout[prepared.stdout.index("{"):])["workflowArgs"]
-        self.assertEqual([q["question"] for q in args["common"]["answered"]], [listed[0]["question"]])
-        mine = [item for item in args["items"] if item.get("skipQa")]
-        self.assertTrue(all(q == listed[0]["id"] for item in mine for q in item["skipQa"]))
+        self.assertNotIn("answered", args["common"], "답한 물음을 모든 판독자의 프롬프트에 밀어 넣지 않는다")
+        keys = {item["id"]: item["key"] for item in self.fx.worklist()["items"]}
+        seen_cases = 0
+        for entry in args["items"]:
+            view = json.loads(_path(entry["view"]).read_text(encoding="utf-8"))
+            if keys[entry["id"]] == "A":
+                self.assertNotIn("cases", view)
+                continue
+            index = json.loads(_path(view["cases"]).read_text(encoding="utf-8"))["cases"]
+            self.assertEqual([(case["title"], case["answerName"], case["rule"]) for case in index],
+                             [(listed[0]["question"], "없음", None)])
+            detail = _path(index[0]["file"]).read_text(encoding="utf-8")
+            self.assertNotIn(listed[0]["decisionId"], detail)
+            self.assertNotIn('"A"', detail)
+            seen_cases += 1
+        self.assertTrue(seen_cases)
+
+    def _views(self) -> dict[str, dict]:
+        prepared = self.fx.task("prepare")
+        args = json.loads(prepared.stdout[prepared.stdout.index("{"):])["workflowArgs"]
+        keys = {item["id"]: item["key"] for item in self.fx.worklist()["items"]}
+        return {keys[entry["id"]]: json.loads(_path(entry["view"]).read_text(encoding="utf-8")) for entry in args["items"]}
+
+    def test_each_reader_gets_only_the_policy_that_applies_to_its_product(self) -> None:
+        # 필수층 — 규칙은 범위(카테고리)로만 거른다. 픽스처 상품의 카테고리는 «잡화>테스트».
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다", "--value", "NONE",
+                     "--reviewer", "민준", "--yes")
+        self.fx.task("rule", "add", "--field", "광택 강도", "--text", "테스트 상품은 결을 먼저 본다", "--scope", "테스트",
+                     "--reviewer", "민준", "--yes")
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "가방은 금속 장식을 광택으로 보지 않는다", "--scope", "가방",
+                     "--reviewer", "민준", "--yes")
+        self.fx.task("rule", "retire", "--field", "sheen", "--id", "R3", "--reason", "가방은 이 과제에 없다",
+                     "--reviewer", "민준", "--yes")
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "가방 끈의 광택은 보지 않는다", "--scope", "가방",
+                     "--reviewer", "민준", "--yes")
+        views = self._views()
+        view = next(iter(views.values()))
+        self.assertNotIn("definitions", view, "판독자에게 원래 정의 문서를 가리키지 않는다")
+        text = _path(view["policy"]).read_text(encoding="utf-8")
+        sheen = text[text.index("## sheen"):text.index("## tones")]
+        self.assertIn("- `R1` 반사만 보이면 광택이 없다 → `NONE`", sheen)
+        self.assertIn("- `R2` 테스트 상품은 결을 먼저 본다", sheen)
+        self.assertNotIn("R4", sheen, "범위가 다른 카테고리인 규칙은 이 상품의 판독자에게 가지 않는다")
+        self.assertNotIn("R3", text, "보관된 규칙은 가지 않는다")
+        for gone in ("## 보관", "## 변경 이력", "출처:", "근거:"):
+            self.assertNotIn(gone, text)
+        self.assertIn("### 허용값", sheen)
+        # 무엇을 실었는지는 사람 쪽 기록에 — 판독 파일 폴더 밖이다.
+        given = json.loads((self.fx.review_dir() / "policy-given.json").read_text(encoding="utf-8"))
+        meta = next(iter(given["items"].values()))
+        self.assertEqual(meta["rules"]["sheen"], ["R1", "R2"])
+        self.assertEqual(meta["dropped"]["sheen"], ["R4"])
+
+    def test_without_a_category_scoped_rules_are_kept_with_their_scope(self) -> None:
+        # 카테고리를 모르면 빼지 않는다 — 빼면 걸리는 규칙을 잃는다. 판독자가 범위 줄을 보고 따른다.
+        self.fx.profile["gtTask"]["images"]["contextFields"] = []
+        self.fx.save(definitions=False)
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "가방 끈의 광택은 보지 않는다", "--scope", "가방",
+                     "--reviewer", "민준", "--yes")
+        text = _path(next(iter(self._views().values()))["policy"]).read_text(encoding="utf-8")
+        self.assertIn("- `R1` 가방 끈의 광택은 보지 않는다\n  - 범위: 가방", text)
+
+    def test_rules_can_be_added_edited_and_retired_by_hand_without_losing_lineage(self) -> None:
+        definitions = self.fx.root / "definitions.md"
+        before = definitions.read_text(encoding="utf-8")
+        preview = json.loads(self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다",
+                                          "--value", "NONE", "--reviewer", "민준").stdout)
+        self.assertFalse(preview["applied"])
+        self.assertEqual(definitions.read_text(encoding="utf-8"), before, "--yes 없이는 정책을 건드리지 않는다")
+        refused = self.fx.task("rule", "add", "--field", "sheen", "--text", "x", "--value", "SHINY", "--reviewer", "민준",
+                               "--yes", check=False)
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("허용값이 아닙니다", refused.stderr)
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다", "--value", "NONE",
+                     "--reviewer", "민준", "--yes")
+        after = definitions.read_text(encoding="utf-8")
+        self.assertIn("- `R1` 반사만 보이면 광택이 없다 → `NONE`\n  - 출처: 직접 작성 · ", after)
+        # 고치기 — 새 ID를 받고 옛 규칙은 보관으로(무엇으로 바뀌었는지와 함께). 같은 ID의 문장이 바뀌면 옛 판독이 무엇을 따랐는지 모른다.
+        self.fx.task("rule", "edit", "--field", "sheen", "--id", "R1", "--value", "LOW", "--reviewer", "지은", "--yes")
+        after = definitions.read_text(encoding="utf-8")
+        sheen = after[after.index("## sheen"):after.index("## tones")]
+        self.assertIn("- `R2` 반사만 보이면 광택이 없다 → `LOW`", sheen)
+        self.assertIn("R1 고침", sheen)
+        self.assertNotIn("`R1`", sheen)
+        archive = after[after.index("## 보관"):]
+        self.assertIn("- `sheen/R1` 반사만 보이면 광택이 없다 → `NONE`", archive)
+        self.assertIn("  - 대체: R2 · ", archive)
+        unchanged = self.fx.task("rule", "edit", "--field", "sheen", "--id", "R2", "--reviewer", "지은", "--yes", check=False)
+        self.assertIn("바뀌는 것이 없습니다", unchanged.stderr)
+        # 빼기 — 이유가 있어야 하고, 줄은 지우지 않고 보관으로 간다.
+        self.assertIn("--reason", self.fx.task("rule", "retire", "--field", "sheen", "--id", "R2", "--reviewer", "지은",
+                                                "--yes", check=False).stderr)
+        self.fx.task("rule", "retire", "--field", "sheen", "--id", "R2", "--reason", "결로 가른다", "--reviewer", "지은", "--yes")
+        after = definitions.read_text(encoding="utf-8")
+        self.assertNotIn("`R2`", after[after.index("## sheen"):after.index("## tones")])
+        self.assertIn("  - 대체: 없음(폐지) · ", after)
+        history = after[after.index("## 변경 이력"):]
+        history = history[:history.index("\n## ", 1)] if "\n## " in history[1:] else history
+        self.assertEqual(history.count("\n- "), 3, "더하기·고치기·빼기가 모두 변경 이력에 남는다")
+        listed = json.loads(self.fx.task("rule").stdout)
+        self.assertEqual([r["field"] for r in listed["archive"]], ["sheen", "sheen"])
+
+    def test_a_reading_that_cites_a_rule_it_was_not_given_is_flagged(self) -> None:
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다", "--value", "NONE",
+                     "--reviewer", "민준", "--yes")
+        self.fx.task("prepare")
+        out = self.fx.sweep({"A": [{**reading("sheen", "NONE"), "rulesApplied": ["R1"]}],
+                             "B": [{**reading("sheen", "NONE"), "rulesApplied": ["R9"]}]})
+        self.fx.task("finish", "--from", str(out))
+        review = json.loads((self.fx.review_dir() / "review.json").read_text(encoding="utf-8"))
+        by_key = {item["id"]: item["key"] for item in self.fx.worklist()["items"]}
+        flagged = review["warnings"]["rulesUnknown"]
+        self.assertEqual([(by_key[row["item"]], row["field"], row["rules"]) for row in flagged], [("B", "sheen", ["R9"])])
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        self.assertIn("따른 정책 규칙 — R1 반사만 보이면 광택이 없다", page)
+        self.assertIn("주지 않은 정책 규칙", page)
 
     def test_golden_keys_link_to_the_product_page_the_profile_names(self) -> None:
         # 주소 칸은 프로필이 선언한다(linkField). GT 행에 없으면 사진 원본 행(같은 키)에서 찾는다. http(s)만 링크로 쓴다.
@@ -601,6 +720,16 @@ class GtReviewTest(unittest.TestCase):
                        "expectedBefore", "빈칸이 맞다"):
             self.assertIn(needle, page)
         self.assertEqual(json.loads((self.fx.review_dir() / "manifest.json").read_text())["page"], "review.html")
+
+    def test_a_one_page_batch_still_has_the_next_batch_button(self) -> None:
+        # 버튼이 페이지 넘김 막대 안에 있어서, 한 페이지짜리 배치(잡화 6건)는 막대와 함께 «다음 후보 받기»도 숨었다.
+        import re
+        out = self.fx.sweep({"A": [reading("sheen", "LOW")]})
+        self.fx.task("finish", "--from", str(out))
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        pager = re.search(r'<nav class="pager"[^>]*>', page).group(0)
+        self.assertNotIn("hidden", pager, "페이지가 하나라고 «다음 후보 받기»까지 숨겼습니다")
+        self.assertIn('class="page-next"', page)
 
     def test_unknown_label_gets_its_own_button(self) -> None:
         # 선언한 과제에서만 도는 가지라, 픽스처가 선언하지 않던 동안 화면이 통째로 죽는 것을 아무도 못 봤다.

@@ -1,0 +1,1681 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<!--
+  생성된 파일 — 손으로 고치지 않는다. 고칠 자리는 engine/scripts/incr_render.py이고, 고친 뒤 «python3 incr_render.py»로 다시 쓴다.
+  모양은 골든셋 검수 화면과 같은 상수(page_style.head · EXTRA_STYLE · THEME_STYLE · SIDEBAR_STYLE · LIST_STYLE)에서 온다.
+  건·수는 전부 /incr-tasks · /incr-data(JSON)에서 읽는다 — 서버는 이 파일을 그대로 보낸다.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>데이터 운영 · 증분 검수</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Gothic+A1:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  /* 순흑백에 액센트 하나. 그 하나는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다 —
+     화면에서 빨간 것이 보이면 그 자리가 곧 조치할 자리라는 뜻이 되어야 한다.
+     --faint와 --muted는 캔버스 시안(#A3A3A3·#B8B8B8)보다 어둡다. 시안 값은 흰 배경에서
+     2.5:1·2.0:1이라 본문으로 읽히지 않는다. 톤은 지키되 읽히는 선까지 내렸다. */
+  --paper:#FFFFFF; --inset:#F7F7F7; --ink:#000000; --muted:#5C5C5C; --faint:#767676;
+  --rule:#E4E4E4; --rule-soft:#F0F0F0; --ghost:#8A8A8A;
+  --accent:#D62300; --accent-soft:#FDEDEA;
+  --display:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
+  --sans:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:400;font-size:14.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule);transition:border-color .18s}
+a:hover{border-color:var(--accent)}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{width:min(1360px,calc(100% - 56px));margin:0 auto}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.kicker{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500;letter-spacing:-.02em}
+
+/* 귀책을 색이 아니라 형태로 구분한다. 인쇄해도 남는다. */
+.mark{display:inline-block;width:9px;height:9px;border:1.25px solid var(--ink);flex:0 0 auto;translate:0 -1px}
+.mark.GT{background:var(--ink)}
+.mark.POLICY{background:transparent}
+.mark.RUNTIME{border-radius:50%;background:transparent}
+.mark.OPEN{background:linear-gradient(135deg,var(--ink) 0 50%,transparent 50% 100%)}
+.mark.NONE{border-style:dotted}
+
+/* masthead */
+.masthead{padding:36px 0 0}
+.masthead-top{display:flex;justify-content:space-between;align-items:baseline;gap:24px;padding-bottom:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.masthead-top .dirty{color:var(--accent)}
+.masthead-top nav a{margin-left:14px;border-bottom-color:var(--faint);color:var(--muted)}
+.masthead h1{font-family:var(--display);font-weight:800;letter-spacing:-.045em;line-height:.98;font-size:clamp(2.4rem,5.4vw,4.6rem);padding:20px 0 10px;border-top:2px solid var(--ink)}
+.masthead h1 small{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.runbar{display:flex;flex-wrap:wrap;margin-top:18px;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.runbar div{flex:1 1 130px;padding:9px 14px 10px;border-left:1px solid var(--rule)}
+.runbar div:first-child{border-left:0;padding-left:0}
+.runbar dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.runbar dd{margin:2px 0 0;font-family:var(--mono);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
+
+/* 표지: 두 목록 */
+.lanes{display:grid;grid-template-columns:1fr 1fr;margin-top:44px}
+.lane{padding:0 34px 22px 0}
+.lane + .lane{border-left:1px solid var(--rule);padding:0 0 22px 34px}
+.lane-head{display:flex;align-items:baseline;gap:10px}
+.lane-head h2{font-family:var(--display);font-weight:700;font-size:1.5rem;letter-spacing:-.035em}
+.lane-head small{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.lane-count{margin:6px 0 4px;display:flex;align-items:baseline;gap:10px}
+.lane-count .num{font-size:3.2rem;font-weight:300;line-height:1}
+.lane-count span{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+.sig{display:grid;grid-template-columns:1fr auto;gap:2px 16px;padding:10px 0;border-top:1px solid var(--rule)}
+.sig strong{font-weight:500;font-size:13px}
+.sig strong i{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--accent);margin-right:8px}
+.sig .num{font-size:14px}
+.lane-open{display:inline-block;margin-top:16px;padding:9px 14px;border:1px solid var(--ink);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+.lane-open:hover{background:var(--ink);color:var(--paper)}
+.aside-strip{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.aside-strip div{display:grid;grid-template-columns:auto 1fr;gap:0 14px;align-items:center;padding:14px 18px;border-left:1px solid var(--rule)}
+.aside-strip div:first-child{border-left:0;padding-left:0}
+.aside-strip .num{font-size:1.9rem;font-weight:300;line-height:1}
+.aside-strip p{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500}
+
+.sec{margin-top:60px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding-bottom:10px;border-bottom:1.5px solid var(--ink)}
+.sec-head h2{font-family:var(--display);font-weight:700;font-size:1.55rem;letter-spacing:-.035em}
+.sec-head h2 small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.map{width:100%;border-collapse:collapse;margin-top:6px}
+.map th,.map td{text-align:left;padding:9px 16px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top;font-size:13px}
+.map th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:500;padding-top:0}
+.map td.id{font-family:var(--mono);font-size:10.5px;color:var(--muted);word-break:break-all}
+.map td.desc{color:var(--muted)}
+.map td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.map td.where,.map td.mono{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.map td.lbl{font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap}
+
+/* 사례 보고서: 툴바 */
+.toolbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;margin-top:28px;background:var(--paper);border-top:1.5px solid var(--ink);border-bottom:1px solid var(--rule)}
+.toolbar button{appearance:none;background:none;border:0;border-right:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:color .16s,background .16s}
+.toolbar button:hover{background:var(--inset);color:var(--ink)}
+.toolbar button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.toolbar button[aria-pressed=true] .mark{border-color:var(--paper)}
+.toolbar button[aria-pressed=true] .mark.GT{background:var(--paper)}
+.toolbar button[aria-pressed=true] .mark.OPEN{background:linear-gradient(135deg,var(--paper) 0 50%,transparent 50% 100%)}
+.toolbar .search{margin-left:auto;display:flex;align-items:center;gap:10px}
+.toolbar input{border:0;border-left:1px solid var(--rule);background:transparent;padding:10px 12px;font-family:var(--mono);font-size:11.5px;min-width:280px}
+.toolbar input::placeholder{color:var(--faint)}
+.toolbar .shown{font-family:var(--mono);font-size:11px;color:var(--faint);padding-right:4px}
+
+/* 군집 머리 */
+.cluster{margin-top:44px}
+.cluster-head{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:16px 0 18px;border-top:1.5px solid var(--ink)}
+.cluster-rail .cid{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.04em}
+.cluster-rail .cid.plain{color:var(--ink)}
+.cluster-rail .ccount{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.cluster-rail .ccount .num{font-size:1.6rem;font-weight:300;display:block;line-height:1;color:var(--ink);margin-bottom:2px}
+.cluster-rail .status{display:inline-block;margin-top:8px;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em}
+.cluster-rail .status.DECIDED{border-color:var(--ink);color:var(--ink)}
+.cluster-body h2{font-family:var(--display);font-weight:700;font-size:1.24rem;line-height:1.42;letter-spacing:-.025em;max-width:64ch}
+.cluster-body .sub{margin-top:4px;font-size:12.5px;color:var(--muted)}
+.q-impact{display:flex;flex-wrap:wrap;margin-top:12px;border:1px solid var(--rule);width:fit-content;max-width:100%}
+.q-impact div{padding:5px 13px 6px;border-left:1px solid var(--rule)}
+.q-impact div:first-child{border-left:0}
+.q-impact dt{font-family:var(--mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint)}
+.q-impact dd{font-family:var(--mono);font-size:13px;font-weight:600}
+.q-rec{margin-top:10px;font-size:13px;max-width:72ch}
+.q-rec b{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:2px}
+.q-rec b i{font-style:normal;color:var(--accent)}
+.p-more h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--accent)}
+
+/* 정정 후보: 한 제안이 한 장이다. 제목 다음이 바로 필터이고, 그 다음이 제안이다 —
+   머리에 리포트 자신을 설명하는 말도, 리포트 자신을 세는 숫자도 두지 않는다.
+   이 화면이 묻는 것은 "이 GT가 틀렸나" 하나뿐이고, 나머지는 그 답에 기여하지 않는다. */
+.fx{display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 32px;padding:60px 0 68px;
+    border-top:1px solid var(--ink);animation:fx-rise .45s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fx-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.fx{animation:none}}
+
+/* 왼쪽 — 일련번호. 카드를 세는 유일한 자리다 */
+.fx-rail{position:sticky;top:64px;align-self:start}
+.fx-rail .ord{display:block;font-family:var(--mono);font-size:40px;font-weight:600;letter-spacing:-.03em;
+              line-height:.85;color:var(--rule);font-variant-numeric:tabular-nums}
+.fx-rail .chips{margin-top:20px}
+.stamp{display:inline-block;margin-top:18px;padding:5px 10px 4px;font-family:var(--mono);font-size:10px;
+       font-weight:700;letter-spacing:.14em;border:1px solid var(--rule);color:var(--muted)}
+.stamp.SURE{border-color:var(--accent);color:var(--accent)}
+.stamp.POLICY{border-color:var(--ink);color:var(--ink)}
+.stamp.ASK,.stamp.OPEN{border-style:dashed}
+
+.fx-body{min-width:0}
+.fx-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px;
+         font-family:var(--mono);font-size:11px;letter-spacing:.07em;color:var(--ghost)}
+.fx-meta a{font-weight:600;letter-spacing:.1em;color:var(--ink);border:0}
+.fx-meta a:hover{color:var(--accent)}
+.fx h3{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.3;letter-spacing:-.02em;
+       max-width:34ch;overflow-wrap:anywhere}
+
+/* 주문 — 현재 GT는 그어지고, 제안만 색을 갖는다 */
+.ruling{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 44px;margin-top:32px;padding:26px 0;
+        border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
+.ruling>div{min-width:0}
+.ruling dt{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.15em;color:var(--ghost);margin-bottom:10px}
+.ruling dd{font-family:var(--display);font-size:42px;font-weight:800;letter-spacing:-.03em;line-height:.95;
+           font-variant-numeric:tabular-nums}
+.ruling .was dd{color:#8A8A8A;text-decoration:line-through;text-decoration-thickness:2px}
+.ruling .now dd{color:var(--accent)}
+.ruling .keep dd{color:var(--ink);font-size:32px}
+.ruling small{display:block;margin-top:12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+              line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.ruling .to{align-self:center;margin-bottom:24px;color:var(--rule);line-height:0}
+.ruling .to svg{display:block}
+
+/* 판독기와 리뷰어를 섞지 않는다 */
+.fx-say{display:grid;grid-template-columns:104px minmax(0,1fr);gap:20px;padding:19px 0;
+        border-bottom:1px solid var(--rule-soft)}
+.fx-say:last-of-type{border-bottom:0}
+.fx-say b{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost);padding-top:3px}
+.fx-say p{font-size:15px;line-height:1.75;color:var(--ink);max-width:76ch;overflow-wrap:anywhere}
+.fx-say.mut p{color:var(--muted)}
+.fx-say .src{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ghost)}
+
+/* 판정 — 읽는 자리에서 그대로 답한다.
+   액센트는 «조치할 자리»에만 쓴다는 이 화면의 규칙 그대로, 승인 버튼 하나가 그 자리다. */
+.act{margin-top:36px;padding-top:22px;border-top:1px solid var(--ink)}
+.act-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:16px;
+          font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.act-form{display:grid;gap:12px;max-width:760px}
+.act-bind{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;align-items:center}
+.act-bind>span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost)}
+.act select,.act input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--rule);background:var(--paper);
+  color:var(--ink);font-family:var(--sans);font-size:14px;border-radius:0}
+.act select:focus,.act input[type=text]:focus{outline:0;border-color:var(--ink)}
+.act select[disabled]{background:var(--inset);color:var(--muted)}
+/* 규칙 칸은 판례를 고르면 잠긴다. 왜 잠겼는지가 옆에 적혀야 «고장」으로 안 읽힌다. */
+.act-rule{display:block;min-width:0}
+.act-rule small{display:block;margin-top:6px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.04em;color:var(--faint)}
+.act-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+.act button{padding:12px 18px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.act button:hover{background:var(--ink);color:var(--paper)}
+.act button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.go:hover{background:#B01D00;border-color:#B01D00}
+.act button[disabled]{opacity:.45;cursor:default}
+.act button[disabled]:hover{background:var(--paper);color:var(--ink)}
+.act .out{font-family:var(--mono);font-size:11.5px;line-height:1.6;letter-spacing:.02em;color:var(--muted);
+  padding:12px 14px;background:var(--inset);overflow-wrap:anywhere}
+.act .out.bad{background:var(--accent-soft);color:#8C1800}
+/* 이미 답한 건. 폼을 지우고 무엇을 언제 답했는지만 남긴다 — 두 번 누를 자리를 없앤다. */
+.act.settled{border-top-color:var(--rule)}
+.act .stamp-done{display:grid;gap:6px;padding:14px 16px;background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink);overflow-wrap:anywhere}
+.act .stamp-done b{font-size:12px;letter-spacing:.06em}
+.act .stamp-done .held{color:var(--accent)}
+/* 서버 없이 파일로 열었을 때. 버튼을 그려 놓고 안 눌리는 것보다 왜 안 되는지 적는 편이 낫다. */
+.act .offline{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--faint);
+  padding:12px 14px;border:1px dashed var(--rule)}
+
+/* 증거판 — 인용된 장면이 먼저 온다 */
+.plate{margin-top:34px}
+.plate-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
+            font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.plate .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:20px;overflow:visible;padding:0}
+.plate .shots figure{margin:0;min-width:0}
+.plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;
+              cursor:zoom-in;position:relative;transition:border-color .16s,transform .16s}
+.plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
+/* 높이를 고정하면 세로로 긴 상세컷이 가운데 실오라기 한 줄로 줄어든다 — 증거를 못 읽는다.
+   폭을 채우고 높이는 사진이 정한다. 격자가 들쭉날쭉해지지만, 보이는 편이 낫다. */
+/* 긴 상세 원본에서 이 장면이 실제로 차지한 자리만 보여준다. 고정 절단 판(v0-fixed)에서는 타일 높이가 폭×1.5라,
+   액자를 2:3으로 잡으면 액자 높이가 곧 타일 한 칸이다. 다른 판은 렌더러가 `tile`을 0으로 보내 자르지 않는다.
+   그러면 `top`의 100%가 정확히 한 타일이라 원본 높이를 몰라도 잘라 낼 수 있다.
+   **근사다** — 운영은 타일 높이를 half_up(폭×1.5)로 반올림하므로, 폭이 홀수면 k번째 타일이 원본 기준 최대 k×0.5px
+   어긋난다. 보는 용도(어느 사진인가)에는 충분하고, 판독에 쓰는 조각은 이 CSS가 아니라 tile_rule로 잘라 낸다.
+   자르지 않으면 한 원본에서 나온 열 장이 전부 같은 그림으로 보이고,
+   「어느 사진이 근거인가」에 답할 수 없다. */
+.plate .frame.tiled{position:relative;aspect-ratio:2/3;overflow:hidden;border-width:0;
+  outline:1px solid var(--rule);outline-offset:-1px}
+.plate figure.cited .frame.tiled{border-width:0;outline:2px solid var(--accent);outline-offset:-2px}
+.plate .frame.tiled img{position:absolute;left:0;top:calc(var(--tile) * -100%);
+  width:100%;height:auto;min-height:0;max-height:none}
+.plate .frame img{display:block;width:100%;height:auto;min-height:200px;max-height:520px;
+                  object-fit:contain;background:#fff}
+.plate figure.cited .frame{border:2px solid var(--accent)}
+.plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:#fff;
+              font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;padding:5px 9px 4px}
+.plate figcaption{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--ghost)}
+.plate figcaption .scene{display:block}
+/* 판독기가 이 장면에서 본 것. 주장과 사진을 잇는 한 줄이라 캡션에서 가장 크게 읽혀야 한다 */
+/* 판독 기록은 사진에 붙어야 한다. 캡션 한 줄로 떨어뜨리면 어느 사진의 말인지 흐려진다. */
+.plate .seen{position:absolute;left:0;right:0;bottom:0;padding:7px 9px;
+  font-family:var(--sans);font-size:12px;line-height:1.35;text-align:left;
+  background:rgba(255,255,255,.94);border-top:1px solid var(--rule)}
+.plate .seen b{font-weight:600}
+.plate .seen.male b{color:#1449b8}
+.plate .seen.female b{color:#c0134a}
+.plate .seen.none{color:var(--ghost);font-style:italic}
+/* 인용하지 않았는데 판독기가 무언가 적어 둔 장면. 근거로 채택된 것과 같은 무게로 보이면
+   안 되지만, 숨기면 반증이 사라진다 — 실행의 주장과 어긋나는 기록이 여기 있었다. */
+.plate .seen.aside{background:rgba(255,255,255,.9);border-top:1px dashed var(--rule)}
+.plate figure:not(.cited) .frame{outline:1px dashed var(--rule);outline-offset:-1px}
+.plate .frame.missing{position:relative;aspect-ratio:2/3;display:grid;place-items:center;
+  border:1px dashed var(--rule);background:var(--inset);padding:14px;text-align:center}
+.plate .frame.missing .seen{position:static;background:none;border:0;text-align:center}
+.plate figcaption .derived{display:block;margin-top:3px;font-family:var(--sans);font-size:11.5px;color:var(--muted)}
+.plate figure.cited figcaption .scene{color:var(--accent)}
+.plate figcaption .fail{display:none;margin-top:4px;color:var(--accent)}
+.plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
+.plate figure.gone .frame img{height:44px;opacity:0}
+.plate figure.gone figcaption .fail{display:block}
+.plate details{margin-top:16px;border-top:1px solid var(--rule-soft);padding-top:14px}
+.plate summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
+.plate summary:hover{color:var(--accent)}
+.plate details .shots{margin-top:14px}
+.plate .noshot{padding:26px;border:1px dashed var(--rule);background:var(--inset);color:var(--ghost);
+               font-family:var(--mono);font-size:11px;text-align:center}
+.fx .chips{margin-top:8px}
+
+/* 확대 뷰어 */
+dialog.viewer{max-width:96vw;max-height:96vh;padding:0;border:1.5px solid var(--ink);background:var(--paper)}
+dialog.viewer::backdrop{background:rgba(23,21,15,.86)}
+dialog.viewer img{display:block;max-width:92vw;max-height:84vh;object-fit:contain;background:#fff}
+dialog.viewer .bar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:8px 12px;
+                   border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;color:var(--muted)}
+dialog.viewer button{appearance:none;background:none;border:1px solid var(--rule);font-family:var(--mono);
+                     font-size:11px;padding:4px 10px;cursor:pointer;color:var(--ink)}
+dialog.viewer button:hover{background:var(--ink);color:var(--paper)}
+
+/* 상품 카드: 하네스 리포트처럼 상품 단위로 이미지를 밀집한다 */
+.product{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:22px 0 26px;border-top:1px solid var(--rule)}
+.p-rail{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
+.p-rail .idx{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:500;letter-spacing:.08em}
+.p-rail .key{margin-top:8px;color:var(--ink);font-size:11.5px;word-break:break-all}
+.p-rail .cat{font-size:10.5px;color:var(--faint);word-break:break-all}
+.p-rail .chips{margin-top:10px}
+.p-body{min-width:0}
+.p-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.p-head h3{font-family:var(--display);font-weight:700;font-size:1.18rem;line-height:1.34;letter-spacing:-.025em}
+.p-head .pdp{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;padding:5px 9px;border:1px solid var(--rule)}
+.p-head .pdp:hover{border-color:var(--ink)}
+.labels{display:flex;align-items:stretch;border:1px solid var(--rule);width:fit-content;max-width:100%;margin-top:12px;background:var(--paper)}
+.labels > div{padding:7px 14px 8px;border-left:1px solid var(--rule)}
+.labels > div:first-child{border-left:0}
+.labels dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.labels dd{margin-top:1px;font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:-.01em}
+.labels dd small{display:block;font-size:9px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+.labels .verdict{background:var(--ink);color:var(--paper)}
+.labels .verdict dt{color:rgba(250,249,245,.6)}
+.labels .verdict dd small{color:rgba(250,249,245,.7)}
+.labels .verdict.pending{background:var(--accent-soft);color:var(--accent)}
+.labels .verdict.pending dt,.labels .verdict.pending dd small{color:rgba(140,43,24,.7)}
+/* 판독기가 쓴 것과 리뷰어가 쓴 것을 한 칸에 섞지 않는다. 누가 쓴 문장인지가 판정을 가른다. */
+.p-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;margin-top:14px;border:1px solid var(--rule)}
+.voice{padding:11px 14px 13px;min-width:0}
+.voice + .voice{border-left:1px solid var(--rule)}
+.voice.review{background:var(--inset)}
+.voice > h4{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.voice > h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--faint);font-size:9.5px}
+.voice p{font-size:13px;line-height:1.55}
+.voice p + p{margin-top:6px}
+.voice .said{font-weight:500}
+.voice .aside{color:var(--muted);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.voice .chips{margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 7px;border:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:var(--paper)}
+/* 액센트는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다. 미결 판례는 맥락이지
+   주장이 아니다 — 빨강을 여기에 쓰면 화면에서 빨간 것을 찾는 눈이 흐려진다.
+   대신 굵기로 가른다: 미결은 검은 테두리, 확정은 회색. */
+.chip.open,.chip.dual{border-color:var(--ink);color:var(--ink)}
+.chip a{border:0}
+.trail{display:flex;flex-wrap:wrap;border:1px solid var(--rule);width:fit-content;background:var(--paper);margin-bottom:8px}
+.trail div{padding:5px 12px 6px;border-left:1px solid var(--rule)}
+.trail div:first-child{border-left:0}
+.trail dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.trail dd{font-family:var(--mono);font-size:12px;font-weight:600}
+.trail div.final{background:var(--ink);color:var(--paper)}
+.trail div.final dt{color:rgba(250,249,245,.6)}
+.trail-src{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px}
+.quote{padding-left:12px;border-left:2px solid var(--ink);font-family:var(--serif);font-size:14.5px;font-weight:300;line-height:1.5}
+.quote span{display:block;margin-top:3px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.quote.absent{border-left-color:var(--rule);color:var(--muted);font-size:13px;font-family:var(--sans)}
+.shots-head{display:flex;align-items:baseline;gap:8px;margin:16px 0 6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.shots-head b{color:var(--ink);font-weight:500}
+.shots-head i{font-style:normal;color:var(--accent)}
+.shots{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-color:var(--rule) transparent}
+.shots.detail{background:var(--inset);padding:6px 6px 8px}
+.shot{flex:0 0 124px;width:124px;margin:0;border:1px solid var(--rule);background:#fff;position:relative}
+.shot a{display:block;border:0}
+.shot img{display:block;width:100%;height:140px;object-fit:contain;background:#fff}
+.shot figcaption{padding:4px 6px 5px;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--muted);border-top:1px solid var(--rule);min-height:30px;overflow-wrap:anywhere}
+.shot figcaption b{display:block;color:var(--ink);font-weight:600;font-size:9.5px}
+.shot.evidence{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.shot.evidence figcaption b{color:var(--accent)}
+.shot.evidence::after{content:"근거";position:absolute;top:4px;left:4px;padding:1px 5px;background:var(--accent);color:var(--paper);font-family:var(--mono);font-size:8.5px;letter-spacing:.1em}
+.shot.missing{display:grid;place-items:center;height:172px;color:var(--faint);font-family:var(--mono);font-size:10px;text-align:center;padding:8px;background:var(--inset)}
+.p-more{margin-top:12px;font-size:12.5px}
+.p-more summary{cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);list-style:none}
+.p-more summary::before{content:"+ ";color:var(--ink)}
+.p-more[open] summary::before{content:"− "}
+.p-more .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}
+.p-more h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin:10px 0 4px}
+.sigrow{padding:6px 0;border-top:1px dashed var(--rule)}
+.sigrow:first-of-type{border-top:0}
+.sigrow strong{display:block;font-weight:500;font-size:12.5px}
+.sigrow p{font-size:12px;color:var(--muted);line-height:1.5}
+.sentence{font-size:12.5px;line-height:1.5;padding:4px 0}
+.kv{font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.8}
+.kv b{color:var(--ink);font-weight:500}
+.recovery{margin-top:6px;padding:6px 9px;background:var(--accent-soft);color:#75401F;font-size:11.5px;line-height:1.5}
+.empty{padding:48px 22px;color:var(--muted);text-align:center;font-size:13px}
+
+footer{margin-top:64px;padding:22px 0 70px;border-top:1.5px solid var(--ink);color:var(--muted);font-size:12px;line-height:1.75}
+footer .mono{color:var(--ink)}
+footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
+
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (max-width:900px){
+  .wrap{width:min(1360px,calc(100% - 28px))}
+  .lanes,.aside-strip{grid-template-columns:1fr}
+  .aside-strip div{border-left:0;border-top:1px solid var(--rule)}
+  .aside-strip div:first-child{border-top:0}
+  .aside-strip div{padding-left:0}
+  .lane{padding:0 0 22px}
+  .lane + .lane{border-left:0;border-top:1px solid var(--rule);padding:22px 0}
+  .sec-head{flex-direction:column;align-items:flex-start}
+  .sec-head p{text-align:left}
+  .cluster-head,.product{grid-template-columns:1fr;gap:10px}
+  .fx{grid-template-columns:1fr;gap:14px 0;padding:22px 0 28px}
+  .fx-rail{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+  .fx-rail .chips{margin-top:0}
+  .stamp{transform:none}
+  .plate .shots{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .plate .frame img{height:200px}
+  .p-rail{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
+  .p-rail .key,.p-rail .chips{margin-top:0}
+  .p-split{grid-template-columns:1fr}
+  .voice + .voice{border-left:0;border-top:1px solid var(--rule)}
+  .p-more .grid{grid-template-columns:1fr}
+  .toolbar{position:static}
+  .toolbar .search{margin-left:0;width:100%}
+  .toolbar input{min-width:0;flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{
+  body{font-size:10pt}
+  .toolbar,.p-head .pdp{display:none}
+  .product,.cluster-head,.fx{break-inside:avoid}
+  .plate figure{break-inside:avoid}
+  .shots{flex-wrap:wrap;overflow:visible}
+  a{border:0}
+}
+
+body{font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",var(--sans)}
+/* 미니멀 — 상자 안의 상자를 없앤다. 구분은 가는 줄 하나와 여백으로, 강조는 굵기와 빨강 밑줄 하나로. */
+.wrap{max-width:1180px}
+.masthead{padding:28px 0 0}
+.masthead h1{font-size:clamp(1.7rem,3.2vw,2.5rem);font-weight:700;letter-spacing:-.03em;line-height:1.1;padding:10px 0 6px;border-top:0}
+.lead{color:var(--muted);font-size:13.5px;margin-top:6px;max-width:70ch}
+.bar{display:flex;flex-wrap:wrap;gap:22px;align-items:center;margin-top:22px;padding:0;border:0}
+.bar label{font-size:13px;color:var(--muted)}
+.bar input#reviewer{font:inherit;font-size:14px;padding:4px 0;border:0;border-bottom:1px solid var(--ink);border-radius:0;background:transparent;color:var(--ink);min-width:140px}
+.bar input#reviewer:focus{outline:0;border-bottom-color:var(--accent)}
+.statusline{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 24px;margin-top:18px;padding-top:12px;border-top:1px solid var(--ink);font-size:13px;color:var(--muted)}
+.tally b,#progress-short{color:var(--ink);font-weight:600}
+.hidden-count{color:var(--faint)}
+#progress{margin-top:6px;font-size:12.5px;color:var(--muted)}
+.notice{margin-top:14px;padding:8px 0;border:0;border-top:1px solid var(--accent);color:var(--accent);font-size:13px}
+#offline{position:sticky;top:0;z-index:5;background:var(--paper)}
+#progress-bottom{position:sticky;bottom:0;z-index:5;background:var(--paper);border-top:1px solid var(--rule);padding:6px 0;font-size:13px;margin-top:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 건 */
+.item{margin-top:56px;padding-top:22px;border-top:1px solid var(--ink)}
+.item:last-of-type{padding-bottom:48px}
+.item .kicker{color:var(--faint)}
+.item h3{font-size:1.05rem;font-weight:600;margin-top:2px;letter-spacing:-.01em}
+.item h3 small{font-weight:400;color:var(--muted);margin-left:6px}
+.item-body{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;margin-top:16px}
+.side-kicker{display:none}
+.shots{display:flex;gap:8px;overflow-x:auto;padding:0}
+.shots figure{flex:0 0 auto;margin:0}
+.shots img{height:180px;width:auto;display:block;cursor:zoom-in;border:0}
+.shots figcaption{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:3px}
+.textbox{margin-top:12px;font-size:13px;color:var(--muted);white-space:pre-wrap;padding:0;background:transparent}
+.textbox b{color:var(--ink);font-weight:600}
+.why{color:var(--muted);font-size:13px;margin-top:5px;line-height:1.55}
+
+/* 칸 — 상자 없이, 위에 가는 줄 하나 */
+.gt-cell-grid{display:block;margin-top:0}
+.cell{padding:20px 0 22px;border:0;border-top:1px solid var(--rule)}
+.decide .cell:first-child{border-top:0;padding-top:0}
+.cell.done{opacity:.5}
+.cell.held{opacity:.75}
+.cell.stale{opacity:.5}
+.cell.GT_HOLDS{display:none}
+body.show-holds .cell.GT_HOLDS{display:block}
+.cell.GT_HOLDS.alt{display:block}
+.cell h4{font-size:1rem;font-weight:600;margin:0}
+
+/* 지금 GT → 제안. 글자로만 — 지금 값은 줄을 긋고, 제안은 굵게 빨강 밑줄 */
+.diff{display:flex;flex-wrap:wrap;gap:6px 36px;align-items:flex-end;margin:10px 0 4px;border:0}
+.diff > div{padding:0;min-width:0}
+.diff .tag{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}
+.diff .v{display:inline-block;font-size:1.4rem;font-weight:600;line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
+.diff .arrow{align-self:end;color:var(--faint);font-family:var(--mono);font-size:1.15rem;padding:0 0 4px;border:0}
+/* 누르기 전에는 지금 GT에 줄을 긋지 않는다 — 이미 고쳐진 것처럼 읽힌다. 지금 값은 회색, 제안은 굵게 빨강 밑줄. */
+.diff.proposed .now .v{color:var(--muted);font-weight:400}
+.diff .code{display:block;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:1px}
+.diff.fill .now .v{text-decoration:none;color:var(--faint);font-style:italic;font-weight:400}
+.diff.proposed .to .v{border-bottom:2px solid var(--accent);padding-bottom:1px}
+.diff.proposed .to .tag{color:var(--accent)}
+.diff.contested .to .v{border-bottom:2px dashed var(--ink);padding-bottom:1px}
+.diff.weak .to .v,.diff.none .to .v,.diff.same .to .v{color:var(--muted);font-weight:400}
+/* 판단 근거 — 결정 구역(검정·빨강) 아래, 회색 들여쓰기 한 구역. 읽을 것이지 누를 것이 아니다. */
+.grounds{margin-top:18px;padding:12px 0 0 18px;border-left:2px solid var(--rule)}
+.grounds-kicker{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--faint);margin-bottom:8px}
+.grounds dl{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 16px;margin:0;font-size:12.5px;line-height:1.55;color:var(--muted)}
+.grounds dt{color:var(--ink);font-weight:500}
+.grounds dd{margin:0}
+.grounds dd b{color:var(--ink);font-weight:500}
+
+/* 판정 */
+.act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.act button{font:inherit;font-size:13px;padding:8px 14px;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:2px;cursor:pointer}
+.act button:hover{border-color:var(--ink)}
+.act button.primary{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.act select{font:inherit;font-size:13px;padding:5px 4px;border:0;border-bottom:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink);max-width:260px}
+.act.notes{margin-top:14px;gap:14px}
+.act.notes input.reason{font:inherit;font-size:13px;padding:4px 0;border:0;border-bottom:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink);flex:1;min-width:180px}
+.act.notes input.reason:focus{outline:0;border-bottom-color:var(--ink)}
+.act.notes label{font-size:12.5px;color:var(--muted)}
+.picks{display:inline-flex;flex-wrap:wrap;gap:4px 10px;font-size:13px}
+.result{font-size:12.5px;color:var(--muted);margin-top:8px}
+details.def,details.meta{margin-top:8px;font-size:12px;color:var(--faint)}
+details.def summary,details.meta summary{cursor:pointer}
+details.def .deftext{white-space:pre-wrap;margin-top:6px;padding-left:10px;border-left:1px solid var(--rule);color:var(--muted);font-size:12.5px}
+#viewer{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;cursor:zoom-out}
+#viewer[hidden]{display:none}
+#viewer img{max-width:94vw;max-height:88vh}
+#viewer p{color:#fff;font-family:var(--mono);font-size:12px;margin-top:8px}
+footer{color:var(--muted)}
+/* 버튼 → GT까지의 순서. 화면 머리와 끝에 같은 줄을 둔다. */
+.back{margin-bottom:10px;font-size:13.5px}
+.back a{border-bottom:1px solid var(--ink);color:var(--ink)}
+.flow{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-wrap:wrap;gap:6px 0;font-size:12.5px;color:var(--muted);counter-reset:step}
+.flow li{counter-increment:step;display:flex;gap:6px;align-items:baseline;padding-right:14px;margin-right:10px;border-right:1px solid var(--rule)}
+.flow li:last-child{border-right:0}
+.flow li::before{content:counter(step);font-family:var(--mono);font-size:10px;color:var(--faint)}
+.flow b{color:var(--ink);font-weight:600}
+.tally-kicker{color:var(--faint)}
+.item-top{display:flex;gap:14px;align-items:baseline;justify-content:space-between}
+.item-state{font-size:12.5px;color:var(--accent);font-weight:500}
+.item.finished .item-state{color:var(--muted);font-weight:400}
+.item h3{font-size:1.2rem;margin-top:4px}
+.item.folded .item-body{display:none}
+.reopen{font:inherit;font-size:12.5px;margin-top:8px;padding:4px 10px;border:1px solid var(--rule);background:transparent;cursor:pointer}
+.shot{position:relative}
+.shot.cited img{outline:2px solid var(--accent);outline-offset:-2px}
+.shot figcaption em{font-style:normal;color:var(--accent);margin-left:6px;font-family:var(--sans);font-weight:600}
+.more-shots{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.more-shots summary{cursor:pointer}
+.more-shots .shots{margin-top:8px}
+.zoom-hint{font-size:11.5px;color:var(--faint);margin-top:8px}
+.value-notes{list-style:none;padding:0;margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+.value-notes b{color:var(--ink);font-weight:500}
+.deftext .md-h{font-weight:600;color:var(--ink);margin-top:8px}
+.deftext ul{padding-left:18px;margin:4px 0}
+.deftext p{margin:4px 0}
+.deftext code{font-family:var(--mono);font-size:11px}
+details.def .deftext{white-space:normal}
+.gap-strong{color:var(--accent)!important;font-weight:600}
+.gap-note{color:var(--ink)}
+.act button:disabled{color:var(--faint);border-style:dashed;cursor:default}
+#progress-bottom{display:flex;gap:16px;justify-content:space-between;align-items:center}
+#progress-bottom[hidden]{display:none!important}
+#export-out.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
+#export-out code.phrase{padding:2px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8;font-weight:600}
+#progress-bottom-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bottom-actions{display:flex;gap:14px;align-items:center;flex:0 0 auto}
+.bottom-actions button{font:inherit;font-size:12.5px;padding:4px 10px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer}
+.bottom-actions a{font-size:12.5px}
+/* 증거 사진은 왼쪽 단 폭만큼 — 구도·얼굴 가장자리를 보려면 썸네일로는 모자라다. */
+.rail .shots figure{width:100%;min-width:0}
+.rail .shots.one img{width:100%;max-width:460px;height:auto}
+/* 답한 칸 — 기록 문장은 흐리지 않고, 나머지는 접는다. «바꾸기»로 다시 편다. */
+.decide .cell.done{opacity:1}
+.decide .cell.done:not(.open) > :not(h4):not(.c-head):not(.diff):not(.result):not(.change){display:none}
+.decide .cell.done:not(.open) .diff{opacity:.55}
+.cell .change{display:none;font:inherit;font-size:12.5px;margin-top:6px;padding:4px 12px;border:1px solid var(--rule);background:transparent;cursor:pointer}
+.decide .cell.done:not(.open) .change{display:inline-block}
+.memo{margin:0 0 14px;padding:12px 14px;border-left:3px solid var(--rule);font-size:13px;color:var(--muted)}
+.memo.caution{border-left-color:var(--accent)}
+.memo-title{font-weight:600;color:var(--ink);margin-bottom:4px}
+footer.end{margin:60px 0 40px;font-size:13.5px;padding-top:18px;border-top:2px solid var(--ink)}
+.end-title{font-weight:700;color:var(--ink);font-size:1rem;margin-bottom:4px}
+.end-links{margin-top:16px;display:flex;flex-wrap:wrap;gap:10px 24px}
+.end-links a{font-weight:500;color:var(--ink)}
+#viewer .go{position:absolute;top:50%;translate:0 -50%;font-size:40px;line-height:1;color:#fff;background:transparent;border:0;cursor:pointer;padding:12px}
+#viewer .prev{left:10px}
+#viewer .next{right:10px}
+#viewer img{cursor:zoom-in}
+#viewer img.full{max-width:none;max-height:none;cursor:zoom-out}
+#viewer{overflow:auto}
+
+@media (min-width:900px){
+  .item-body{grid-template-columns:minmax(240px,30%) minmax(0,1fr);gap:40px;align-items:start}
+  .item-body.one{grid-template-columns:minmax(300px,42%) minmax(0,1fr)}
+  .rail{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding-right:4px}
+  .rail .shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:visible}
+  .rail .shots.one{grid-template-columns:1fr}
+  .rail .shots img{height:auto;width:100%}
+}
+@media (max-width:640px){.grounds dl{grid-template-columns:1fr;gap:2px 0}.grounds dd{margin-bottom:8px}.statusline{flex-direction:column}
+  .wrap{width:calc(100% - 32px)}.shots img{height:130px}.diff .v{font-size:1rem}.act.notes input.reason{min-width:100%}}
+
+:root{--paper:#F8FAFC;--inset:#FFFFFF;--ink:#0F172A;--muted:#475569;--faint:#64748B;--rule:#E2E8F0;--rule-soft:#F1F5F9;
+  --accent:#2563EB;--accent-soft:#EFF6FF;--accent-ink:#1D4ED8;
+  --ok:#15803D;--ok-soft:#F0FDF4;--warn:#854D0E;--warn-soft:#FEFCE8;--bad:#B91C1C;--bad-soft:#FEF2F2;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -12px rgba(15,23,42,.10);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;--display:var(--sans)}
+html,body{background:var(--paper)}
+body{font-family:var(--sans);font-size:14.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+a{border-bottom:0;color:var(--accent)}a:hover{color:var(--accent-ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px}
+.kicker{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--faint)}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 머리 — 제목·안내·이름 입력·집계를 한 흰 카드 위에 */
+.masthead{padding:28px 0 4px}
+.masthead-top{font-family:var(--sans);font-size:12.5px;color:var(--faint)}
+.masthead-top .kicker a{color:var(--accent);font-weight:600}
+.masthead h1{font-family:var(--sans);font-weight:700;font-size:clamp(1.5rem,2.6vw,1.75rem);letter-spacing:-.02em;line-height:1.25;padding:10px 0 4px}
+.lead{font-size:14px;line-height:1.6;color:var(--faint);max-width:72ch}
+.bar{margin-top:20px;gap:12px 24px}
+.bar label{font-size:13.5px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:10px}
+.bar input#reviewer{font-size:14px;padding:0 14px;min-height:42px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9;min-width:200px}
+.bar input#reviewer:focus{background:#fff;outline:2px solid var(--accent)}
+.bar input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.statusline{margin-top:20px;padding:16px 20px;border:0;border-radius:14px;background:#fff;box-shadow:var(--shadow);color:var(--faint);font-size:13.5px;align-items:center}
+.tally b{color:var(--ink);font-weight:600}
+.tally b:first-child{color:var(--accent)}
+#progress-short{color:var(--accent);font-weight:600}
+.hidden-count{color:var(--faint)}
+#progress{font-size:13px;color:var(--faint);padding:8px 4px 0}
+.notice{margin-top:14px;padding:12px 16px;border:0;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-weight:500}
+
+/* 건 — 흰 카드. 선 없이 그림자로 띄운다 */
+.item{margin-top:24px;padding:24px 28px 28px;border:0;border-radius:16px;background:#fff;box-shadow:var(--shadow);animation:fade .45s ease both}
+.item:last-of-type{padding-bottom:28px}
+.item .kicker{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.item h3{font-family:var(--sans);font-weight:700;font-size:1.15rem;letter-spacing:-.01em;margin-top:8px}
+.item h3 small{font-size:13.5px;font-weight:400;color:var(--faint)}
+.item-body{gap:28px}
+.shots img{border-radius:12px}
+.shots figcaption{font-family:var(--sans);font-size:12px;color:var(--faint);margin-top:6px}
+.textbox,.why{font-size:13.5px;color:var(--muted)}
+
+/* 칸 — 칸 사이는 아주 옅은 줄 하나 */
+.cell{padding:22px 0 24px;border-top:1px solid var(--rule-soft)}
+.cell h4{font-family:var(--sans);font-weight:600;font-size:15.5px}
+.cell.done{opacity:.5}
+
+/* 지금 GT → 제안 — 제안은 파랑 뱃지, 갈린 칸은 노랑, 지금 값은 회색으로 긋는다 */
+.diff{gap:8px 20px;margin:12px 0 4px;align-items:center}
+.diff .tag{font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint);margin-bottom:6px}
+.diff .v{font-family:var(--sans);font-size:1.2rem;font-weight:600;line-height:1.3}
+.diff .arrow{font-family:var(--sans);color:#94A3B8;font-size:1.1rem;padding:0;align-self:center}
+.diff.proposed .now .v{color:#94A3B8;font-weight:500;text-decoration-color:#94A3B8;text-decoration-thickness:1.5px}
+.diff.proposed .to .v{border-bottom:0;padding:4px 12px;border-radius:10px;background:var(--accent-soft);color:var(--accent-ink)}
+.diff.proposed .to .tag{color:var(--accent)}
+.diff.contested .to .v{border-bottom:0;padding:4px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn)}
+.diff.contested .to .tag{color:var(--warn)}
+.diff.weak .to .v,.diff.none .to .v,.diff.same .to .v{color:var(--muted);font-weight:500}
+
+/* 판단 근거 — 회색 판 */
+.grounds{margin-top:18px;padding:16px 18px;border:0;border-radius:12px;background:var(--paper)}
+.grounds-kicker{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:0;color:var(--faint)}
+.grounds dl{font-size:13.5px;color:var(--muted)}
+.grounds dt{color:var(--ink);font-weight:600}
+
+/* 판정 — 주 버튼은 파랑 채움, 나머지는 흰 바탕에 옅은 테두리 */
+.act{gap:8px;margin-top:14px;border:0}
+.act button{font:inherit;font-size:13.5px;font-weight:600;min-height:40px;padding:0 16px;border:1px solid var(--rule);border-radius:10px;
+  background:#fff;color:var(--ink);transition:background .15s,border-color .15s}
+.act button:hover{background:#F8FAFC;border-color:#CBD5E1}
+.act button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.act select{font-size:13.5px;min-height:40px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff}
+.act.notes input.reason{font-size:13.5px;padding:0 14px;min-height:40px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9}
+.act.notes input.reason:focus{background:#fff;outline:2px solid var(--accent)}
+.act.notes label{font-size:13px;color:var(--muted)}
+.result{font-size:13px;color:var(--ok)}
+details.def,details.meta{font-size:12.5px;color:var(--faint)}
+details.def .deftext{border-left:0;padding:12px 14px;border-radius:10px;background:var(--paper);font-size:13px}
+#progress-bottom{bottom:12px;margin:16px auto 0;width:fit-content;max-width:100%;box-sizing:border-box;padding:10px 18px;border:0;border-radius:999px;
+  background:#fff;color:var(--ink);font-size:13.5px;font-weight:500;box-shadow:0 8px 24px -8px rgba(15,23,42,.25)}
+#offline{background:var(--bad-soft);color:var(--bad);border-radius:0 0 12px 12px}
+footer{font-size:13.5px}
+#viewer{background:rgba(15,23,42,.88)}
+#viewer img{border-radius:12px}
+
+@media (max-width:640px){
+  .item{padding:18px 16px 20px;border-radius:14px}
+  .statusline{border-radius:14px}
+  .diff .v{font-size:1.05rem}
+  .act button{min-height:44px}
+}
+
+/* 개편 — 시안(검수 화면 개편안)의 구조 */
+.masthead{padding:24px 0 4px}
+.crumbs a{color:var(--faint);font-weight:500}
+.title-row{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px 24px;margin-top:6px}
+.title-row h1{padding:0}
+.who{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.who input{font:inherit;font-size:14px;padding:0 14px;min-height:42px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9;color:var(--ink);width:200px}
+.who input:focus{background:#fff;outline:2px solid var(--accent)}
+.statusline{display:flex;flex-wrap:wrap;gap:14px 24px;justify-content:space-between;align-items:center}
+.progress-block{flex:1 1 380px;display:flex;flex-direction:column;gap:8px;min-width:0}
+#progress-short{font-size:16px;font-weight:700;color:var(--ink)}
+.pbar{height:8px;border-radius:999px;background:#F1F5F9;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .3s}
+.statusline .tally{font-size:12.5px}
+.views{display:flex;gap:2px;padding:4px;border-radius:12px;background:#F1F5F9}
+.views button{font:inherit;font-size:13.5px;font-weight:600;min-height:38px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:var(--faint);cursor:pointer;display:flex;align-items:center;gap:8px}
+.views button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.views .count{font-size:12px;padding:1px 7px;border-radius:999px;background:#E2E8F0;color:var(--muted)}
+.views button[aria-pressed="true"] .count{background:var(--accent-soft);color:var(--accent-ink)}
+.views .count:empty{display:none}
+.masthead .bar{margin-top:10px}
+#progress{font-size:12.5px;color:var(--faint);padding:8px 2px 0;margin:0}
+body.only-ask .cell.GT_HOLDS{display:none}
+body.only-ask .item.finished{display:none}
+
+/* 칸 머리 — 이름과 상태 뱃지 */
+.c-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.badge{flex-shrink:0;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#F1F5F9;color:var(--muted)}
+.badge.s-FIX_PROPOSED,.badge.s-FILL_PROPOSED{background:var(--accent-soft);color:var(--accent-ink)}
+.badge.s-CONTESTED,.badge.s-NEEDS_HUMAN_LOOK,.badge.s-NO_EVIDENCE{background:var(--warn-soft);color:var(--warn)}
+.badge.s-NOT_READ{background:var(--bad-soft);color:var(--bad)}
+.cell.done .badge{background:var(--ok-soft);color:var(--ok)}
+.cell.done .badge{font-size:0}.cell.done .badge::before{content:"답함";font-size:12px}
+.cell.held .badge{font-size:0;background:#F1F5F9;color:var(--muted)}.cell.held .badge::before{content:"보류";font-size:12px}
+/* 값 버튼 — 값마다 하나. AI가 낸 값에 표시, 칠할 수 있는 제안만 칠한다 */
+.act.chips{margin-top:12px}
+.act button.chip{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 16px;border:1.5px solid var(--rule);border-radius:10px;background:#fff;font-size:14px;font-weight:600}
+.act button.chip:hover{border-color:#94A3B8;background:#fff}
+.act button.chip .tag{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--warn-soft);color:var(--warn)}
+.act button.chip.is-now .tag{background:#F1F5F9;color:var(--muted)}
+.act button.chip.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.chip.primary .tag{background:rgba(255,255,255,.2);color:#fff}
+.act button.chip.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.act:not(.chips):not(.notes){margin-top:8px}
+/* 접는 구역 — 이유·정책 밖 표시, 판단 근거 */
+details.memo-add{margin-top:10px}
+details.memo-add > summary,details.grounds > summary{display:inline-flex;align-items:center;min-height:36px;cursor:pointer;font-size:13.5px;font-weight:600;list-style:none}
+details.memo-add > summary{color:var(--muted)}
+details.memo-add > summary::-webkit-details-marker,details.grounds > summary::-webkit-details-marker{display:none}
+details.memo-add > summary::before,details.grounds > summary::before{content:"+";display:inline-block;width:16px;color:var(--faint)}
+details.memo-add[open] > summary::before,details.grounds[open] > summary::before{content:"–"}
+details.grounds{margin-top:12px;padding:6px 16px 14px}
+details.grounds > summary{color:var(--accent);letter-spacing:0;margin-bottom:0}
+details.grounds[open] > summary{margin-bottom:8px}
+/* 건 메모 — 노란 줄 하나, 누르면 펼친다 */
+.memo{margin-bottom:14px;border-radius:12px;background:var(--paper);padding:10px 14px;border:0}
+.memo.caution{background:var(--warn-soft)}
+.memo details > summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink);list-style:none;padding:4px 0}
+.memo.caution details > summary{color:var(--warn)}
+.memo details > summary::-webkit-details-marker{display:none}
+.memo details > summary::after{content:" 읽기";font-weight:500;color:var(--faint)}
+.memo details[open] > summary::after{content:" 접기"}
+.memo p{font-size:13.5px;line-height:1.6;color:var(--muted);margin:6px 0 2px}
+/* 유지 확인 — 값 칩 한 줄과 버튼 하나 */
+.item-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0}
+.item-state{font-size:12.5px;font-weight:600;color:var(--accent)}
+
+/* 시안 맞춤 — 한 줄 diff, 한 줄 버튼, 접기 둘은 나란히 */
+.diff{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:12px 0 2px}
+.diff > div{display:flex;align-items:center;gap:10px}
+.diff .tag{display:inline;margin:0;font-size:13px;font-weight:500;color:var(--faint)}
+.diff .v{font-size:1.05rem}
+.diff .now .v{color:#94A3B8;font-style:italic;font-weight:500}
+.diff.proposed .to .v,.diff.contested .to .v,.diff.weak .to .v{padding:3px 12px;border-radius:9px}
+.diff.weak .to .v{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.diff .arrow{font-size:1rem}
+.act.chips + .act{margin-top:10px}
+.more{display:flex;flex-wrap:wrap;align-items:flex-start;gap:0 18px;margin-top:6px}
+.more > details{margin-top:0}
+.more > details[open]{flex-basis:100%}
+.more > details.grounds{padding:0;background:transparent}
+.more > details.grounds[open]{padding:6px 16px 14px;background:var(--paper);border-radius:12px;margin-top:6px}
+.grounds .value-notes{list-style:none;padding:0;margin:0 0 10px;font-size:13px;color:var(--muted)}
+.cell{padding:20px 0 22px}
+/* 사진 — 틀 없이, 캡션은 작게 */
+.shots figure,.rail figure{border:0!important;padding:0!important;background:transparent!important}
+.shots figcaption{border:0!important;padding:4px 2px 0!important;background:transparent!important}
+.zoom-hint{font-size:12px;color:var(--faint)}
+.rail .memo{margin-top:12px}
+.rail .why{font-size:13px;line-height:1.55;color:var(--muted)}
+/* 유지 확인 — 제목과 버튼 한 줄, 값은 칩 */
+.ask{margin:0 0 12px;padding:12px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;line-height:1.55}
+.ask b{margin-right:6px}
+.gist{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+.gist b{color:var(--ink);font-weight:600;margin-right:6px}
+figcaption em.rep{background:#F1F5F9;color:var(--muted)}
+/* 버튼 줄 — 시안: 값 버튼 아래 한 줄에 «빈칸이 맞다 · 보류 … 근거 보기 · 메모 추가» */
+.act:not(.chips):not(.notes){display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.act:not(.chips):not(.notes) button:not(.chip):not(.toggle):not(.primary){min-height:38px;padding:0 14px;font-weight:500;color:#334155;border:1px solid var(--rule);background:#fff}
+.act .grow{flex:1 1 auto}
+.act button.toggle{min-height:38px;padding:0 12px;border:0;background:transparent;font-weight:600;color:var(--accent)}
+.act button.toggle.t-memo{color:var(--muted)}
+.act button.toggle:hover{background:#F1F5F9}
+.more > details > summary{display:none}
+.more{gap:0;margin-top:0}
+.more > details[open]{margin-top:10px}
+.more > details.grounds[open]{padding:14px 16px}
+/* 답한 칸 — 초록 «기록됨» 줄 */
+.cell.done .result{margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--ok-soft);color:var(--ok);font-size:13.5px}
+.cell.done .result b{color:var(--ok)}
+.cell.done .change{margin-top:6px;border:0;background:transparent;color:var(--ok);font-weight:600;font-size:13px;padding:4px 2px;cursor:pointer}
+.once{margin:8px 0 0;padding:10px 14px;border-radius:10px;background:#fff;box-shadow:var(--shadow);font-size:13.5px;color:var(--muted)}
+/* 칸 안의 간격 — 시안처럼 한 규칙: 요소 사이 12px, 값 버튼 줄과 그 아래 줄 사이 10px. 여러 겹의 margin을 쓰지 않는다 */
+.decide .cell{display:flex;flex-direction:column;gap:12px;padding:22px 0 24px}
+/* 간격 규칙이 «같게 본 칸은 묶음에만» 규칙을 덮지 않게 — 켜 둔 때(칸마다 펼치기)와 대체 정답 칸만 따로 보인다 */
+.decide .cell.GT_HOLDS{display:flex}
+body.only-ask .decide .cell.GT_HOLDS{display:none}
+.decide .cell > *{margin:0!important}
+.decide .cell > :empty{display:none}
+.decide .cell > .act.chips + .act{margin-top:-2px!important}
+.decide .cell .act{gap:8px;padding:0!important;border:0!important}
+.decide .cell .diff{gap:6px 12px}
+.decide .cell .c-head h4{margin:0}
+.decide .cell .why,.decide .cell .gist{margin:0}
+.decide .cell .more:not(:has(details[open])){display:none}
+.decide .cell .change{align-self:flex-start}
+.decide .gt-cell-grid > .cell:first-child{padding-top:4px}
+.actions{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.actions .once{margin:0}
+.action-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+/* 제목 줄 오른쪽 — 페이지 넘김과 판정하는 사람. 반영 버튼은 진행률 카드 오른쪽(.status-side). 버튼 하나만 있는 줄을 두지 않는다. */
+.title-side{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+.status-side{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.actions:has(#export-out[hidden]){display:none}
+#do-export{font:inherit;font-size:14px;font-weight:600;min-height:40px;padding:0 16px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+#do-export:hover{background:var(--accent-ink)}#do-export:disabled{opacity:.6}
+.pager{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.pager button,#progress-bottom .page-next{font:inherit;font-size:13.5px;font-weight:600;min-height:36px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+#export-out{padding:14px 16px;border-radius:12px;background:#fff;box-shadow:var(--shadow);font-size:13.5px;color:var(--muted)}
+#export-out p{margin:0 0 8px}#export-out b{color:var(--ink)}
+#export-out table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+#export-out th{text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:6px 10px;background:var(--paper)}
+#export-out td{padding:6px 10px;box-shadow:inset 0 1px 0 #F1F5F9}
+.item[hidden]{display:none!important}
+/* 기본값 — AI도 지금 GT와 같은 칸. 지금 값 버튼이 눌린 모양으로 시작한다 */
+.act button.chip.chosen{background:var(--ok-soft);border-color:#86EFAC;color:var(--ok)}
+.act button.chip.chosen .tick{font-weight:700}
+.act button.chip.chosen .tag{background:#fff;color:var(--ok)}
+.badge.s-GT_HOLDS{background:var(--ok-soft);color:var(--ok)}
+.cell.GT_HOLDS .diff{display:none}
+/* 사진 — 칸(상자) 크기 안에 통째로. 세로로 긴 사진이 화면을 넘지 않게 */
+.rail .shots img,.evidence .shots img{width:100%;height:auto;max-height:560px;object-fit:contain;background:#F1F5F9;border-radius:12px}
+/* 고른 값 — 기록된 값의 버튼은 눌린 모양, 누르는 동안은 테두리로 반응 */
+.act button.chip.picked{background:var(--ok-soft);border-color:#22C55E;color:var(--ok);box-shadow:inset 0 0 0 1px #22C55E}
+.act button.chip.picked::before{content:"✓";font-weight:700;margin-right:2px}
+.act button.chip.picked .tag{background:#fff;color:var(--ok)}
+.act button.chip.pending{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.act button.chip:active{transform:scale(.97)}
+.act button[data-decision="HOLD"].picked{background:#F1F5F9;border-color:#94A3B8}
+.act button.chip{transition:background .15s,border-color .15s,box-shadow .15s,transform .08s}
+/* ===== 칸 개편안 — 선택기 하나 · 점 두 개 · 글자 링크 한 줄 · 답한 칸 한 줄 ===== */
+.decide .cell .c-head .badge{display:none}
+.decide .cell:has(.act.chips) .diff{display:none}
+.decide .cell.CONTESTED .c-head h4::after,.decide .cell.NEEDS_HUMAN_LOOK .c-head h4::after,.decide .cell.NO_EVIDENCE .c-head h4::after,.decide .cell.asking .c-head h4::after{content:"직접 봐 주세요";
+  margin-left:8px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;vertical-align:middle}
+.decide .cell.done:not(.open) .c-head h4::after{display:none}
+.ask{margin:0 0 10px;padding:10px 12px;border-radius:10px;background:#FEF3C7;color:#92400E;font-style:normal;font-size:13.5px;line-height:1.55}
+.decide .cell .ask{margin:10px 0 0}
+.ask .ask-here,.ask .ask-options{display:inline-block;margin-top:4px;font-size:13px}
+.ask .ask-options b{font-weight:700}
+.decide .cell.done:not(.open) .ask{display:none}
+.decide .cell.done.open .change{display:inline-block;justify-self:end;margin-top:8px!important}
+/* 선택기 — 이어 붙은 칸들 */
+.decide .cell .act.chips{display:flex;gap:0;border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:#fff;flex-wrap:nowrap}
+.decide .cell .act.chips button.chip{flex:1 1 0;min-height:46px;margin:0;border:0;border-left:1px solid var(--rule);border-radius:0;background:#fff;color:var(--ink);
+  font-size:14px;font-weight:500;justify-content:center;gap:8px;box-shadow:none;transform:none}
+.decide .cell .act.chips button.chip:first-child{border-left:0}
+/* 값 이름은 낱말 가운데서 끊지 않는다(«전
+신»). 좁으면 «AI 제안» 표시가 아래 줄로 내려간다. */
+.decide .cell .act.chips button.chip{word-break:keep-all;flex-wrap:wrap;column-gap:6px;row-gap:0}
+.decide .cell .act.chips button.chip:hover{background:#F8FAFC}
+.decide .cell .act.chips button.chip.primary{background:#fff;color:var(--ink);font-weight:500}  /* 추천은 파란 점만 — 파란 채움은 사람이 고른 값 하나에만 */
+.decide .cell .act.chips button.chip.picked,.decide .cell .act.chips button.chip.chosen{background:var(--accent);color:#fff;font-weight:600;box-shadow:none}
+.decide .cell .act.chips button.chip.picked::before,.decide .cell .act.chips button.chip.chosen::before{content:"✓";margin-right:2px}
+.decide .cell .act.chips button.chip.pending{box-shadow:inset 0 0 0 2px var(--accent)}
+.decide .cell .act.chips .tick{display:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.ai{background:var(--accent)}
+.dot.now{box-shadow:inset 0 0 0 1.5px #94A3B8}
+.chip.picked .dot.ai,.chip.chosen .dot.ai{background:#FFFFFF}
+.chip.picked .dot.now,.chip.chosen .dot.now{box-shadow:inset 0 0 0 1.5px #DBEAFE}
+/* 아래 한 줄 — 범례 왼쪽, 글자 링크 오른쪽 */
+.decide .cell .act.chips + .act{margin-top:0!important;gap:4px 14px;font-size:12.5px}
+.decide .cell .act:not(.chips):not(.notes) button:not(.toggle){min-height:32px;padding:0;border:0;background:transparent;color:var(--faint);font-size:13px;font-weight:500}
+.decide .cell .act:not(.chips):not(.notes) button:not(.toggle):hover{color:var(--ink);background:transparent}
+.decide .cell .act:not(.chips):not(.notes) button.picked{color:var(--ink);font-weight:600;text-decoration:underline}
+.decide .cell .act button.toggle{min-height:32px;padding:0;font-size:13px}
+.legend{display:inline-flex;gap:14px;color:var(--faint);font-size:12.5px;margin-right:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .dot{margin:0}
+.decide .cell .gist{color:var(--faint);font-size:13px}
+.decide .cell .gist b{color:var(--muted);font-weight:500}
+/* 답한 칸 — 한 줄: 항목 이름 · 옆 → 앞 · 이민준 · 바꾸기 */
+.decide .cell.done:not(.open){display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 14px;padding:14px 0!important}
+.decide .cell.done:not(.open) > :not(.c-head):not(.result):not(.change){display:none!important}
+.decide .cell.done .result{text-align:right;margin:0!important;padding:0!important;background:transparent!important;color:var(--muted)!important;font-size:13.5px}
+.decide .cell.done .result b{color:var(--ink)!important}
+.decide .cell.done .change{margin:0!important;padding:0!important;color:var(--accent)!important;font-size:13px}
+.decide .cell.done.open .result{display:none}
+/* 값 옆 글자 표시 — «AI 제안»·«지금 GT»를 그 값 바로 옆에 */
+.vmark{font-size:11.5px;font-weight:600;white-space:nowrap}
+.vmark.ai{color:var(--accent)}
+.vmark.now{color:var(--faint);font-weight:500}
+.chip.picked .vmark,.chip.chosen .vmark{color:#DBEAFE}
+/* 접힌 상품 — 왼쪽에 대표 사진 작게, 오른쪽에 번호·키·다시 펼치기 */
+.fold-thumb{display:none}
+.item.folded{display:grid;grid-template-columns:72px minmax(0,1fr);column-gap:16px;align-items:start}
+.item.folded > :not(.fold-thumb){grid-column:2}
+.item.folded .reopen{justify-self:start}
+.item.folded .fold-thumb{display:block;grid-column:1;grid-row:1 / span 3;width:72px;height:90px;padding:0;border:0;border-radius:10px;overflow:hidden;background:#F1F5F9;cursor:pointer}
+.item.folded .fold-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.item.folded .fold-thumb:hover{box-shadow:0 0 0 2px var(--accent)}
+/* «다음 후보 받기»가 도는 동안 — 돌고 있다는 것이 눈에 보이게 */
+.next-live{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.next-live .muted{color:var(--faint);font-weight:400}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reload-now{font:inherit;font-size:13.5px;font-weight:600;min-height:36px;padding:0 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+/* 좁은 화면 — 맨 끝에 둔다(위의 기본 규칙이 뒤에 오면 같은 무게라 이긴다). 골든셋 검수·증분 검수가 함께 쓴다.
+   진행률 줄은 세로로 쌓이는데(EXTRA_STYLE), 진행률 칸의 기준 크기(380px)가 세로에서는 높이가 되어 빈 칸이 생겼다. */
+@media (max-width:640px){
+  .progress-block{flex:0 0 auto;width:100%}
+  .title-side,.status-side{width:100%}
+  .who{flex:1 1 auto;white-space:nowrap}.who input{width:100%;min-width:0}
+  .masthead-top{flex-wrap:wrap;gap:4px 12px}
+  /* 값이 많은 칸의 선택기는 줄을 바꾼다 — 한 줄로 이으면 화면 오른쪽 밖으로 밀린다 */
+  .decide .cell .act.chips{flex-wrap:wrap}
+  .decide .cell .act.chips button.chip{flex:1 1 30%;min-width:0;border-top:1px solid var(--rule);margin-top:-1px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* 밀도 — 화면 전체를 한 비율로 줄인다(사용자가 고른 촘촘한 크기). 바꿀 때는 이 한 줄만. */
+:root{--zoom:.75}
+html{zoom:var(--zoom)}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh / var(--zoom))}
+@media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr)}}
+.shell > .wrap{width:min(1180px,calc(100% - 80px));margin:0 auto}
+.side{position:sticky;top:0;align-self:start;height:calc(100vh / var(--zoom));box-sizing:border-box;padding:24px 14px;background:#fff;box-shadow:1px 0 0 #F1F5F9;
+  display:flex;flex-direction:column;gap:26px;overflow:auto}
+.side a{border-bottom:0;text-decoration:none}
+.side-brand{display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--ink);font-size:16px;font-weight:700}
+.side-logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-link,.side-task{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14.5px;font-weight:500}
+.side-link:hover,.side-task:hover{background:#F1F5F9;color:var(--ink)}
+.side{overflow:visible}
+.side-item{position:relative}
+.flyout{display:none;position:absolute;left:calc(100% + 6px);top:0;z-index:20;min-width:220px;padding:6px;border-radius:12px;background:#fff;
+  box-shadow:0 12px 32px -8px rgba(15,23,42,.25),0 0 0 1px var(--rule)}
+.flyout::before{content:"";position:absolute;left:-8px;top:0;width:8px;height:100%}
+.side-item.has-menu:hover .flyout,.side-item.has-menu:focus-within .flyout{display:flex;flex-direction:column;gap:2px}
+.side-item.closed .flyout{display:none!important}  /* Esc로 닫은 메뉴 — 포커스는 부모에 남는다 */
+.flyout-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap}
+.flyout-link:hover,.flyout-link:focus-visible{background:#F1F5F9;color:var(--ink)}
+.flyout-link.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side-link.on,.side-task.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side-task{justify-content:space-between;font-size:14px}
+.side-count{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:#F1F5F9;color:var(--muted)}
+.side-link .side-count{margin-left:auto}
+.side-count[hidden]{display:none}
+.side-empty{font-size:12px;color:#94A3B8}
+.flyout-link.empty{color:var(--faint)}
+.side-task.on .side-count{background:#fff;color:var(--accent-ink)}
+.side-kicker{padding:0 12px 6px;font-size:12px;font-weight:600;color:var(--faint);margin:0}
+.side-others{margin-top:auto;padding:14px;border-radius:12px;background:var(--paper)}
+.side-others .side-kicker{padding:0 0 4px}
+.side-door{display:block;font-size:13.5px;font-weight:500;color:var(--accent)}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr)}  /* 1fr(=minmax(auto,1fr))이면 한 줄 메뉴의 폭만큼 화면 전체가 넓어진다 */
+  .side{min-width:0;position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px}
+  /* 좁은 화면 — 메뉴는 줄을 바꿔 두 줄이 된다. 가로 스크롤(overflow)은 펼침 목록까지 잘라 내므로 쓰지 않는다 */
+  .side-nav{flex-direction:row;flex-wrap:wrap;max-width:100%}.side-group,.side-others{display:none}
+  .side-link{white-space:nowrap}  /* «골든셋 검/수»처럼 낱말 가운데서 끊지 않는다 */
+  .shell > .wrap{width:calc(100% - 32px)}
+  .flyout{left:0;top:calc(100% + 4px)}.flyout::before{display:none}
+}
+
+.card{background:#fff;border-radius:16px;padding:22px 24px;margin-top:20px;box-shadow:var(--shadow)}
+.card h2{font-size:17px;font-weight:700;margin:0 0 4px}
+.card .sub{font-size:13px;color:var(--faint);margin:0 0 14px}
+.table{margin-top:16px;background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:auto}
+.table table{width:100%;border-collapse:collapse;font-size:13.5px}
+.table th{position:sticky;top:0;background:var(--paper);text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:10px 14px;white-space:nowrap}
+.table td{padding:10px 14px;box-shadow:inset 0 1px 0 #F1F5F9;white-space:nowrap}
+.table tr:hover td{background:#FAFCFF}
+.table td.key{font-weight:600}
+.table .empty{color:#94A3B8;font-style:italic}
+.table .pill{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
+.pill.out{background:var(--bad-soft);color:var(--bad)}
+.pill.to{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.table .src{color:var(--faint);font-size:12.5px}
+
+/* 증분 검수 — 골든셋 검수의 모양 위에 증분에만 있는 것만 */
+.status-side #do-run{font:inherit;font-size:14px;font-weight:600;min-height:40px;padding:0 16px;border:1px solid var(--rule);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer}
+.status-side #do-run:hover{background:#F8FAFC;border-color:#CBD5E1}
+.status-side #do-run:disabled{opacity:.6;cursor:default}
+.title-side select{font:inherit;font-size:13.5px;min-height:42px;padding:0 12px;border:0;border-radius:10px;background:#F1F5F9;color:var(--ink);max-width:280px}
+.incr-go{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:10px;background:var(--accent);color:#fff!important;font-size:13.5px;font-weight:600;white-space:nowrap}
+.incr-go:hover{background:var(--accent-ink)}
+.incr-go.quiet{background:#fff;color:var(--ink)!important;box-shadow:inset 0 0 0 1px var(--rule)}
+.table .pbar{width:120px;height:6px;margin-top:6px}
+.table .pbar i{background:var(--ok)}
+.howto{margin-top:12px;font-size:13.5px;color:var(--muted)}
+.howto code{display:block;margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--paper);color:var(--ink);font-size:12.5px;overflow-x:auto;white-space:pre}
+.item-all{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;margin-top:6px;padding-top:14px;border-top:1px solid var(--rule-soft)}
+.item-all .hint{margin-right:auto;font-size:12.5px;color:var(--faint)}
+.item-all button{font:inherit;font-size:14px;font-weight:600;min-height:40px;padding:0 16px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+.item-all button:hover{background:var(--accent-ink)}
+.item-all button:disabled{opacity:.45;cursor:default}
+.keys{font-size:12.5px;color:var(--faint);white-space:nowrap}
+.keys kbd{font:inherit;font-size:11.5px;font-weight:600;padding:1px 6px;border-radius:6px;background:#F1F5F9;color:var(--muted);box-shadow:inset 0 -1px 0 var(--rule)}
+@media (max-width:640px){.item-all button{width:100%}.keys{display:none}}
+.item.focus{box-shadow:0 0 0 2px var(--accent-soft),var(--shadow)}  /* 키보드 A가 확정할 건 — 골든셋 검수의 카드처럼 조용히 */
+.toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:50;padding:10px 16px;border-radius:10px;background:var(--ink);color:#fff;font-size:13.5px;max-width:80vw;box-shadow:var(--shadow)}
+.toast.bad{background:var(--bad)}
+.loading{color:var(--faint);padding:26px 0}
+.table td.go{text-align:right}
+.once.all-done{margin-top:24px}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="shell"><aside class="side" data-task="" data-base=""><a class="side-brand" href="/"><span class="side-logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>데이터 운영</a><nav class="side-nav" aria-label="주 메뉴"><div class="side-item"><a class="side-link" href="/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>홈</a></div><div class="side-item" data-menu="review"><a class="side-link" href="/" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg>골든셋 검수</a><div class="flyout" role="menu" aria-label="골든셋 검수 — 고르기"></div></div><div class="side-item" data-menu="incr"><a class="side-link on" href="/incr" aria-current="page" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>증분 검수</a><div class="flyout" role="menu" aria-label="증분 검수 — 고르기"></div></div><div class="side-item" data-menu="policy"><a class="side-link" href="/" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu" aria-label="정책 — 고르기"></div></div><div class="side-item" data-menu="golden"><a class="side-link" href="/" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋</a><div class="flyout" role="menu" aria-label="골든셋 — 고르기"></div></div></nav></aside><div class="wrap">
+<header class="masthead">
+  <div class="masthead-top"><p class="kicker crumbs"><a href="/">홈</a> / <a href="/incr">증분 검수</a><span id="crumb-task"></span></p><p id="made"></p></div>
+  <div class="title-row"><h1 id="title">증분 검수</h1><div class="title-side" id="title-side" hidden><nav class="pager" aria-label="페이지"><button type="button" id="page-prev" aria-label="이전 페이지" hidden>‹</button><span id="page-now" hidden></span><button type="button" id="page-next" hidden>다음 페이지 →</button></nav><select id="batch-pick" aria-label="증분 묶음"></select><label class="who">판정하는 사람 <input id="reviewer" placeholder="이름"></label></div></div>
+  <p class="lead" id="lead" hidden>새로 들어온 데이터를 AI가 먼저 읽어 두었습니다. 묶음을 열어 AI 제안이 맞으면 그대로 누르고, 다르면 맞는 값을 누르세요. 누른 판정만 기록됩니다 — AI 제안은 사람이 누르기 전에는 기록되지 않습니다.</p>
+  <div id="runner" hidden aria-live="polite"></div>
+  <div class="statusline" id="statusline" hidden>
+    <div class="progress-block">
+      <div id="progress-short"></div>
+      <div class="pbar" aria-hidden="true"><i id="pbar"></i></div>
+      <div class="tally" id="tally"></div>
+    </div>
+    <div class="status-side">
+      <div class="views" role="group" aria-label="보기">
+        <button type="button" data-view="all" aria-pressed="false">전체</button>
+        <button type="button" data-view="left" aria-pressed="true">남은 건 <span class="count" id="count-left"></span></button>
+      </div>
+      <button type="button" id="do-run">AI 추론 시작</button>
+      <button type="button" id="do-export" title="모든 칸을 확정한 건을 라벨 붙은 파일로 씁니다">결과 파일 만들기</button>
+    </div>
+  </div>
+</header>
+<div id="list"><p class="loading">증분 검수를 읽는 중…</p></div>
+<div id="progress-bottom" hidden aria-live="polite"><span id="progress-bottom-text"></span>
+  <span class="keys"><kbd>A</kbd> 제안대로 확정 · <kbd>J</kbd> 다음 건</span>
+  <span class="bottom-actions"><button type="button" id="next-open">다음 안 한 건 ↓</button></span></div>
+<div id="viewer" hidden><button type="button" class="go prev" data-go="-1" aria-label="이전 사진">‹</button><img alt=""><button type="button" class="go next" data-go="1" aria-label="다음 사진">›</button><p></p></div>
+</div></div>
+<script>
+(() => {
+  'use strict';
+  const params = new URLSearchParams(location.search);
+  const TASK = params.get('task'), BATCH = params.get('batch');
+  const REVIEWER_KEY = 'gt-review-reviewer';  // 골든셋 검수 화면과 같은 이름 칸 — 한 번 적으면 두 화면이 같이 쓴다
+  const PAGE_SIZE = 20;
+  const $ = (id) => document.getElementById(id);
+  const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const num = (v) => typeof v === 'number' ? v : 0;
+  const when = (stamp) => {
+    const at = stamp ? new Date(stamp) : null;
+    return !at || isNaN(at) ? '' : at.toLocaleString('ko-KR', {month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+  };
+  const toast = (text, bad) => {
+    const box = make('div', 'toast' + (bad ? ' bad' : ''), text);
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), bad ? 5000 : 1800);
+  };
+  const post = (path, body) => fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+    .then((r) => r.json().catch(() => ({ok: false, error: '서버 응답을 읽지 못했습니다.'})))
+    .catch(() => ({ok: false, error: '서버에 닿지 못했습니다 — 서버가 켜져 있는지 확인해 주세요(Claude에게 «서버 다시 켜줘»).'}));
+
+  // ---------------------------------------------------------------- 목록 — 과제마다 묶음 표
+  function batchState(b) {
+    const runner = b.runner || {};
+    if (runner.running) return ['to', 'AI가 읽는 중'];
+    if (runner.phase === 'failed') return ['out', 'AI 추론 멈춤'];
+    if (!b.itemsRead) return ['to', 'AI 추론 전'];
+    if (!b.itemsLeft) return ['ok', '검수 끝'];
+    return ['to', '검수 중'];
+  }
+  function drawList(data) {
+    $('lead').hidden = false;
+    const list = $('list');
+    list.textContent = '';
+    (data.tasks || []).forEach((task) => {
+      const card = make('section', 'card');
+      card.id = 'task-' + task.task;
+      card.appendChild(make('h2', null, task.name));
+      card.appendChild(make('p', 'sub', '한 건(' + (task.unit || '') + ')마다 ' + task.fields.join(' · ')
+        + (task.itemsLeft ? ' — 남은 건 ' + task.itemsLeft : '')));
+      if (task.problem) card.appendChild(make('p', 'notice', '설정에 문제가 있습니다 — Claude에게 «' + task.name + ' 증분 설정 봐줘»라고 전해 주세요.'));
+      if (!(task.batches || []).length) {
+        const how = make('div', 'howto', '아직 밀어넣은 증분이 없습니다. Claude에게 파일과 함께 «' + task.name + ' 증분 넣어줘»라고 말하면 AI가 곧바로 읽기 시작합니다.');
+        // 명령은 개발자용 — 운영팀 화면에서는 접어 둔다
+        const dev = make('details', 'src'); dev.appendChild(make('summary', null, '개발자용 명령'));
+        dev.appendChild(make('code', null, 'python3 .claude/os/engine/scripts/incr_review.py push --task ' + task.task + ' --file <증분.jsonl>'));
+        how.appendChild(dev);
+        card.appendChild(how);
+      } else {
+        const wrap = make('div', 'table');
+        const table = make('table');
+        const headRow = make('tr');
+        ['묶음', '넣은 시각', '진행', 'AI', ''].forEach((h) => headRow.appendChild(make('th', null, h)));
+        const thead = make('thead'); thead.appendChild(headRow); table.appendChild(thead);
+        const tbody = make('tbody');
+        task.batches.forEach((b) => {
+          const row = make('tr');
+          const [tone, word] = batchState(b);  // 정책·골든셋 표와 같은 알약(.pill ok·to·out)
+          row.appendChild(make('td', 'key', b.batch));
+          row.appendChild(make('td', 'src', when((b.meta || {}).pushedAt)));
+          const prog = make('td', 'prog');
+          prog.appendChild(make('div', null, '끝난 건 ' + b.itemsDone + ' / ' + b.items));
+          const bar = make('div', 'pbar'); const fill = make('i'); fill.style.width = (b.items ? Math.round(b.itemsDone * 100 / b.items) : 0) + '%';
+          bar.appendChild(fill); prog.appendChild(bar); row.appendChild(prog);
+          const ai = make('td'); ai.appendChild(make('span', 'pill ' + tone, word)); row.appendChild(ai);
+          const go = make('td', 'go');
+          const a = make('a', 'incr-go' + (tone === 'ok' ? ' quiet' : ''), tone === 'ok' ? '다시 보기' : '검수하기 →');
+          a.href = '/incr?task=' + encodeURIComponent(task.task) + '&batch=' + encodeURIComponent(b.batch);
+          go.appendChild(a); row.appendChild(go);
+          tbody.appendChild(row);
+        });
+        table.appendChild(tbody); wrap.appendChild(table); card.appendChild(wrap);
+        if (task.moreBatches) card.appendChild(make('p', 'sub', '더 오래된 묶음 ' + task.moreBatches + '개는 표에서 뺐습니다(남은 건 수에는 들어 있습니다).'));
+      }
+      list.appendChild(card);
+    });
+    if (!(data.tasks || []).length) list.appendChild(make('p', 'loading', '증분을 받을 과제가 없습니다. 개발자에게 설정을 부탁해 주세요.'));
+  }
+
+  // ---------------------------------------------------------------- 검수 화면
+  let DATA = null, ONLY_LEFT = true, FROM = 0, pollTimer = null, WATCH = null;
+  const PENDING = [];  // 이름 없이 누른 판정들 — 이름을 적으면 누른 차례대로 기록한다
+  const INFLIGHT = new Map();  // 보내는 중인 판정(칸·값) — 같은 판정이 겹쳐 오면 한 번만 보낸다
+  let LAST_AT = -1;
+  let PAGE_NO = 1;  // 몇 번째 페이지인가 — 넘긴 횟수로 센다(«남은 건» 보기에서는 끝낸 건이 빠져 자리로 셀 수 없다)  // 지금 페이지에 그린 마지막 건의 자리 — 다음 페이지는 그 뒤에서 시작한다
+  // 페이지는 번호가 아니라 «묶음 안의 몇 번째 건부터»(FROM)로 센다 — «남은 건» 보기에서 한 페이지를 끝내면 목록이 줄어들어,
+  // 번호로 넘기면 끝낸 수만큼 건을 건너뛴다.
+  const PICKS = {};  // 값 여럿 칸에서 누른 값들 — 카드를 다시 그려도 남는다(키 → 칸 → {코드: 참})
+  const reviewer = () => ($('reviewer').value || '').trim();
+  const labelName = (field, code) => code == null || code === '' ? '(빈칸)'
+    : String(code).split('|').map((part) => (field.labels.find((l) => l.code === part) || {}).name || part).join(' + ');
+  const aiCell = (item, field) => ((item.reading || {}).cells || {})[field.id] || null;
+  const aiValue = (item, field) => { const c = aiCell(item, field); return c && c.value ? c.value : null; };
+  const aiUsable = (item, field) => {
+    const v = aiValue(item, field);
+    return !!v && String(v).split('|').every((p) => field.labels.some((l) => l.code === p));
+  };
+  const labeled = (d) => !!d && d.decision === 'LABEL' && !d.outOfPolicy;
+  const itemDone = (item) => DATA.fields.every((f) => labeled(item.decisions[f.id]));
+  const open = (item) => DATA.fields.filter((f) => { const d = item.decisions[f.id]; return !d || d.outOfPolicy; });
+  const acceptable = (item) => { const todo = open(item); return todo.length > 0 && todo.every((f) => aiUsable(item, f)); };
+
+  function decide(item, field, decision, value, bulk) {
+    // 이미 기록된 것과 같은 판정은 다시 보내지 않는다 — 이름을 적는 순간 대기열이 기록되고 같은 값을 또 누르면 원장에 같은 줄이 둘 생긴다.
+    const last = item.decisions[field.id];
+    if (last && last.decision === decision && String(last.value ?? '') === String(value ?? '')) return Promise.resolve(true);
+    const flight = [item.key, field.id, decision, value ?? ''].join('\u0000');
+    if (INFLIGHT.has(flight)) return INFLIGHT.get(flight);
+    const sent = send(item, field, decision, value, bulk).finally(() => INFLIGHT.delete(flight));
+    if (reviewer()) INFLIGHT.set(flight, sent);
+    return sent;
+  }
+  function send(item, field, decision, value, bulk) {
+    if (!reviewer()) {
+      // 누른 값을 버리지 않는다 — 이름을 적으면 그 판정을 그대로 이어서 기록한다.
+      toast('맨 위에 이름을 적으면 방금 누른 값이 기록됩니다.', true); $('reviewer').focus();
+      // 같은 칸을 다시 누르면 앞의 대기는 버린다(마지막 값만 기록) — 앞 대기의 약속은 false로 끝내 그 버튼이 풀리게.
+      const cell = item.key + '\u0000' + field.id;
+      PENDING.filter((entry) => entry.cell === cell).forEach((entry) => entry.cancel());
+      for (let i = PENDING.length - 1; i >= 0; i -= 1) if (PENDING[i].cell === cell) PENDING.splice(i, 1);
+      return new Promise((resolve) => {
+        const run = () => decide(item, field, decision, value, bulk).then(resolve);
+        run.cell = cell; run.cancel = () => resolve(false);
+        PENDING.push(run);
+      });
+    }
+    return post('/incr-decide', {task: TASK, batch: DATA.batch, key: item.key, field: field.id, decision, value,
+                                 reviewer: reviewer(), bulk: !!bulk, expectedAi: aiValue(item, field)})
+      .then((reply) => {
+        if (!reply.ok) { toast(reply.error || '기록하지 못했습니다.', true); return false; }
+        item.decisions[field.id] = reply.decision;
+        // 값 여럿 칸의 누른 값은 기록된 값에서 다시 시작한다 — 한 번에 확정·보류로 칸이 바뀌면 옛 선택이 남지 않게.
+        if (PICKS[item.key]) delete PICKS[item.key][field.id];
+        if (reply.status) { DATA.status = reply.status; drawStatus(); }
+        return true;
+      });
+  }
+
+  function acceptAll(item, button) {
+    // 보류한 칸은 사람이 일부러 멈춘 칸이다 — 한 번에 확정에서 뺀다. 확정된 칸도 건드리지 않는다.
+    if (!acceptable(item)) return Promise.resolve();
+    const wasDone = itemDone(item);
+    if (button) button.disabled = true;
+    let chain = Promise.resolve(true);
+    open(item).forEach((f) => { chain = chain.then((ok) => ok && decide(item, f, 'LABEL', aiValue(item, f), true)); });
+    return chain.then((ok) => { if (ok) toast('AI 제안대로 확정했습니다.'); }).finally(() => {
+      refresh(item, wasDone);
+      // 보류한 칸만 남았으면 이 건에서 더 할 일이 없다 — 다음 건으로(끝난 건처럼).
+      if (!itemDone(item) && !open(item).length) { const card = cardOf(item); if (card) focusNext(card, true); }
+    });
+  }
+
+  // 사진 — 골든셋 검수와 같은 틀(.rail .shots figure). AI가 근거로 든 사진에 «AI 근거».
+  function shots(item) {
+    const rail = make('aside', 'rail');
+    const one = item.images.length === 1;
+    const box = make('div', 'shots' + (one ? ' one' : ''));
+    const cited = new Set();
+    DATA.fields.forEach((f) => ((aiCell(item, f) || {}).evidenceImageIds || []).forEach((id) => cited.add(String(id))));
+    if (!item.images.length) {
+      rail.appendChild(make('p', 'why', item.notPrepared ? '사진 준비 전 — «AI 추론 시작»을 누르면 사진이 나옵니다. 그동안에도 직접 고를 수 있습니다.'
+        : item.noEvidence ? '사진도 글도 없는 건입니다 — AI가 읽지 않았습니다. 직접 골라 주세요.' : '사진이 없습니다.'));
+    }
+    item.images.forEach((image, index) => {
+      const fig = make('figure', 'shot' + (cited.has(image.viewId) ? ' cited' : ''));
+      const img = make('img'); img.loading = 'lazy'; img.src = image.url; img.alt = image.viewId + (image.role ? ' · ' + image.role : '');
+      img.title = '누르면 크게 봅니다 — ← → 넘기기 · Esc 닫기';
+      img.addEventListener('click', () => viewer(item, index));
+      fig.appendChild(img);
+      const cap = make('figcaption');
+      cap.appendChild(make('b', null, image.viewId));
+      // 골든셋 검수의 caption()처럼 번호 뒤에 « · 종류». 종류가 없는 사진도 표시가 번호 옆 한 줄에 오게 « · »로 잇는다.
+      cap.appendChild(document.createTextNode(image.role ? ' · ' + image.role : (cited.has(image.viewId) || (index === 0 && cited.size) ? ' · ' : '')));
+      if (cited.has(image.viewId)) cap.appendChild(make('em', null, 'AI 근거'));
+      // 골든셋 검수처럼 — AI가 다른 사진을 짚었으면 첫 장에 «대표 사진»을 붙여 견줄 자리를 알린다
+      else if (index === 0 && cited.size) cap.appendChild(make('em', 'rep', '대표 사진'));
+      fig.appendChild(cap);
+      box.appendChild(fig);
+    });
+    rail.appendChild(box);
+    item.text.forEach((row) => { const t = make('div', 'textbox'); t.appendChild(make('b', null, row.name)); t.appendChild(document.createTextNode('\n' + row.value)); rail.appendChild(t); });
+    if (item.context.length) rail.appendChild(make('p', 'why', item.context.map((row) => String(row.value)).join(' · ')));
+    if (item.missing) rail.appendChild(make('p', 'why', '못 받은 사진 ' + item.missing + '장'));
+    return [rail, one];
+  }
+
+  // 칸 — 골든셋 검수의 칸과 같은 모양: 이름 · AI가 본 것 · 이어 붙은 값 선택기(AI 제안에 파란 점) · 보류 · 답한 칸은 한 줄
+  function cell(item, field) {
+    const decided = item.decisions[field.id];
+    const done = labeled(decided);
+    const held = decided && decided.decision === 'HOLD';
+    const ai = aiCell(item, field);
+    const box = make('div', 'cell' + (done ? ' done' : '') + (held ? ' held' : '') + (ai && ai.askHuman && ai.askHuman.question ? ' asking' : ''));
+    box.dataset.field = field.id;
+    const head = make('div', 'c-head');
+    head.appendChild(make('h4', null, field.name));
+    head.appendChild(make('span', 'badge', done ? '답함' : held ? '보류' : ai && ai.value ? (ai.confidence === 'LOW' ? 'AI 확신 낮음' : 'AI 제안 있음') : '직접 골라 주세요'));
+    box.appendChild(head);
+    if (decided && decided.outOfPolicy) box.appendChild(make('p', 'ask', '정책이 바뀌어 지난 답(' + decided.value + ')이 허용값 밖입니다 — 다시 골라 주세요.'));
+    if (ai && ai.askHuman && ai.askHuman.question) {
+      const ask = make('p', 'ask'); ask.appendChild(make('b', null, 'AI가 묻는 것'));
+      ask.appendChild(document.createTextNode(' — ' + ai.askHuman.question));
+      if (ai.askHuman.here) ask.appendChild(make('span', 'ask-here', ai.askHuman.here));
+      box.appendChild(ask);
+    }
+    const aiCodes = ai && ai.value ? String(ai.value).split('|') : [];
+    const chosen = done ? String(decided.value).split('|') : [];
+    let picks = null;
+    if (field.many) {
+      // 값 여럿 칸 — 사람이 누른 값만 채운다. AI 값은 «AI 제안» 글자로만(확정 전의 값이 기록된 값처럼 보이지 않게).
+      PICKS[item.key] = PICKS[item.key] || {};
+      if (!PICKS[item.key][field.id]) { PICKS[item.key][field.id] = {}; chosen.forEach((c) => { PICKS[item.key][field.id][c] = true; }); }
+      picks = PICKS[item.key][field.id];
+    }
+    // 값 선택기 — 골든셋 검수와 같은 모양(이어 붙은 칸, AI가 낸 값 옆에 «AI 제안», 고른 값은 파랑 채움)
+    const chips = make('div', 'act chips');
+    field.labels.forEach((label) => {
+      const b = make('button', 'chip' + (aiCodes.includes(label.code) ? ' is-ai' : '')); b.type = 'button'; b.dataset.value = label.code;
+      b.appendChild(document.createTextNode(label.name));
+      if (aiCodes.includes(label.code)) b.appendChild(make('span', 'vmark ai', 'AI 제안'));
+      if (field.many ? picks[label.code] : chosen.includes(label.code)) b.classList.add(field.many && !done ? 'pending' : 'picked');
+      b.addEventListener('click', () => {
+        if (field.many) { picks[label.code] = !picks[label.code]; b.classList.toggle('pending', !!picks[label.code]); b.classList.remove('picked'); return; }
+        const wasDone = itemDone(item);
+        b.classList.add('pending');
+        decide(item, field, 'LABEL', label.code).then((ok) => { if (ok) refresh(item, wasDone); else b.classList.remove('pending'); });
+      });
+      chips.appendChild(b);
+    });
+    box.appendChild(chips);
+    // 그 아래 한 줄 — 골든셋 검수처럼 왼쪽에 «보류»(값 여럿 칸은 «고른 값들로 확정»도)
+    const row = make('div', 'act');
+    if (field.many) {
+      const confirm = make('button', null, '고른 값들로 확정'); confirm.type = 'button';
+      confirm.addEventListener('click', () => {
+        const picked = Object.keys(picks).filter((k) => picks[k]).sort().join('|');
+        if (!picked) { toast('값을 하나 이상 골라 주세요.', true); return; }
+        const wasDone = itemDone(item);
+        decide(item, field, 'LABEL', picked).then((ok) => { if (ok) refresh(item, wasDone); });
+      });
+      row.appendChild(confirm);
+    }
+    const hold = make('button', held ? 'picked' : null, '보류'); hold.type = 'button'; hold.dataset.decision = 'HOLD';
+    hold.addEventListener('click', () => { const wasDone = itemDone(item); decide(item, field, 'HOLD', null).then((ok) => { if (ok) refresh(item, wasDone); }); });
+    row.appendChild(hold);
+    row.appendChild(make('span', 'grow'));
+    box.appendChild(row);
+    // AI가 본 것 — 골든셋 검수의 «AI가 사진에서 본 것 — …» 한 줄
+    const gist = make('p', 'gist');
+    if (!item.reading) gist.appendChild(document.createTextNode(item.noEvidence ? 'AI가 읽을 사진·글이 없습니다 — 직접 골라 주세요.' : 'AI가 아직 읽지 않았습니다.'));
+    else if (!ai || !ai.value) { gist.appendChild(make('b', null, 'AI가 가르지 못함')); gist.appendChild(document.createTextNode(' — ' + (ai && ai.observation || '직접 골라 주세요.'))); }
+    else { gist.appendChild(make('b', null, 'AI가 사진에서 본 것')); gist.appendChild(document.createTextNode(' — ' + (ai.confidence === 'LOW' ? '(확신 낮음) ' : '') + (ai.observation || ''))); }
+    box.appendChild(gist);
+    if (done) {
+      const result = make('p', 'result');
+      result.appendChild(make('b', null, labelName(field, decided.value)));
+      result.appendChild(document.createTextNode(' · ' + decided.reviewer + (decided.agreedWithAi ? ' · AI와 같음' : '')));
+      box.appendChild(result);
+      const change = make('button', 'change', '바꾸기'); change.type = 'button';
+      change.addEventListener('click', () => box.classList.toggle('open'));
+      box.appendChild(change);
+    }
+    return box;
+  }
+
+  function card(item, number) {
+    const done = itemDone(item);
+    // 보류한 칸만 남은 건(rested)은 끝난 건처럼 건너뛴다 — 키보드 A·J와 «다음 안 한 건»이 거기서 멈추지 않게.
+    const box = make('section', 'item' + (done ? ' finished' : !open(item).length ? ' rested' : ''));
+    box.dataset.key = item.key;
+    const top = make('p', 'item-top');
+    top.appendChild(make('span', 'kicker', number + ' / ' + DATA.items.length));
+    // 오른쪽 위 한 줄 — 골든셋 검수의 «수정 제안 1개»처럼 이 건에서 할 일
+    const asking = DATA.fields.filter((f) => !labeled(item.decisions[f.id]) && !aiUsable(item, f)).length;
+    top.appendChild(make('span', 'item-state', done ? '모두 확정' : !item.reading ? 'AI 추론 전'
+      : asking ? '직접 볼 칸 ' + asking + '개' : 'AI 제안 ' + open(item).length + '칸 확인'));
+    box.appendChild(top);
+    const h3 = make('h3', null, item.key);
+    const sub = [item.title, item.group].filter(Boolean).join(' · ');
+    // 골든셋 검수처럼 키 뒤에 작은 글씨(.item h3 small)로 이름·묶음, 상품 페이지도 그 안에
+    if (sub || item.link) {
+      const small = make('small', null, sub ? ' ' + sub : '');
+      if (item.link) { const a = make('a', null, (sub ? ' · ' : ' ') + '상품 페이지 ↗'); a.href = item.link; a.target = '_blank'; a.rel = 'noopener'; small.appendChild(a); }
+      h3.appendChild(small);
+    }
+    box.appendChild(h3);
+    const [rail, one] = shots(item);
+    const body = make('div', 'item-body' + (one ? ' one' : ''));
+    body.appendChild(rail);
+    const decideBox = make('div', 'decide');
+    const grid = make('div', 'gt-cell-grid');
+    DATA.fields.forEach((f) => grid.appendChild(cell(item, f)));
+    decideBox.appendChild(grid);
+    const all = make('div', 'item-all');
+    const ready = acceptable(item);
+    all.appendChild(make('span', 'hint', done ? '모든 칸을 확정했습니다. 값을 바꾸려면 그 칸의 «바꾸기»를 누르세요.'
+      : ready ? 'AI 제안이 모두 맞으면 한 번에 확정하세요. 보류한 칸은 건드리지 않습니다.'
+      : 'AI가 가르지 못했거나 보류한 칸은 직접 골라 주세요.'));
+    const button = make('button', null, 'AI 제안대로 모두 확정'); button.type = 'button'; button.disabled = !ready;
+    button.addEventListener('click', () => acceptAll(item, button));
+    all.appendChild(button);
+    decideBox.appendChild(all);
+    body.appendChild(decideBox);
+    box.appendChild(body);
+    return box;
+  }
+
+  const cardOf = (item) => document.querySelector('.item[data-key="' + CSS.escape(item.key) + '"]');
+  function refresh(item, wasDone) {
+    const old = cardOf(item);
+    if (!old) return;
+    const fresh = card(item, DATA.items.indexOf(item) + 1);
+    if (old.classList.contains('focus')) fresh.classList.add('focus');
+    old.replaceWith(fresh);
+    // 방금 이 건을 끝냈을 때만 다음 건으로 — 끝난 건의 값을 고치는 중에는 화면을 옮기지 않는다.
+    if (!wasDone && itemDone(item)) focusNext(fresh, true);
+  }
+  function visibleCards() { return [...document.querySelectorAll('#list .item')].filter((n) => n.offsetParent !== null); }
+  function focusNext(from, scroll) {
+    const list = visibleCards();
+    const start = from ? list.indexOf(from) + 1 : 0;
+    const next = [...list.slice(start), ...list.slice(0, start)].find((n) => !n.classList.contains('finished') && !n.classList.contains('rested'));
+    document.querySelectorAll('#list .item.focus').forEach((n) => n.classList.remove('focus'));
+    if (next) { next.classList.add('focus'); if (scroll) next.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+    return next;
+  }
+
+  // 수는 서버(incr_review.status)가 센 그대로 — 화면이 원장을 다시 세지 않는다.
+  function drawStatus() {
+    const s = DATA.status;
+    $('statusline').hidden = false;
+    $('progress-short').textContent = '끝난 건 ' + s.itemsDone + ' / ' + s.items;
+    $('pbar').style.width = (s.items ? Math.round(s.itemsDone * 100 / s.items) : 0) + '%';
+    const tally = $('tally'); tally.textContent = '';
+    [['확정한 칸', s.cellsLabeled + ' / ' + s.cells], ['그중 AI와 같음', s.cellsLabeled ? Math.round(s.cellsAgreedWithAi * 100 / s.cellsLabeled) + '%' : '–'],
+     ['보류', String(s.cellsHeld)], ['AI가 읽은 건', s.itemsRead + ' / ' + s.items]].forEach(([k, v], i) => {
+      if (i) tally.appendChild(document.createTextNode(' · '));
+      tally.appendChild(document.createTextNode(k + ' ')); tally.appendChild(make('b', null, v));
+    });
+    $('count-left').textContent = s.itemsLeft ? String(s.itemsLeft) : '';
+    $('progress-bottom-text').textContent = '끝난 건 ' + s.itemsDone + ' / ' + s.items + (s.itemsLeft ? ' · 남은 건 ' + s.itemsLeft : ' · 모두 확정했습니다 — «결과 파일 만들기»');
+  }
+
+  // AI 추론의 상태 — 골든셋 검수의 «다음 후보 받기»와 같은 부품: 도는 중이면 스피너 한 줄(.next-live .spin), 멈췄으면 경고(.notice),
+  // 할 일 안내는 흰 한 줄(.once). 색을 여기서 칠하지 않는다.
+  function drawRunner() {
+    const status = DATA.status, runner = status.runner || {};
+    const box = $('runner'), run = $('do-run');
+    const readable = status.items - num(status.itemsNoEvidence);
+    const fresh = !status.itemsRead;
+    run.textContent = fresh ? 'AI 추론 시작' : '못 읽은 것 다시';
+    box.textContent = ''; box.hidden = false;
+    const say = (cls, text, spin) => {
+      const p = make('p', cls);
+      if (spin) { p.appendChild(make('span', 'spin')); const b = make('b', null, text); p.appendChild(b); }
+      else p.textContent = text;
+      if (spin && runner.startedAt) p.appendChild(make('span', 'muted', '(' + Math.max(0, Math.round((Date.now() - Date.parse(runner.startedAt)) / 60000)) + '분째)'));
+      box.appendChild(p);
+    };
+    if (runner.running) { say('once next-live', runner.message || 'AI가 읽는 중입니다.', true); run.disabled = true; return true; }
+    if (runner.lockBusy) { say('once next-live', '다른 AI 작업(골든셋 검수나 다른 증분)이 도는 중입니다 — 끝나면 «' + run.textContent + '»를 눌러 주세요.', true); run.disabled = true; return true; }
+    run.disabled = false;
+    if (runner.phase === 'failed') say('notice', runner.message || 'AI 추론이 멈췄습니다.');
+    else if (fresh) say('once', 'AI가 아직 읽지 않았습니다 — «AI 추론 시작»을 눌러 주세요. 그동안에도 직접 고를 수 있습니다.');
+    else if (status.itemsReadComplete < readable) say('once', 'AI가 못 읽은 건이 있습니다 — «못 읽은 것 다시»가 확정하지 않은 그 건만 다시 읽습니다.');
+    else { box.hidden = true; run.disabled = true; }
+    return false;
+  }
+
+  function shown() { return DATA.items.filter((item) => !ONLY_LEFT || !itemDone(item)); }
+  const at = (item) => item.at;  // 묶음 안의 자리 — drawReview가 한 번 매긴다(찾기를 되풀이하지 않게)
+  function pageRows() { return shown().filter((item) => at(item) >= FROM).slice(0, PAGE_SIZE); }
+  // 다음 페이지 — 지금 남은 목록이 아니라 **화면에 그린 마지막 건**(LAST_AT) 뒤에서 찾는다. 이 페이지를 끝내면 남은 목록이 줄어
+  // 다시 셈하면 뒤쪽 건을 건너뛴다.
+  const nextStart = () => shown().find((item) => at(item) > LAST_AT);
+  function gotoNextPage() {
+    const next = nextStart();
+    if (!next) return false;
+    FROM = at(next); PAGE_NO += 1; drawItems(); scrollTo({top: 0, behavior: 'smooth'});
+    return true;
+  }
+  function gotoPrevPage() {
+    const before = shown().filter((item) => at(item) < FROM);
+    FROM = before.length ? at(before[Math.max(0, before.length - PAGE_SIZE)]) : 0;
+    PAGE_NO = before.length > PAGE_SIZE ? Math.max(1, PAGE_NO - 1) : 1;
+    drawItems(); scrollTo({top: 0, behavior: 'smooth'});
+  }
+  function drawItems() {
+    const list = $('list');
+    list.textContent = '';
+    const all = shown();
+    if (all.length && !all.some((item) => at(item) >= FROM)) FROM = at(all[Math.max(0, all.length - PAGE_SIZE)]);
+    const rows = pageRows();
+    LAST_AT = rows.length ? at(rows[rows.length - 1]) : FROM - 1;
+    if (!all.some((item) => at(item) < FROM)) PAGE_NO = 1;
+    const page = PAGE_NO;
+    const pages = page - 1 + Math.max(1, Math.ceil(all.filter((item) => at(item) >= FROM).length / PAGE_SIZE));
+    const paged = all.length > PAGE_SIZE;
+    ['page-prev', 'page-now', 'page-next'].forEach((id) => { $(id).hidden = !paged; });
+    $('page-now').parentNode.hidden = !paged;  // 한 페이지뿐이면 넘김 자리째 숨긴다 — 빈 자리가 머리 줄을 밀지 않게
+    $('page-now').textContent = page + ' / ' + pages + '페이지';
+    $('page-prev').disabled = !all.some((item) => at(item) < FROM); $('page-next').disabled = !nextStart();
+    if (!all.length) {
+      // 골든셋 검수의 «이번에 볼 칸이 없습니다»와 같은 자리 — 흰 한 줄
+      const note = make('p', 'once all-done', DATA.items.length ? '이 묶음의 모든 건을 확정했습니다. «결과 파일 만들기»를 눌러 주세요.' : '이 묶음에 건이 없습니다.');
+      list.appendChild(note);
+    }
+    rows.forEach((item) => list.appendChild(card(item, at(item) + 1)));
+    $('progress-bottom').hidden = !all.length;
+    focusNext(null, false);
+  }
+
+  // 다음 안 한 건 — 이 페이지에 없으면 다음 페이지로. 둘 다 없으면 말한다(조용히 멈추지 않는다).
+  function nextOpen() {
+    const node = document.querySelector('#list .item.focus');
+    const current = node && inView(node) ? node : null;
+    const list = visibleCards();
+    const after = current ? list.slice(list.indexOf(current) + 1) : list;
+    const todo = (n) => !n.classList.contains('finished') && !n.classList.contains('rested');
+    const next = after.find(todo) || (!current && list.find(todo));
+    if (next) { focusNext(current, false); const f = document.querySelector('#list .item.focus'); if (f) f.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
+    if (gotoNextPage()) return;
+    // 남은 건이 보류한 칸뿐이면 앞 페이지로 가도 할 일이 없다 — 그렇게 말한다.
+    const anyOpen = DATA.items.some((item) => !itemDone(item) && open(item).length);
+    toast(!DATA.status.itemsLeft ? '남은 건이 없습니다 — «결과 파일 만들기»를 눌러 주세요.'
+      : !anyOpen ? '남은 건은 보류한 칸뿐입니다 — 보류를 풀려면 그 칸의 값을 골라 주세요(«전체» 보기).'
+      : '이 페이지에는 남은 건이 없습니다 — 앞 페이지를 봐 주세요.', !!DATA.status.itemsLeft);
+  }
+
+  function drawReview(data) {
+    DATA = data;
+    DATA.items.forEach((item, index) => { item.at = index; });
+    document.title = '데이터 운영 · ' + data.name + ' 증분 검수';
+    $('title').textContent = data.name + ' · 증분 검수';
+    $('crumb-task').textContent = ' / ' + data.name + (data.unit ? ' · ' + data.unit + ' 단위' : '');
+    // 골든셋 검수의 «만든 시각»과 같은 모양 — 여기서는 증분을 밀어넣은 시각
+    $('made').textContent = (data.status.meta || {}).pushedAt ? '넣은 시각 ' + new Date(data.status.meta.pushedAt).toLocaleString('ko-KR') : '';
+    $('title-side').hidden = false;
+    const pick = $('batch-pick'); pick.textContent = '';
+    data.batches.forEach((b) => { const o = make('option', null, b); o.value = b; o.selected = b === data.batch; pick.appendChild(o); });
+    drawItems();
+    drawStatus();
+    if (drawRunner()) schedule(8000);
+  }
+
+  // AI가 끝나면 **바뀐 카드만** 다시 그린다 — 보던 자리·누르던 값 여럿 칸을 잃지 않게. 판정은 이 화면이 가진 것이 더 새것이다.
+  function merge(data) {
+    const byKey = new Map(DATA.items.map((item) => [item.key, item]));
+    data.items.forEach((fresh) => {
+      const item = byKey.get(fresh.key);
+      if (!item) return;
+      const before = JSON.stringify([item.reading, item.images, item.notPrepared]);
+      Object.assign(item, {reading: fresh.reading, images: fresh.images, notPrepared: fresh.notPrepared, noEvidence: fresh.noEvidence,
+                           context: fresh.context, text: fresh.text, missing: fresh.missing});
+      if (before !== JSON.stringify([item.reading, item.images, item.notPrepared])) refresh(item, itemDone(item));
+    });
+    DATA.status = data.status;
+    drawStatus();
+  }
+  function schedule(ms) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => {
+      fetch('/incr-data?task=' + encodeURIComponent(TASK) + '&batch=' + encodeURIComponent(DATA.batch), {cache: 'no-store'})
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.ok) { schedule(15000); return; }
+          merge(data);
+          const busy = drawRunner();
+          const runner = data.status.runner || {};
+          // 막 띄운 러너가 아직 제 상태를 쓰기 전이면 조금 더 본다 — 한 번 «안 돈다»로 읽고 멈추지 않게.
+          const waiting = WATCH && Date.now() < WATCH.until && runner.pid !== WATCH.pid;
+          if (busy || waiting) schedule(busy ? 8000 : 2000); else WATCH = null;
+        }).catch(() => { if (DATA) drawRunner(); schedule(15000); });
+    }, ms);
+  }
+
+  // 크게 보기 — 골든셋 검수의 #viewer와 같은 틀: ← → 넘기기, Esc 닫기, 사진을 누르면 원래 크기
+  let VIEW = null;
+  function viewer(item, index) {
+    VIEW = {item, index};
+    const box = $('viewer'), img = box.querySelector('img');
+    const image = item.images[index];
+    img.src = image.url; img.classList.remove('full');
+    box.querySelector('p').textContent = item.key + ' · ' + image.viewId + (image.role ? ' · ' + image.role : '') + ' (' + (index + 1) + ' / ' + item.images.length + ')';
+    box.hidden = false;
+  }
+  function go(step) { if (VIEW && VIEW.item.images.length) viewer(VIEW.item, (VIEW.index + step + VIEW.item.images.length) % VIEW.item.images.length); }
+  $('viewer').addEventListener('click', (event) => {
+    if (event.target.closest('.go')) { go(Number(event.target.closest('.go').dataset.go)); return; }
+    if (event.target.tagName === 'IMG') { event.target.classList.toggle('full'); return; }
+    $('viewer').hidden = true; VIEW = null;
+  });
+
+  const inView = (node) => { const box = node.getBoundingClientRect(); return box.bottom > 0 && box.top < innerHeight / (parseFloat(getComputedStyle(document.documentElement).zoom) || 1); };
+  document.addEventListener('keydown', (event) => {
+    if (!$('viewer').hidden) {
+      if (event.key === 'Escape') { $('viewer').hidden = true; VIEW = null; }
+      if (event.key === 'ArrowLeft') go(-1);
+      if (event.key === 'ArrowRight') go(1);
+      return;
+    }
+    // 한글 입력 중에도 되도록 글쇠 자리(code)로 본다. 수정 글쇠(⌘A 전체 선택 같은)와 누르고 있는 반복은 무시한다.
+    if (!DATA || event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) return;
+    const tag = event.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || event.target.isContentEditable) return;
+    const node = document.querySelector('#list .item.focus');
+    if (event.code === 'KeyA') {
+      if (!node || !inView(node)) { toast('확정할 건이 화면에 없습니다 — J로 다음 건으로 가세요.', true); return; }
+      const item = DATA.items.find((it) => it.key === node.dataset.key);
+      const button = node.querySelector('.item-all button');
+      if (item && button && !button.disabled) acceptAll(item, button);
+      else if (item) toast(itemDone(item) ? '이 건은 이미 확정했습니다 — J로 다음 건으로 가세요.' : 'AI가 가르지 못했거나 보류한 칸이 있어 한 번에 확정할 수 없습니다 — 그 칸을 직접 골라 주세요.', true);
+    }
+    if (event.code === 'KeyJ') nextOpen();
+  });
+
+  // 머리의 버튼들 — 한 번만 건다.
+  try { $('reviewer').value = localStorage.getItem(REVIEWER_KEY) || ''; } catch (e) {}
+  $('reviewer').addEventListener('change', () => {
+    try { localStorage.setItem(REVIEWER_KEY, reviewer()); } catch (e) {}
+    if (reviewer() && PENDING.length) {
+      const queued = PENDING.splice(0);
+      queued.reduce((chain, run) => chain.then(run), Promise.resolve());
+    }
+  });
+  $('batch-pick').addEventListener('change', (event) => {
+    location.href = '/incr?task=' + encodeURIComponent(TASK) + '&batch=' + encodeURIComponent(event.target.value);
+  });
+  document.querySelectorAll('.views button').forEach((button) => button.addEventListener('click', () => {
+    ONLY_LEFT = button.dataset.view === 'left';
+    document.querySelectorAll('.views button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+    FROM = 0; PAGE_NO = 1; drawItems();
+  }));
+  $('page-prev').addEventListener('click', gotoPrevPage);
+  $('page-next').addEventListener('click', gotoNextPage);
+  $('next-open').addEventListener('click', nextOpen);
+  $('do-run').addEventListener('click', () => {
+    const run = $('do-run'); run.disabled = true;
+    post('/incr-run', {task: TASK, batch: DATA.batch, reread: DATA.status.itemsRead > 0}).then((reply) => {
+      if (!reply.ok) { toast(reply.error || '시작하지 못했습니다.', true); run.disabled = false; return; }
+      toast('AI가 읽기 시작했습니다. 끝나면 이 화면에 제안이 채워집니다.');
+      WATCH = {pid: reply.pid, until: Date.now() + 60000};
+      schedule(2000);
+    });
+  });
+  $('do-export').addEventListener('click', () => {
+    const button = $('do-export'); button.disabled = true;
+    post('/incr-export', {task: TASK, batch: DATA.batch}).then((reply) => {
+      button.disabled = false;
+      if (!reply.ok) { toast(reply.error || '만들지 못했습니다.', true); return; }
+      toast('확정한 ' + reply.labeled + '건을 ' + reply.file + '에 썼습니다' + (reply.pending ? ' (남은 ' + reply.pending + '건은 빠짐)' : '') + '.');
+    });
+  });
+
+  if (location.protocol === 'file:') { $('list').textContent = '이 파일을 직접 열었습니다. 서버(./serve.sh start)를 켜고 http://127.0.0.1:7391/incr 로 열어 주세요.'; return; }
+  const url = TASK ? '/incr-data?task=' + encodeURIComponent(TASK) + (BATCH ? '&batch=' + encodeURIComponent(BATCH) : '') : '/incr-tasks';
+  fetch(url, {cache: 'no-store'})
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.ok === false && TASK) {
+        // 증분이 아직 없는 과제 — 막다른 문장 대신 목록 화면의 그 과제 카드(넣는 법 안내)를 보인다.
+        return fetch('/incr-tasks', {cache: 'no-store'}).then((r) => r.json()).then((all) => {
+          const rows = (all.tasks || []).filter((task) => task.task === TASK);
+          if (!rows.length) { $('list').textContent = ''; $('list').appendChild(make('p', 'notice', data.error || '읽지 못했습니다.')); return; }
+          $('title').textContent = rows[0].name + ' · 증분 검수';
+          $('crumb-task').textContent = ' / ' + rows[0].name;
+          drawList({tasks: rows});
+        });
+      }
+      if (data.ok === false) { $('list').textContent = ''; $('list').appendChild(make('p', 'notice', data.error || '읽지 못했습니다.')); return; }
+      if (TASK) drawReview(data); else drawList(data);
+    })
+    .catch(() => { $('list').textContent = ''; $('list').appendChild(make('p', 'notice', '증분 검수를 읽지 못했습니다. 서버가 켜져 있는지 확인해 주세요.')); });
+})();
+
+(() => {
+  const side = document.querySelector('aside.side');
+  if (!side || location.protocol === 'file:') return;
+  const me = side.dataset.task;
+  // 증분 화면은 과제를 주소(?task=)로 안다 — 그 과제를 목록에서 «지금»으로 칠한다.
+  const incrMe = location.pathname === '/incr' ? new URLSearchParams(location.search).get('task') : null;
+  const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  // 메뉴 하나를 채운다 — 네 메뉴(골든셋 검수·증분 검수·정책·골든셋)가 같은 함수를 쓴다. 과제 이름은 두 목록이 같은 이름(name)이고,
+  // 수는 서버가 센 그대로다. 부모 줄의 수는 자식 수의 합(수가 있는 메뉴만). 과제 없는 화면(증분)에서 부모 링크가 첫 화면(«/»)이면
+  // 첫 과제로 보낸다 — 첫 화면의 사이드바와 같은 동작.
+  const fill = (key, rows) => {
+    const item = side.querySelector('.side-item[data-menu="' + key + '"]');
+    if (!item) return;
+    const menu = item.querySelector('.flyout'); menu.textContent = '';
+    rows.forEach(row => {
+      const a = make('a', 'flyout-link' + (row.on ? ' on' : '') + (row.empty ? ' empty' : ''));
+      a.href = row.href; a.setAttribute('role', 'menuitem');
+      a.appendChild(make('span', null, row.name));
+      if (row.count) a.appendChild(make('span', 'side-count', String(row.count)));
+      else if (row.empty) a.appendChild(make('span', 'side-empty', row.empty));
+      menu.appendChild(a);
+    });
+    item.classList.toggle('has-menu', menu.children.length > 0);
+    const link = item.querySelector('a.side-link');
+    if (!link) return;
+    link.setAttribute('aria-haspopup', 'true');
+    if (link.getAttribute('href') === '/' && rows.length) link.href = (rows.find(row => row.on) || rows.find(row => !row.empty) || rows[0]).href;
+    const total = rows.reduce((sum, row) => sum + (row.count || 0), 0);
+    let badge = link.querySelector('.side-count');
+    if (key === 'review' || key === 'incr') {
+      if (!badge) { badge = make('span', 'side-count'); link.appendChild(badge); }
+      badge.textContent = String(total); badge.hidden = !total;
+    }
+  };
+  fetch('/gt-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(listing => {
+    if (!listing) return;
+    const pages = {review: task => task.page || ('/gt/' + encodeURIComponent(task.task)),
+                   policy: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/policy.html',
+                   golden: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/golden.html'};
+    ['review', 'policy', 'golden'].forEach(key => {
+      fill(key, (listing.tasks || []).filter(task => key === 'review' || task.pages || task.prepared).map(task => ({
+        href: pages[key](task), name: task.name, on: task.task === me,
+        count: key === 'review' ? (task.waitingForHuman || 0) + (task.notRead || 0) : 0})));
+    });
+  }).catch(() => {});
+  fetch('/incr-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(incr => {
+    if (!incr) return;
+    fill('incr', (incr.tasks || []).map(task => ({href: '/incr?task=' + encodeURIComponent(task.task), name: task.menuName || task.name,
+                                                on: task.task === incrMe, count: task.itemsLeft || 0,
+                                                empty: (task.batches || []).length ? '' : '증분 없음'})));
+  }).catch(() => {});
+
+  // 메뉴 글쇠 — ↓ 목록으로 들어가 다음, ↑ 이전(맨 위에서 부모로), Esc 닫고 부모로. 골든셋·증분·정책·골든셋 메뉴가 같다.
+  side.addEventListener('keydown', (event) => {
+    const item = event.target.closest('.side-item.has-menu');
+    if (!item || !['ArrowDown', 'ArrowUp', 'Escape'].includes(event.key)) return;
+    item.classList.remove('closed');
+    const parent = item.querySelector('a.side-link');
+    const links = [...item.querySelectorAll('.flyout a')];
+    const now = links.indexOf(event.target);
+    event.preventDefault();
+    if (event.key === 'Escape') { item.classList.add('closed'); parent.focus(); return; }  // 포커스는 부모에 남긴다 — 다음 Tab이 제자리에서 이어진다
+    if (event.key === 'ArrowDown') (links[now + 1] || links[0]).focus();
+    else if (now <= 0) parent.focus(); else links[now - 1].focus();
+  });
+  side.addEventListener('focusout', (event) => { const item = event.target.closest('.side-item'); if (item && !item.contains(event.relatedTarget)) item.classList.remove('closed'); });
+  side.addEventListener('mouseleave', () => side.querySelectorAll('.side-item.closed').forEach((item) => item.classList.remove('closed')));
+  // 감사 사이클(과제 목록 밖의 GT)로 가는 문은 사이드바에 두지 않는다 — 운영 화면은 골든셋 검수 과제만 다룬다. 감사 화면은 /audit 주소로 연다.
+})();
+</script>
+</body></html>

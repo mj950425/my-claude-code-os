@@ -9,7 +9,7 @@
 화면의 버튼이 새 후보를 받으려면 AI 두 개(`gt-blind-reader`·`gt-defender`)가 사진을 읽어야 한다. 그 일은
 Claude Code의 워크플로우(`gt-review.js`)가 하고, 워크플로우는 Claude Code 세션 안에서만 돈다. 서버는 원장 말고
 아무것도 쓰지 않는 가벼운 프로세스라(`serve_reports.py`) 그 일을 맡지 않는다 — 이 러너를 떼어 띄우기만 한다.
-러너는 헤드리스 Claude Code(`claude -p`)에 워크플로우 **부르기**만 맡긴다 — 판독과 반론, 두 번(아래 «눈가림»). 고르기(`prepare`)와 화면(`finish`·`render`)은
+러너는 헤드리스 Claude Code 세션에 워크플로우 **부르기**만 맡긴다 — 세션은 Claude Agent SDK가 구독(OAuth)으로 띄운다(`gt_agent.py`) — 판독과 반론, 두 번(아래 «눈가림»). 고르기(`prepare`)와 화면(`finish`·`render`)은
 스킬이 부르던 그 함수를 이 프로세스가 그대로 부른다 — 문이 둘이면 규격도 둘이 된다.
 
 ## 한 번에 하나 — 잠금 하나
@@ -30,10 +30,11 @@ Grep 한 번으로 자기 건의 GT에 닿는다. 사본을 프로젝트 밖에 
 GT와 판독 결과). 원래 설계가 판독 파일 이름과 작업 목록을 잇지 못하게 해 둔 것과 같은 원칙이다. 사본은 단계가 끝나면 지운다.
 반론 단계가 실패하면 판독만으로 화면을 만든다(반론이 없는 칸은 «못 읽음»으로 남아 다시 읽기 대상이 된다).
 
-## 헤드리스 세션의 권한
+## 헤드리스 세션 — SDK와 구독
 
-`--tools`로 쓸 수 있는 도구를 워크플로우와 읽기 도구로 줄이고, 쓰기·셸·웹 도구는 `--disallowedTools`로 막는다. 권한 모드는
-`dontAsk`로 못박아 사용자 전역의 자동 승인 설정을 물려받지 않고, MCP 서버도 싣지 않는다(`--strict-mcp-config`).
+세션은 자식 `gt_agent.py`가 Claude Agent SDK로 띄운다. SDK는 CLI를 싣고 오므로 이 컴퓨터에 Claude Code가 없어도 돌고(클라우드 서버),
+인증은 구독뿐이다 — 로그인했거나 `CLAUDE_CODE_OAUTH_TOKEN`(`claude setup-token`). API 키 변수는 자식에게 넘기지 않는다.
+도구는 워크플로우와 읽기 도구로 줄이고, 쓰기·셸·웹은 막고, 권한 모드는 `dontAsk`, MCP 서버는 싣지 않는다. 자세한 것은 `gt_agent.py` 머리말.
 """
 
 from __future__ import annotations
@@ -44,7 +45,6 @@ import fcntl
 import io
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -169,30 +169,19 @@ def gate(run_dir: Path | None = None) -> Iterator[None]:
 
 # 판독 모델. 판독·반론 에이전트는 모델을 따로 적지 않아 이 헤드리스 세션의 모델을 물려받는다.
 MODEL = os.environ.get("GT_NEXT_MODEL") or "claude-opus-5-5"
-# 데스크톱 앱이 들고 있는 Claude Code. npm의 설치 지연 규칙(min-release-age) 탓에 PATH의 claude가 이 모델을 모를 수 있다.
-DESKTOP_CLAUDE = Path.home() / "Library/Application Support/Claude/claude-code"
+# 워크플로우를 부르는 자식. SDK(구독 OAuth)로 CLI 세션 하나를 돌리고 `claude -p --output-format json`과 같은 답을 낸다.
+AGENT = Path(__file__).with_name("gt_agent.py")
 
 
-def _version(text: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in text.split(".") if part.isdigit())
+def _agent_override() -> str | None:
+    """자식을 바꿔 끼운다(테스트의 가짜 자식). 받는 인자는 gt_agent와 같다: `call <사본> --model <모델>`."""
+    return os.environ.get("GT_NEXT_AGENT") or None
 
 
-def claude_binary() -> str | None:
-    """가장 새 Claude Code. 모델이 CLI 버전을 요구하므로(낮으면 400) 설치본 가운데 가장 새 것을 고른다."""
-    if os.environ.get("GT_NEXT_CLAUDE"):
-        return os.environ["GT_NEXT_CLAUDE"]
-    found: list[tuple[tuple[int, ...], str]] = []
-    if DESKTOP_CLAUDE.is_dir():
-        for folder in DESKTOP_CLAUDE.iterdir():
-            binary = folder / "claude.app/Contents/MacOS/claude"
-            if binary.is_file() and _version(folder.name):
-                found.append((_version(folder.name), str(binary)))
-    on_path = shutil.which("claude")
-    if on_path:
-        with contextlib.suppress(OSError, subprocess.SubprocessError):
-            text = subprocess.run([on_path, "--version"], capture_output=True, text=True, timeout=20).stdout.split()[0]
-            found.append((_version(text), on_path))
-    return max(found)[1] if found else None
+def sdk_missing() -> bool:
+    """이 인터프리터에 SDK가 없는가. 자식은 같은 인터프리터로 뜬다(`sys.executable`)."""
+    import importlib.util
+    return _agent_override() is None and importlib.util.find_spec("claude_agent_sdk") is None
 
 
 # 이 서버를 데스크톱 앱 안의 세션이 띄웠으면 그 세션의 연결 정보가 환경에 남아 있다 — 헤드리스 CLI는 제 로그인으로 돌아야 한다.
@@ -201,8 +190,16 @@ _HOST_ONLY = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "ANTHROPIC_BASE_URL", "CLA
               "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_EXECPATH")
 
 
+# 구독으로만 돈다 — 이 변수가 있으면 CLI는 구독보다 API 키를 먼저 쓴다(gt_agent 머리말 «구독만»).
+_API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
 def _headless_env() -> dict[str, str]:
-    return {key: value for key, value in os.environ.items() if key not in _HOST_ONLY}
+    return {key: value for key, value in os.environ.items() if key not in _HOST_ONLY + _API_KEYS}
+
+
+# 구독 인증이 안 된 세션의 답 — 로그인을 안 했거나(«Not logged in»), 토큰이 틀렸거나 만료됐다(401).
+_NOT_LOGGED_IN = ("Not logged in", "/login", "Failed to authenticate", "Invalid bearer token", "OAuth token has expired")
 
 
 def _call(func: Any, namespace: argparse.Namespace) -> str:
@@ -225,33 +222,10 @@ def embedded_workflow(workflow_args: dict[str, Any], target: Path) -> Path:
     return target
 
 
-def _workflow_prompt(script: Path) -> str:
-    return f"""GT 개선 화면의 «다음 후보 받기» 버튼으로 사용자가 이 워크플로우 실행을 명시적으로 요청했다.
-다른 일은 하지 않는다. 파일을 읽거나 만들거나 고치지 않는다.
-
-1. Workflow 도구가 목록에 없으면 ToolSearch로 `select:Workflow`를 불러온다.
-2. Workflow({{ scriptPath: "{script}" }})를 한 번 부른다. args는 넣지 않는다 — 인자는 스크립트 안에 이미 있다.
-3. 워크플로우가 끝날 때까지 기다린다. 끝나면 알림에 적힌 출력 파일(워크플로우 반환값이 든 파일)의 절대 경로를 outputFile로 답한다.
-   실패했거나 출력 파일이 없으면 outputFile은 빈 문자열, error에 한 문장."""
-
-
-OUTPUT_SCHEMA = {
-    "type": "object",
-    "properties": {"outputFile": {"type": "string"}, "error": {"type": "string"}},
-    "required": ["outputFile"],
-}
-
-
-# 헤드리스 세션이 쓸 수 있는 도구. 본 세션은 워크플로우 한 단계만 부르고, 워크플로우의 판독자·반론자는 읽기 도구만 쓴다.
-HEADLESS_TOOLS = "Workflow,ToolSearch,Read,Grep,Glob"
-HEADLESS_DENIED = "Bash,Write,Edit,NotebookEdit,WebFetch,WebSearch"
-
-
-def headless_command(binary: str, script: Path) -> list[str]:
-    return [binary, "-p", _workflow_prompt(script), "--model", MODEL,
-            "--tools", HEADLESS_TOOLS, "--allowedTools", HEADLESS_TOOLS, "--disallowedTools", HEADLESS_DENIED,
-            "--permission-mode", "dontAsk", "--strict-mcp-config",
-            "--output-format", "json", "--json-schema", json.dumps(OUTPUT_SCHEMA)]
+def headless_command(script: Path) -> list[str]:
+    """자식 하나 — 도구·권한·인증은 그 자식(gt_agent)이 못박는다."""
+    head = [_agent_override()] if _agent_override() else [sys.executable, str(AGENT)]
+    return [*head, "call", str(script), "--model", MODEL]
 
 
 # 지금 도는 헤드리스 자식 — 러너가 종료 신호를 받으면 그 프로세스 묶음을 함께 끝낸다.
@@ -287,9 +261,8 @@ def stage_args(workflow_args: dict[str, Any], stage: str, readings: dict[str, An
 def _run_workflow(task_id: str, workflow_args: dict[str, Any], log: Path, run_dir: Path | None = None) -> Path:
     """워크플로우 한 단계를 헤드리스 Claude Code로 돌리고 출력 파일 경로를 돌려준다."""
     global _child
-    binary = claude_binary()
-    if not binary:
-        raise RuntimeError("이 컴퓨터에서 Claude Code(claude)를 찾지 못했습니다 — 개발자에게 전해 주세요.")
+    if sdk_missing():
+        raise RuntimeError("이 서버에 Claude Agent SDK가 없습니다 — 개발자에게 «pip install -r requirements.txt»를 전해 주세요.")
     folder = _dir(run_dir)
     folder.mkdir(parents=True, exist_ok=True)
     # 사본은 작업 폴더 안에 둔다(워크플로우 도구가 읽을 수 있는 자리). 단계가 끝나면 지운다 — 머리말 «눈가림».
@@ -297,10 +270,10 @@ def _run_workflow(task_id: str, workflow_args: dict[str, Any], log: Path, run_di
     try:
         lock = _held.get(folder)
         with log.open("a", encoding="utf-8") as handle:
-            handle.write(f"\n== {_now()} claude -p (workflow {workflow_args.get('stage') or 'both'}) ==\n")
+            handle.write(f"\n== {_now()} agent sdk (workflow {workflow_args.get('stage') or 'both'}) ==\n")
             handle.flush()
             # 잠금 파일을 자식에게도 물려준다 — 러너가 강제로 죽어도 자식이 끝날 때까지 둘째 워크플로우가 시작되지 않는다.
-            _child = subprocess.Popen(headless_command(binary, script), cwd=PROJECT_ROOT, env=_headless_env(),
+            _child = subprocess.Popen(headless_command(script), cwd=PROJECT_ROOT, env=_headless_env(),
                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=handle, text=True,
                                       start_new_session=True, pass_fds=(lock.fileno(),) if lock is not None else ())
             try:
@@ -318,12 +291,16 @@ def _run_workflow(task_id: str, workflow_args: dict[str, Any], log: Path, run_di
     try:
         reply = json.loads(stdout)
     except ValueError:
-        raise RuntimeError("Claude Code가 알아볼 수 없는 답을 냈습니다.") from None
+        raise RuntimeError("AI 세션이 알아볼 수 없는 답을 냈습니다.") from None
     text = reply.get("result") or ""
     if "does not support this model" in text:
-        raise RuntimeError(f"이 컴퓨터의 Claude Code가 판독 모델({MODEL})을 모르는 옛 판입니다 — 개발자에게 Claude Code를 올려 달라고 전해 주세요.")
-    if "Not logged in" in text or "/login" in text:
-        raise RuntimeError("이 컴퓨터의 Claude Code(claude)가 로그인돼 있지 않습니다 — 터미널에서 «claude auth login»을 한 번 해 주세요.")
+        raise RuntimeError(f"서버의 Claude Agent SDK가 판독 모델({MODEL})을 모르는 옛 판입니다 — "
+                           "개발자에게 «pip install -U claude-agent-sdk»를 전해 주세요.")
+    if any(sign in text for sign in _NOT_LOGGED_IN):
+        raise RuntimeError("AI가 구독으로 로그인돼 있지 않습니다 — 이 컴퓨터라면 «claude auth login», "
+                           "서버라면 «claude setup-token»으로 받은 토큰을 CLAUDE_CODE_OAUTH_TOKEN에 넣어 주세요.")
+    if reply.get("apiKeySource") not in (None, "none"):
+        raise RuntimeError(text or "구독이 아니라 API 키로 돌려 해서 멈췄습니다.")
     answer = reply.get("structured_output")
     if not isinstance(answer, dict):
         try:

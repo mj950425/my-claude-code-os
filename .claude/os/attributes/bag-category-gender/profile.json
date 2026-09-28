@@ -190,6 +190,8 @@
       "listField": "images",
       "fileField": "file",
       "fileRoot": "output",
+      "urlField": "sourceUrl",
+      "urlSha256Field": "sourceSha256",
       "idField": "imageId",
       "roleField": "role",
       "roles": [

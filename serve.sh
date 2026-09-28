@@ -22,7 +22,14 @@ URL="http://$HOST:$PORT"
 # 인터프리터를 밖에서 정할 수 있게 둔다 — 엔진은 3.11 이상(datetime.UTC 등)을 쓰는데,
 # PATH가 좁으면 python3가 macOS 시스템 3.9로 잡혀 서버가 import에서 조용히 죽는다.
 # 코드를 3.9에 맞추는 대신 문을 하나 둔 것은, 3.9를 지키는 검사가 없어 곧 다시 깨지기 때문이다.
-PYTHON="${CATALOG_OS_PYTHON:-python3}"
+# 레포의 .venv가 있으면 그것이 기본이다 — «다음 후보 받기»의 판독 세션이 그 안의 Claude Agent SDK로 돈다(requirements.txt).
+DEFAULT_PYTHON="python3"
+[ -x "$OS_ROOT/../../.venv/bin/python" ] && DEFAULT_PYTHON="$OS_ROOT/../../.venv/bin/python"
+PYTHON="${CATALOG_OS_PYTHON:-$DEFAULT_PYTHON}"
+#
+# 판독은 구독(OAuth)으로만 돈다. 이 컴퓨터에서 «claude auth login»을 했으면 그대로 되고, 로그인할 브라우저가 없는
+# 클라우드 서버에서는 «claude setup-token»으로 받은 토큰을 CLAUDE_CODE_OAUTH_TOKEN에 넣고 띄운다 — 서버가 그 환경을 러너에 물려준다.
+# ANTHROPIC_API_KEY는 러너가 넘기지 않는다(API 과금으로 새지 않게). 확인: .venv/bin/python .claude/os/engine/scripts/gt_agent.py check
 
 alive() {
   [ -f "$PID_FILE" ] || return 1

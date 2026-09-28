@@ -8,6 +8,12 @@
    이미 다른 곳에서 잘려 온 조각은 선언된 판(`preTiledRule`)을 그대로 적는다 — 어느 규칙이 그
    조각을 만들었는지 모르면, 같은 `D02T03`이 다른 곳의 `D02T03`과 같은 사진인지 가릴 수 없다.
 3. **판독자에게 줄 글을 모은다.** 상품 정보 고시처럼 근거가 글인 GT도 있다.
+4. **로컬 파일이 없으면 주소로 받는다.** 색인이 사진마다 원본 주소(`urlField`)와 그 주소의 바이트 해시
+   (`urlSha256Field`)를 가지면, 파일이 없는 자리(사진 2.6GB를 옮기지 않은 서버)에서 주소로 받아
+   `runs/<id>/url-cache/`에 둔다. **해시가 맞는 바이트만 쓴다** — 주소의 내용은 판매자가 바꿀 수 있고, 바뀐 사진에
+   대한 판독은 GT가 본 사진에 대한 판독이 아니다. 해시는 가져오기(어댑터)가 로컬 파일과 같은 사진임을 확인한 뒤에만
+   적는다. 이미 잘린 조각(`preTiledRoles`)의 주소는 **자르기 전 원본**이다 — 받은 원본을 선언된 판으로 다시 잘라
+   이름(DxxTyy)의 조각을 꺼낸다(아래 «자르지 않은 원본» 분기와 같은 길).
 
 ## 눈가림을 입력으로 지킨다
 
@@ -22,7 +28,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+import ssl
 import sys
+import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +45,67 @@ import tile_rule  # noqa: E402
 DEFAULT_MAX_EDGE = 1024
 DEFAULT_MAX_IMAGES = 16
 JPEG_QUALITY = 85
+
+# 주소로 받은 사진의 자리(run 폴더 기준). 재현물이다 — 지워도 다음 준비가 다시 받는다.
+URL_CACHE = "url-cache"
+# 상세 원본 한 장이 수십 MB를 넘는 일은 없다. 이보다 크면 사진이 아닌 것을 받았다고 본다.
+MAX_DOWNLOAD_BYTES = 64 << 20
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_TIMEOUT = 45
+USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/140.0 Safari/537.36")
+
+
+class FetchError(Exception):
+    """주소에서 사진을 받지 못했다. 문장은 «못 받은 사진»의 까닭으로 사람에게 보인다."""
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """인증서·호스트 검사는 그대로 두고 Python 3.14의 엄격 모드만 끈다 — 브라우저·curl이 받는 CDN 체인 가운데
+    Authority Key Identifier가 없는 것이 있다. 평가 하네스(collect_product_detail_images.ssl_context)와 같다."""
+    context = ssl.create_default_context()
+    context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return context
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def fetch(url: str, cache_dir: Path, sha256: str | None = None) -> Path:
+    """주소의 바이트를 캐시에 받아 그 경로를 돌려준다. `sha256`이 있으면 그 바이트일 때만 — 다르면 받지 않은 것으로 본다."""
+    if not url.startswith(("http://", "https://")):
+        raise FetchError("주소가 http(s)가 아닙니다")
+    target = cache_dir / sha256_bytes(url.encode("utf-8"))
+    if target.is_file():
+        if sha256 is None or sha256_bytes(target.read_bytes()) == sha256:
+            return target
+        target.unlink()  # 예전에 받은 바이트가 확인한 사진이 아니다 — 다시 받는다
+    last: Exception | None = None
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT, context=_ssl_context()) as response:
+                data = response.read(MAX_DOWNLOAD_BYTES + 1)
+        except Exception as error:  # noqa: BLE001 — 받기 실패는 다시 해 보고, 끝내 못 받으면 문장 하나로 돌려준다
+            last = error
+            if attempt < DOWNLOAD_ATTEMPTS:
+                time.sleep(0.5 * attempt)
+            continue
+        if not data:
+            last = FetchError("빈 응답")
+            continue
+        if len(data) > MAX_DOWNLOAD_BYTES:
+            raise FetchError("사진이라기에 너무 큽니다")
+        if sha256 is not None and sha256_bytes(data) != sha256:
+            # 다시 받아도 같다 — 주소의 내용이 바뀌었다. 다른 사진을 이 건의 증거로 보이지 않는다.
+            raise FetchError("주소의 사진이 가져올 때 확인한 사진과 다릅니다(판매자가 사진을 바꿨을 수 있습니다)")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        temp = target.with_suffix(".part")
+        temp.write_bytes(data)
+        temp.replace(target)
+        return target
+    raise FetchError(f"받지 못했습니다: {type(last).__name__}: {last}")
 
 
 def opaque(batch: str, key: str) -> str:
@@ -160,6 +230,26 @@ class ImageIndex:
                 "path": str(Path(self.spec.get("fileBase") or ".") / str(value))}
         return resolve(self.profile, base)
 
+    def url_of(self, entry: dict[str, Any]) -> str | None:
+        """로컬 파일이 없을 때 받을 주소. 해시 열(urlSha256Field)을 선언했으면 해시가 있는 주소만 — 확인되지 않은 주소는
+        받지 않는다(가져오기가 로컬 파일과 대 보지 못했거나, 대 봤는데 다른 사진이었던 주소)."""
+        field = self.spec.get("urlField")
+        value = str(entry.get(field) or "") if field else ""
+        if not value.startswith(("http://", "https://")):
+            return None
+        if self.spec.get("urlSha256Field") and not self.url_sha256_of(entry):
+            return None
+        return value
+
+    def url_sha256_of(self, entry: dict[str, Any]) -> str | None:
+        field = self.spec.get("urlSha256Field")
+        value = entry.get(field) if field else None
+        return str(value).lower() if value else None
+
+    @property
+    def url_cache(self) -> Path:
+        return resolve(self.profile, {"root": "output", "path": URL_CACHE})
+
 
 def _save(image: Any, target: Path, max_edge: int) -> dict[str, int]:
     from PIL import Image
@@ -222,12 +312,22 @@ def prepare(index: ImageIndex, gt_row: dict[str, Any], key: str, out_dir: Path, 
             # 운영은 상세 원본 목록 안의 순번으로 D를 센다. 썸네일까지 센 순번을 쓰면 D가 밀린다.
             detail_position += 1
         path = index.file_of(entry)
+        from_url = False
         if path is None or not path.is_file():
-            raw = str(entry.get(spec.get("fileField") or "file") or "")
-            # 색인이 주소(https://…)를 가리키면 하네스는 내려받지 않는다 — 내려받기는 가져오기(prerequisite)의 일이다.
-            missing.append({"imageId": image_id, "reason": "사진이 로컬 파일이 아니라 주소입니다 — 가져오기가 내려받아야 합니다"
-                            if raw.startswith(("http://", "https://")) else "파일이 없습니다"})
-            continue
+            url = index.url_of(entry)
+            if url is not None:
+                # 로컬 파일이 없는 자리(서버) — 가져오기가 확인해 둔 주소에서 받는다(머리말 4).
+                try:
+                    path, from_url = fetch(url, index.url_cache, index.url_sha256_of(entry)), True
+                except FetchError as error:
+                    missing.append({"imageId": image_id, "reason": f"주소에서 받지 못했습니다 — {error}"})
+                    continue
+            else:
+                raw = str(entry.get(spec.get("fileField") or "file") or "")
+                # 파일 열이 주소(https://…)를 가리키면 받지 않는다 — 받을 주소는 확인된 주소 열(urlField)뿐이다.
+                missing.append({"imageId": image_id, "reason": "사진이 로컬 파일이 아니라 주소입니다 — 가져오기가 내려받아야 합니다"
+                                if raw.startswith(("http://", "https://")) else "파일이 없습니다"})
+                continue
         piece_decoder = cut_decoder
         try:
             # 자를 원본만 번호를 매긴 쪽의 디코드로 읽는다(경계가 밝기로 정해지므로). 보여 주기만 할 사진은
@@ -280,7 +380,9 @@ def prepare(index: ImageIndex, gt_row: dict[str, Any], key: str, out_dir: Path, 
                                "tileRule": tile_rule.rule(cut_version, piece_decoder),
                                "_image": image.crop((0, top, image.size[0], bottom))})
             continue
-        if role in pre_tiled_roles and image.size[1] > tile_rule.max_piece_height(image.size[0], tile_rule.rule_named(pre_tiled_rule)):
+        # 주소로 받은 조각 자리는 늘 자르기 전 원본이다(머리말 4) — 높이와 상관없이 선언된 판으로 다시 잘라 그 조각을 꺼낸다.
+        if role in pre_tiled_roles and (from_url or image.size[1] > tile_rule.max_piece_height(
+                image.size[0], tile_rule.rule_named(pre_tiled_rule))):
             # «이미 잘린 조각»이라 선언됐는데 어떤 판으로도 조각이 될 수 없는 높이다 — 자르지 않은 원본이 섞여 들어왔다.
             # 이름이 DxxTyy면 선언된 규칙으로 다시 잘라 그 조각을 꺼내고, 아니면 보이지 않는다(다른 사진을 조각이라 보이지 않게).
             name = tile_rule.parse_piece(image_id)  # canonical_piece와 같은 규칙
