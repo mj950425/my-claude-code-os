@@ -300,6 +300,8 @@ class GtHarnessKnowsNoTaskTest(unittest.TestCase):
         "engine/skills/gt-improve/SKILL.md",
         "engine/agents/gt-blind-reader.md",
         "engine/agents/gt-defender.md",
+        "engine/agents/policy-auditor.md",
+        "engine/agents/case-normalizer.md",
         "engine/contracts/gt-task.md",
     )
 

@@ -13284,6 +13284,52 @@
         "defense": "READER_RIGHT"
       },
       "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00574-192c",
+      "key": "5366824-01",
+      "field": "faceVisibility",
+      "decision": "CORRECT",
+      "before": null,
+      "after": "HIDDEN",
+      "previousSource": null,
+      "basis": "definitions#faceVisibility",
+      "batchId": "2026-09-27T15:00:55+00:00-c97539",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-28T09:25:33+00:00",
+      "supersedes": "GTD-00573",
+      "basedOn": {
+        "status": "FILL_PROPOSED",
+        "proposal": "VISIBLE",
+        "reader": "VISIBLE",
+        "defense": "READER_RIGHT"
+      },
+      "constraintWarnings": []
+    },
+    {
+      "decisionId": "GTD-00575-d95e",
+      "key": "5366824-01",
+      "field": "faceVisibility",
+      "decision": "CORRECT",
+      "before": null,
+      "after": "VISIBLE",
+      "previousSource": null,
+      "basis": "definitions#faceVisibility",
+      "batchId": "2026-09-27T15:00:55+00:00-c97539",
+      "reviewer": "이민준",
+      "channel": "screen",
+      "reason": "",
+      "decidedAt": "2026-09-28T09:25:34+00:00",
+      "supersedes": "GTD-00574-192c",
+      "basedOn": {
+        "status": "FILL_PROPOSED",
+        "proposal": "VISIBLE",
+        "reader": "VISIBLE",
+        "defense": "READER_RIGHT"
+      },
+      "constraintWarnings": []
     }
   ]
 }

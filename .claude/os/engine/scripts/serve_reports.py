@@ -368,6 +368,9 @@ class Handler(BaseHTTPRequestHandler):
                 raise FieldDecisionRejected(
                     "AI가 새 후보를 보는 중입니다 — Claude가 새 화면을 열어 드릴 때까지 기다려 주세요." if manifest.get("preparing")
                     else "새 화면이 준비됐습니다 — 이 탭은 지난 화면입니다. 새로고침해 주세요.")
+            # 화면이 본 그 칸의 마지막 판정 — 없으면 옛 화면(이 대조를 모르는 탭)이다. 다른 사람의 답을 조용히 덮지 않게 받지 않는다.
+            if "expectedLatest" not in body:
+                raise FieldDecisionRejected("화면이 오래됐습니다 — 새로고침한 뒤 다시 눌러 주세요.")
             entry = record_field(
                 attribute.profile,
                 key=str(body.get("key") or ""),
@@ -381,6 +384,7 @@ class Handler(BaseHTTPRequestHandler):
                 channel="screen-bulk" if body.get("bulk") is True else "screen",
                 batch=str(body.get("batch") or "") or None,
                 gap=bool(body.get("gap")),
+                expected_latest=body.get("expectedLatest"),
             )
         except (FieldDecisionRejected, DecisionRejected) as rejected:
             # 기록기의 거절은 사람에게 쓴 문장이다. 그대로 보인다.
@@ -408,13 +412,14 @@ class Handler(BaseHTTPRequestHandler):
                 raise incr_review.IncrRejected("어느 묶음에서 누른 것인지 알 수 없습니다 — 화면을 새로고침해 주세요.")
             batch = incr_review.pick_batch(attribute.profile, str(body["batch"]))
             if route == "/incr-decide":
-                if "expectedAi" not in body:
-                    raise incr_review.IncrRejected("화면이 보여 준 AI 제안이 요청에 없습니다 — 화면을 새로고침해 주세요.")
+                if "expectedAi" not in body or "expectedLatest" not in body:
+                    raise incr_review.IncrRejected("화면이 보여 준 AI 제안·지난 판정이 요청에 없습니다 — 화면을 새로고침해 주세요.")
                 entry = incr_review.record(
                     attribute.profile, batch, key=str(body.get("key") or ""), field=str(body.get("field") or ""),
                     decision=str(body.get("decision") or ""), reviewer=str(body.get("reviewer") or ""),
                     value=body.get("value"), reason=str(body.get("reason") or ""), expected_ai=body.get("expectedAi"),
-                    channel="screen-bulk" if body.get("bulk") is True else "screen")
+                    gap=body.get("gap") is True, expected_latest=body.get("expectedLatest"),
+                    channel="screen-recheck" if body.get("recheck") is True else "screen-bulk" if body.get("bulk") is True else "screen")
                 # 수는 status가 센 그대로 돌려준다 — 화면이 원장을 다시 세지 않게(규칙 8).
                 return self.send_json({"ok": True, "decision": entry, "status": incr_review.status(attribute.profile, batch)})
             if route == "/incr-export":
@@ -609,6 +614,9 @@ class Handler(BaseHTTPRequestHandler):
                     "이 탭은 20초마다 스스로 다시 봅니다.",
                     refresh=20,
                 )
+            if not pages and wanted and tasks:
+                # 준비 전 과제 — 막다른 404 대신 첫 화면의 그 과제 카드로(«○○ 개선해줘»라고 말하는 법이 거기 있다)
+                return self.redirect(f"/#task-{urllib.parse.quote(wanted)}")
             if not pages:
                 return self.fail(
                     HTTPStatus.NOT_FOUND,

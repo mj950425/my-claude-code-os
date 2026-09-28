@@ -28,6 +28,7 @@ import fcntl
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import tempfile
@@ -255,6 +256,7 @@ def record(
     channel: str,
     batch: str | None = None,
     gap: bool = False,
+    expected_latest: Any = ...,
 ) -> dict[str, Any]:
     """판정 한 줄을 검사하고 원장에 붙인다. 화면의 버튼과 터미널이 이 함수 하나를 지난다.
 
@@ -346,6 +348,11 @@ def record(
         decisions = read_ledger(profile)
         latest = effective(decisions)
         previous = latest.get((key, field))
+        # 화면이 본 그 칸의 마지막 판정 — 그사이 다른 사람이 답했으면 조용히 덮어쓰지 않고 거절한다(먼저 누른 답이 남는다).
+        # 말로 받은 판정(CLI)은 이 값을 모르므로 넘기지 않는다(...).
+        if expected_latest is not ... and (previous or {}).get("decisionId") != (expected_latest or None):
+            who = (previous or {}).get("reviewer") or "다른 사람"
+            raise DecisionRejected(f"{who}님이 먼저 이 칸을 답했습니다 — 화면에 그 답을 들였습니다. 보고 다시 골라 주세요.")
         # 이 판정을 얹은 줄이 선언된 제약을 어기면 알린다. 막지는 않는다 — 두 칸을 한 번에 고칠 수 없으니
         # 한 칸씩 고치는 중간에는 모순이 잠깐 생긴다. 모순이 남으면 그 칸들은 다음 준비에서 다시 올라온다.
         mine = {f: e for (k, f), e in latest.items() if k == key}
@@ -354,9 +361,10 @@ def record(
         # 한 제약이 칸마다 한 번씩 걸려도 문장은 한 번 — 같은 문장이 두 번 보이면 사람은 둘이 다른 경고인 줄 안다.
         warnings = list(dict.fromkeys(item["text"] or item["constraint"]
                                       for item in violations(task, effective_row(task, row, mine))))
-        number = max((int(str(item["decisionId"]).split("-")[-1]) for item in decisions), default=0) + 1
+        number = max((int(str(item["decisionId"]).split("-")[1]) for item in decisions), default=0) + 1
         entry = {
-            "decisionId": f"GTD-{number:05d}",
+            # 번호 뒤의 무작위 꼬리 — 다른 컴퓨터에서 쌓은 원장을 합쳐도 번호가 겹치지 않게(증분 원장과 같은 규칙)
+            "decisionId": f"GTD-{number:05d}-{secrets.token_hex(2)}",
             "key": key,
             "field": field,
             "decision": decision,
@@ -825,6 +833,34 @@ def export(profile: dict[str, Any], record_handout: bool = True) -> dict[str, An
         if write:
             _write_atomic(folder / "export.json", json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
     return summary
+
+
+def restore(profile: dict[str, Any], confirm: bool) -> dict[str, Any]:
+    """«되돌려줘» — 마지막 «반영»(`apply`)이 남긴 사본으로 원본 GT를 되돌린다. `confirm`이 아니면 무엇으로 되돌리는지만 말한다.
+
+    되돌리기 전 지금 원본도 사본으로 남긴다(`.before-restore-<시각>`) — 되돌리기도 되돌릴 수 있게. 판정 원장은 그대로다: 판정을 바꾸려면
+    화면에서 그 칸을 «바꾸기» 한 뒤 다시 반영한다(원장은 덮어쓰지 않는다 — 규칙 5). 상류가 원본인 과제는 파일에 넣은 적이 없어 되돌릴 것이 없다."""
+    task = load_task(profile)
+    source = resolve(profile, task["gt"])
+    if task["gt"].get("upstream"):
+        raise DecisionRejected("이 GT의 원본은 다른 원천(시트)이라 이 컴퓨터에서 넣은 적이 없습니다 — 되돌릴 것이 없습니다. 시트에서 고쳐 주세요.")
+    backups = sorted(source.parent.glob(f"{source.name}.before-gt-review-*"))
+    if not backups:
+        raise DecisionRejected("되돌릴 사본이 없습니다 — 이 GT에 «반영»으로 넣은 적이 없습니다.")
+    backup = backups[-1]
+    stamp = backup.name.rsplit("-", 1)[-1]
+    before = source.read_text(encoding="utf-8").splitlines()
+    after = backup.read_text(encoding="utf-8").splitlines()
+    differ = sum(1 for a, b in zip(before, after) if a != b) + abs(len(before) - len(after))
+    result = {"target": str(source), "backup": str(backup), "appliedAt": stamp, "linesToChange": differ, "restored": False}
+    if not confirm or not differ:
+        return result
+    with locked(profile):
+        now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        keep = source.with_name(f"{source.name}.before-restore-{now}")
+        shutil.copy2(source, keep)
+        shutil.copy2(backup, source)
+    return {**result, "restored": True, "kept": str(keep)}
 
 
 def apply(profile: dict[str, Any], confirm: bool) -> dict[str, Any]:

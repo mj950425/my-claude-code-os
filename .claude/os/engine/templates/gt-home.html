@@ -137,6 +137,23 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
   .btn{justify-content:center}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+.side-help{margin-top:auto;padding:12px 14px;border-radius:12px;background:var(--paper);font-size:12.5px;color:var(--muted);line-height:1.55}
+.side-help > summary{cursor:pointer;font-weight:600;color:var(--ink);list-style:none}
+.side-help > summary::-webkit-details-marker{display:none}
+.side-help > summary::before{content:"? ";color:var(--accent);font-weight:700}
+.side-help p{margin:8px 0}
+.side-help dl{margin:0}
+.side-help dt{margin-top:6px;font-weight:600;color:var(--ink)}
+.side-help dd{margin:0}
+.side-help[open]{max-height:60vh;overflow:auto}
+@media (max-width:900px){.side-help{display:none}}
+.today{background:#fff;border-radius:16px;padding:18px 24px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;border-left:4px solid var(--accent)}
+.today h2{font-size:16px;font-weight:700}
+.today-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.today-row p{font-size:14px;color:var(--muted)}
+.today-row b{color:var(--ink);margin-right:4px}
+.today-kind{display:inline-block;margin-right:8px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:600}
 </style>
 </head>
 <body>
@@ -150,6 +167,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     <div class="side-item" data-menu="policy"><a class="side-link" aria-haspopup="true" id="nav-policy" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu" aria-label="정책 — 고르기"></div></div>
     <div class="side-item" data-menu="golden"><a class="side-link" aria-haspopup="true" id="nav-golden" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋</a><div class="flyout" role="menu" aria-label="골든셋 — 고르기"></div></div>
   </nav>
+  <details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 정답 편 AI)이 다시 보고, 고칠 만한 칸만 올린 것.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>
 </aside>
 <main class="wrap">
   <header>
@@ -157,6 +175,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     <p class="lead">골든셋 검수마다 AI 둘이 다시 볼 칸을 골라 두었습니다. 열어서 맨 위에 이름을 적고 칸마다 버튼을 누르세요.
       버튼은 판정만 기록합니다 — GT가 실제로 바뀌는 순서는 카드 아래 단계에 있습니다.</p>
   </header>
+  <section id="today" class="today" hidden aria-live="polite"><h2>오늘 할 일</h2><div id="today-rows"></div></section>
   <div id="tasks" aria-live="polite"><p class="loading">골든셋 검수 목록을 읽는 중…</p></div>
   <p id="fail" hidden>골든셋 검수 목록을 읽지 못했습니다. Claude에게 «GT 화면 다시 열어줘»라고 말해 주세요.</p>
 </main>
@@ -285,7 +304,10 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
       var words = el("span");
       words.appendChild(document.createTextNode("고친 판정 "));
       words.appendChild(el("b", null, String(task.toHandOff) + "칸"));
-      words.appendChild(document.createTextNode("이 아직 GT에 들어가지 않았습니다 — " + (state.kind === "done" ? "" : "이 화면을 마친 뒤 ") + "Claude에게"));
+      // 원본이 이 컴퓨터·저장소의 파일이면 검수 화면의 «반영하기» 한 번이 곧 반영이다 — 카드의 단계 안내와 같은 말을 한다.
+      // 시트 원본(upstream)만 Claude가 붙여 넣을 목록을 만들어 준다.
+      words.appendChild(document.createTextNode("이 아직 GT에 들어가지 않았습니다 — " + (state.kind === "done" ? "" : "이 화면을 마친 뒤 ")
+        + (task.gtHome === "upstream" ? "Claude에게" : "검수 화면 위의 «반영하기»를 누르시거나 Claude에게")));
       hand.appendChild(words);
       hand.appendChild(phrase(task.name + " 반영해줘"));
       box.appendChild(hand);
@@ -364,6 +386,37 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     if (reviewBadge) { reviewBadge.hidden = !reviewLeft; reviewBadge.textContent = String(reviewLeft); }
   }
 
+  // 오늘 할 일 — 판정할 칸이 가장 많은 골든셋 검수 하나와 남은 건이 가장 많은 증분 묶음 하나. 무엇을 먼저 누를지 고르지 않게.
+  // 수는 서버가 센 그대로(골든셋 status · incr_review.home_rows)다.
+  function today(tasks) {
+    var box = document.getElementById("today"), rows = document.getElementById("today-rows");
+    var line = function (label, name, detail, href, button) {
+      var row = el("div", "today-row");
+      var text = el("p");
+      text.appendChild(el("span", "today-kind", label));
+      text.appendChild(el("b", null, name));
+      text.appendChild(document.createTextNode(" — " + detail));
+      row.appendChild(text);
+      var go = el("a", "btn", button); go.href = href; row.appendChild(go);
+      return row;
+    };
+    var golden = tasks.filter(function (t) { return t.prepared && !t.preparing && (n(t.waitingForHuman) + n(t.notRead)) > 0; })
+      .sort(function (a, b) { return (n(b.waitingForHuman) + n(b.notRead)) - (n(a.waitingForHuman) + n(a.notRead)); })[0];
+    fetch("/incr-tasks", {cache: "no-store"}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (incr) {
+      rows.textContent = "";
+      if (golden) rows.appendChild(line("골든셋 검수", golden.name, "판정할 칸 " + (n(golden.waitingForHuman) + n(golden.notRead)) + "개",
+                                        golden.page || ("/gt/" + encodeURIComponent(golden.task)), "이어서 판정하기 →"));
+      var best = null;
+      ((incr && incr.tasks) || []).forEach(function (t) {
+        (t.batches || []).forEach(function (b) { if (n(b.itemsLeft) && (!best || n(b.itemsLeft) > n(best.b.itemsLeft))) best = {t: t, b: b}; });
+      });
+      if (best) rows.appendChild(line("증분 검수", best.t.menuName || best.t.name, "남은 건 " + best.b.itemsLeft + "개",
+                                      "/incr?task=" + encodeURIComponent(best.t.task) + "&batch=" + encodeURIComponent(best.b.batch), "검수하기 →"));
+      if (!rows.children.length) rows.appendChild(el("p", null, "지금 판정할 칸이 없습니다. 새 후보는 과제 카드의 안내대로 Claude에게 요청해 주세요."));
+      box.hidden = false;
+    });
+  }
+
   function draw(data) {
     var list = document.getElementById("tasks");
     list.textContent = "";
@@ -374,6 +427,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     tasks.forEach(function (task) { column.appendChild(row(task)); });
     list.appendChild(column);
     side(tasks, data.otherDoors || []);
+    today(tasks);
     return tasks.some(function (task) { return task.preparing; });
   }
 

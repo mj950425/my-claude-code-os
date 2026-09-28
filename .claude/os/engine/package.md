@@ -31,8 +31,11 @@
 | 에이전트 | `agents/catalog-golden-adjudicator.md` — 큐의 한 건이 정책 공백인가 GT 오류인가 실행 오류인가 |
 | 에이전트 | `agents/catalog-policy-cluster-scout.md` — 같은 이유로 막힌 군집 하나가 어떤 정책 결함인가 |
 | GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) · `gt_next.py`(«다음 후보 받기» 러너 — 준비·판독·화면을 한 번에 하나만) · `gt_agent.py`(러너의 자식 — 워크플로우를 Claude Agent SDK로 부른다, 구독 OAuth만) — 계약 `contracts/gt-task.md` |
-| 증분 검수 | `scripts/incr_review.py` · `scripts/incr_render.py`(화면 `templates/incr.html`을 골든셋 검수와 같은 스타일 상수로 생성) — 새로 들어온 데이터(라벨 없음)를 골든셋 검수와 같은 과제 선언·판독자·잠금으로 AI가 먼저 읽고(워크플로우 `read` 단계만), 사람은 `/incr` 화면에서 클릭으로 확정한다. 원장은 `.claude/incr/<과제>/decisions.jsonl` — 계약 `contracts/incremental-review.md` |
+| 증분 검수 | `scripts/incr_review.py` · `scripts/incr_collect.py`(운영에서 새 상품을 모아 입력 두 장으로 — 조회문을 만들고, 받은 결과로 대표 사진·상세 조각을 준비한다. 조회 자체는 읽기 전용 `mysql-query` 스킬) · `scripts/incr_render.py`(화면 `templates/incr.html`을 골든셋 검수와 같은 스타일 상수로 생성) — 새로 들어온 데이터(라벨 없음)를 골든셋 검수와 같은 과제 선언·판독자·잠금으로 AI가 먼저 읽고(워크플로우 `read` 단계만), 사람은 `/incr` 화면에서 클릭으로 확정한다. 원장은 `.claude/incr/<과제>/decisions.jsonl` — 계약 `contracts/incremental-review.md` |
 | GT 개선 워크플로우 | `workflows/gt-review.js` — 과제를 모른다. 판독자·반론자 유형도 인자로 받는다 |
+| 정책 관리 | `scripts/gt_policy.py` — 규칙·사례의 표준(범위 어휘·물음 모양), 중복·충돌 후보 쌍, 규칙을 넣기 전 문지기, 정리 결과를 제안으로. 명령은 `gt_review.py rule`·`qa`·`policy` · 워크플로우 `workflows/policy-review.js`(칸마다 사례 다듬기 → 중복·충돌) — 계약 `contracts/gt-task.md` «정책 관리» |
+| 에이전트 | `agents/policy-auditor.md` — 규칙·사례의 후보 쌍이 중복·충돌·좁힘·무관 중 무엇인가. 정리할 때 합칠·올릴·뺄 것을 제안한다 |
+| 에이전트 | `agents/case-normalizer.md` — 표준이 아닌 사례 물음을 경계 물음 하나로 다듬은 초안 |
 | 에이전트 | `agents/gt-blind-reader.md` — GT를 모른 채 사진과 정의만으로 칸을 읽는다 |
 | 에이전트 | `agents/gt-defender.md` — 판독이 GT와 갈린 칸에서 GT를 지킬 근거를 찾는다 |
 | 스킬 | `skills/gt-improve` — 데이터 운영팀의 단일 진입점 «GT 개선해줘» · `skills/incr-review` — «증분 넣어줘»·«증분 검수» |

@@ -283,6 +283,7 @@ def definition_texts(path: Path) -> dict[str, str]:
 # 정책의 규칙 — 검수에서 자란다. 칸 절의 `### 규칙`에는 적용 중인 규칙만, 대체된 규칙은 `## 보관`에 둔다.
 # 판독자는 `reader_policy`가 그 상품에 걸리는 규칙만 잘라 준 칸 절을 읽는다(범위 밖·보관은 빠진다).
 #   - `R1` <규칙 문장> → `<허용값 코드>`        (→ 뒤는 없어도 된다 — 값으로 이어지지 않는 안내 규칙)
+#     - 조건: <규칙 문장의 «~이면» 부분만>        (값을 내는 규칙은 반드시 — 중복·충돌을 이 줄끼리 대조한다)
 #     - 물음: <이 규칙을 낳은 AI의 물음>          (검수 문답일 때)
 #     - 출처: <검수 문답 · 날짜 · 사람 · 판정 ID | 직접 작성 · 날짜 · 사람>   (반드시)
 #     - 범위: <상품 카테고리 이름 한 마디, 쉼표로 여럿>   (없으면 모든 상품)
@@ -292,7 +293,26 @@ RULES_HEAD = "### 규칙"
 ARCHIVE_SECTION = "보관"
 PURPOSE_SECTION = "목적"
 PURPOSE_PARTS = ("무엇을 가르나", "어디에 쓰나", "기대 효과")
-RULE_KEYS = ("물음", "출처", "범위", "근거")
+RULE_KEYS = ("조건", "물음", "출처", "범위", "근거")
+# 규칙은 경계 하나다 — 이 상품을 떠나서도 통해야 한다. 사진 번호·«이 상품» 같은 말이 들어간 문장은 다음 판독자에게 뜻이 없다.
+# (검수 문답의 물음에도 같은 규칙을 건다 — gt_policy.question_problems.)
+# «이 상품»의 «이»는 지시어일 때만 — «프레임이 상품과»처럼 앞 낱말의 조사인 «이»는 걸지 않는다(앞에 한글이 붙어 있다).
+CASE_TALK = re.compile(r"(?<![A-Za-z0-9])P\d{2}(?!\d)|(?<![가-힣])(?:이|해당) 상품|(?<![가-힣])이 사진|사진 \d")
+_WORD_ENDING_MYEON = re.compile(r"\S*면(?=[\s,])")
+# «면»으로 끝나지만 조건 어미가 아닌 낱말(면이 곧 «쪽·겉»인 명사). 조건 초안이 여기서 잘리면 뜻이 반쪽이 된다.
+_MYEON_NOUNS = {"표면", "측면", "정면", "전면", "후면", "단면", "화면", "양면", "앞면", "뒷면", "옆면", "평면", "곡면", "내면",
+                "외면", "지면", "장면", "방면", "국면", "반면", "안면", "겉면", "윗면", "아랫면", "밑면", "면"}
+
+
+def derive_condition(text: str) -> str | None:
+    """규칙 문장에서 «~면» 앞부분(첫 조건 어미까지)을 잘라 조건 초안을 만든다. 사람이 확인한다 — 못 자르면 None(사람에게 묻는다)."""
+    text = (text or "").strip()
+    for match in _WORD_ENDING_MYEON.finditer(text):
+        word = re.sub(r"[^가-힣]", "", match.group(0))
+        if word in _MYEON_NOUNS:
+            continue
+        return text[:match.end()].strip()
+    return None
 RULE_LINE_SHAPE = "- `R1` 규칙 문장 → `코드`"
 _RULE_LINE = re.compile(r"^- `(?:([A-Za-z][\w-]*)/)?(R\d+)` (.+?)(?: → `([^`\s]+)`)?$")
 _RULE_SUB = re.compile(r"^\s{2,}- ([^:：]+): (.+)$")
@@ -337,6 +357,16 @@ def _rule_block(where: str, lines: list[str], labels: dict[str, list[str]], many
     for rule in rules:
         if not rule.get("출처"):
             raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']}에 «출처» 줄이 없습니다 — 어디서 온 규칙인지 모르면 되짚을 수 없습니다.")
+        if not archive:
+            # 보관된 규칙은 옛 모양 그대로 둔다 — 계보이지 지금 판독의 기준이 아니다.
+            if rule.get("value") and not rule.get("조건"):
+                raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']}에 «조건» 줄이 없습니다 — 값을 내는 규칙은 "
+                                "«~이면» 부분을 `  - 조건: …`으로 따로 적습니다(중복·충돌을 이 줄끼리 대조합니다).")
+            for part, text in (("문장", rule["text"]), ("조건", rule.get("조건") or "")):
+                talk = CASE_TALK.search(text)
+                if talk:
+                    raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']} {part}에 «{talk.group(0)}»이 있습니다 — "
+                                    "규칙은 이 상품을 떠나서도 통하는 경계 하나입니다. 사진·상품 이야기는 사례에 남깁니다.")
         if archive and not rule.get("대체"):
             raise TaskError(f"정의 문서 {where}의 규칙 {rule['field']}/{rule['id']}에 «대체» 줄이 없습니다 — 무엇으로 바뀌었는지 적어 주세요.")
     return rules

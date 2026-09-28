@@ -152,7 +152,17 @@ def _ai(text: Any) -> str:
         word = words[match.group(1)]
         return word + (josa(word, match.group(2)) if match.group(2) else "")
 
-    return re.sub(r"(?<![A-Za-z])(LOW|MEDIUM|HIGH)(?![A-Za-z])(으로|로|이다|다|이나|나|이면|면|이|가|은|는|을|를|과|와)?", swap, str(text or ""))
+    text = re.sub(r"(?<![A-Za-z])(LOW|MEDIUM|HIGH)(?![A-Za-z])(으로|로|이다|다|이나|나|이면|면|이|가|은|는|을|를|과|와)?", swap, str(text or ""))
+    # 하네스 안쪽 낱말을 운영팀의 말로 — AI가 제 지시문의 낱말(정의 문서·판독자·검수 문답)을 문장에 흘리곤 한다. 조사는 바꾼 낱말에 맞춘다.
+    for inner, plain in INNER_WORDS:
+        text = re.sub(re.escape(inner) + r"(으로|로|이다|다|이나|나|이면|면|이|가|은|는|을|를|과|와)?",
+                      lambda m, plain=plain: plain + (josa(plain, m.group(1)) if m.group(1) else ""), text)
+    return text
+
+
+# 긴 낱말부터 — «판독자»를 «판독»보다 먼저 바꾼다
+INNER_WORDS = (("판독 값", "사진을 본 AI의 값"), ("판독값", "사진을 본 AI의 값"), ("정의 문서", "정책"), ("검수 문답", "사람이 답한 사례"), ("반론 AI", "GT가 맞는지 다시 본 AI"),
+               ("판독자", "사진을 본 AI"), ("판독기", "사진을 본 AI"), ("이 문서", "정책"))
 
 
 def _inline(text: str, names: dict[str, str]) -> str:
@@ -395,6 +405,14 @@ def merge(worklist: dict[str, Any], sweep: dict[str, Any] | None, ledger: list[d
 
 
 SCRIPT = r"""
+// 글쇠 J — 다음 안 한 칸으로(증분 검수 화면과 같은 글쇠). 이름 칸·입력 중에는 듣지 않고, ⌘·Ctrl과 함께 누른 것은 무시한다.
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'KeyJ' || event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) return;
+  const tag = (event.target && event.target.tagName) || '';
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag) || (event.target && event.target.isContentEditable)) return;
+  const viewer = document.getElementById('viewer'); if (viewer && !viewer.hidden) return;
+  const button = document.getElementById('next-open'); if (button && !button.hidden) button.click();
+});
 const data = JSON.parse(document.getElementById('gt-review-data').textContent);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const NAMES = {CORRECT: '고침', CONFIRM: 'GT로 유지', LEAVE_EMPTY: '빈칸 유지', CLEAR: '비움', HOLD: '보류'};
@@ -402,9 +420,21 @@ const CHANGES = ['CORRECT', 'CLEAR'];
 const labelOf = (field, value) => value == null ? '(빈칸)' : String(value).split('|').map(part => (data.labelNames[field] || {})[part] || part).join(' + ');
 let pendingBox = null;
 const nameBox = document.getElementById('reviewer');
-try { nameBox.value = localStorage.getItem('gt-review-reviewer') || ''; } catch (e) {}
+// 이름은 이 탭에서만 기억한다(증분 검수와 같다) — 컴퓨터를 같이 쓰면 앞사람 이름으로 기록되지 않게. 지난 이름은 고르기 목록으로만.
+try {
+  nameBox.value = sessionStorage.getItem('gt-review-reviewer') || '';
+  const list = document.createElement('datalist'); list.id = 'reviewer-recent';
+  JSON.parse(localStorage.getItem('gt-review-reviewer-recent') || '[]').forEach(name => { const o = document.createElement('option'); o.value = name; list.appendChild(o); });
+  document.body.appendChild(list); nameBox.setAttribute('list', 'reviewer-recent');
+} catch (e) {}
+nameBox.addEventListener('focus', () => nameBox.select());
+nameBox.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === 'Escape') nameBox.blur(); });
 nameBox.addEventListener('change', () => {
-  try { localStorage.setItem('gt-review-reviewer', nameBox.value.trim()); } catch (e) {}
+  try {
+    sessionStorage.setItem('gt-review-reviewer', nameBox.value.trim());
+    const recent = JSON.parse(localStorage.getItem('gt-review-reviewer-recent') || '[]').filter(name => name !== nameBox.value.trim());
+    if (nameBox.value.trim()) localStorage.setItem('gt-review-reviewer-recent', JSON.stringify([nameBox.value.trim(), ...recent].slice(0, 8)));
+  } catch (e) {}
   // 이름을 적으면 그 칸으로 돌아와, 아직 기록되지 않았다고 말한다 — 조용히 지우면 기록된 줄 안다.
   if (nameBox.value.trim()) { const hint = document.getElementById('name-hint'); if (hint) hint.hidden = true; }
   if (pendingBox && nameBox.value.trim()) {
@@ -554,6 +584,8 @@ async function send(box, decision, value, bulk = false) {
     batch: data.batchId, gap: !!(box.querySelector('input.gap') || {}).checked,
     expectedBefore: box.dataset.current === '' ? null : box.dataset.current,
     proposal: JSON.parse(box.dataset.proposal || 'null'), bulk,
+    // 화면이 본 그 칸의 마지막 판정 — 그사이 다른 사람이 답했으면 서버가 거절하고, 이 화면이 그 답을 들인다
+    expectedLatest: box.dataset.latest || null,
   };
   box.querySelectorAll('button').forEach(b => b.disabled = true);
   // 이미 답한 칸을 다시 누르다 실패하면 전의 판정이 사라진 것처럼 보인다 — 전의 문장을 들고 있다가 실패 문장 뒤에 붙인다.
@@ -564,7 +596,11 @@ async function send(box, decision, value, bulk = false) {
     response = await fetch('/gt-decide', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     let answer = null;
     try { answer = await response.json(); } catch (e) { throw new Error(human('', {status: 404})); }
-    if (!answer.ok) throw new Error(human(answer.error, response));
+    if (!answer.ok) {
+      if (/먼저 이 칸을 답했습니다/.test(answer.error || '')) load();  // 다른 사람의 답을 곧바로 들인다
+      throw new Error(human(answer.error, response));
+    }
+    box.dataset.latest = answer.decision.decisionId || '';
     paint(box, answer.decision);
     return true;
   } catch (error) {
@@ -654,9 +690,18 @@ document.querySelectorAll('a.pic').forEach(link => link.addEventListener('click'
   if (img) { const more = img.closest('details'); if (more) more.open = true; openFrom(img); }
 }));
 // 다음 안 한 칸으로 — 긴 화면에서 남은 칸을 찾으려고 스크롤을 되풀이하지 않게.
-document.getElementById('next-open').addEventListener('click', () => {
+// «다음 안 한 칸»(J) — 지금 보고 있는 자리 **다음의** 안 한 칸으로. 뒤에 없으면 처음부터(앞 페이지 포함) 찾는다.
+// 늘 맨 위의 칸으로 가면 어려운 칸을 건너뛸 수 없다(증분 검수의 J와 같다).
+function nextOpenTarget() {
   const open = b => !b.classList.contains('done') && !b.classList.contains('stale') && !b.classList.contains('held');
-  const target = [...document.querySelectorAll('.cell[data-actionable="1"], .cell.NOT_READ')].find(open);
+  const cells = [...document.querySelectorAll('.cell[data-actionable="1"], .cell.NOT_READ')];
+  let here = -1;
+  cells.forEach((c, i) => { if (c.offsetParent && c.getBoundingClientRect().top < window.innerHeight / 2) here = i; });
+  return cells.slice(here + 1).find(open) || cells.find(open) || null;
+}
+document.getElementById('next-open').addEventListener('click', () => {
+  // 페이지 넘김(아래 잡는 단계)이 먼저 고른 칸이 있으면 그것 — 페이지를 바꾼 뒤 다시 고르면 다른 칸이 된다
+  const target = window.NEXT_TARGET || nextOpenTarget(); window.NEXT_TARGET = null;
   if (!target) return;
   const item = target.closest('.item');
   if (item) { item.classList.remove('folded'); const again = item.querySelector('.reopen'); if (again) again.hidden = true; }
@@ -725,6 +770,7 @@ async function load() {
       document.querySelectorAll('.cell').forEach(box => {
         const cell = box.dataset.key + '\u0000' + box.dataset.field;
         const entry = latest[cell];
+        box.dataset.latest = entry ? entry.decisionId || '' : '';
         const current = box.dataset.current === '' ? null : box.dataset.current;
         // 사람이 고른 값이 원본에 들어갔다(«반영하기» 뒤). 바뀐 것이 아니라 반영된 것이다.
         if (entry && CHANGES.includes(entry.decision) && cell in now && now[cell] === entry.after && now[cell] !== current) {
@@ -773,6 +819,8 @@ load().then(foldFinished);
 others();
 // 다른 탭에서 돌아오면 다시 읽는다 — 그사이 «다음 거»로 새 배치가 생겼으면 이 탭을 막는다.
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+// 같은 화면을 다른 사람이 열어 두었을 수 있다 — 30초마다 다른 사람의 답을 들인다(증분 검수와 같다)
+if (served) setInterval(() => { if (!document.hidden) load(); }, 30000);
 """
 
 EXTRA_STYLE = """
@@ -1318,8 +1366,12 @@ def sidebar_html(active: str, task_id: str | None, base: str = "") -> str:
             + link("incr", "증분 검수", "/incr") + link("policy", "정책", "/" if base is None else base + "policy.html")
             + link("golden", "골든셋", "/" if base is None else base + "golden.html")
             + '</nav>'
-            '</aside>')
+            + SIDEBAR_HELP
+            + '</aside>')
 
+
+# 사이드바 맨 아래 도움말 — «Claude에게 말해 주세요»가 어디인지와 화면의 말뜻. 코딩을 모르는 운영팀이 막히는 첫 자리다.
+SIDEBAR_HELP = '<details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 정답 편 AI)이 다시 보고, 고칠 만한 칸만 올린 것.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>'
 
 SIDEBAR_SCRIPT = r"""
 (() => {
@@ -1394,6 +1446,17 @@ SIDEBAR_SCRIPT = r"""
 """
 
 SIDEBAR_STYLE = """
+.side-help{margin-top:auto;padding:12px 14px;border-radius:12px;background:var(--paper);font-size:12.5px;color:var(--muted);line-height:1.55}
+.side-help > summary{cursor:pointer;font-weight:600;color:var(--ink);list-style:none}
+.side-help > summary::-webkit-details-marker{display:none}
+.side-help > summary::before{content:"? ";color:var(--accent);font-weight:700}
+.side-help p{margin:8px 0}
+.side-help dl{margin:0}
+.side-help dt{margin-top:6px;font-weight:600;color:var(--ink)}
+.side-help dd{margin:0}
+.side-help[open]{max-height:60vh;overflow:auto}
+@media (max-width:900px){.side-help{display:none}}
+
 /* 밀도 — 화면 전체를 한 비율로 줄인다(사용자가 고른 촘촘한 크기). 바꿀 때는 이 한 줄만. */
 :root{--zoom:.75}
 html{zoom:var(--zoom)}
@@ -1591,8 +1654,7 @@ PAGE_SCRIPT = r"""
   // «다음 안 한 칸»이 다른 페이지의 칸을 가리키면 그 페이지로 먼저 간다.
   document.addEventListener('click', event => {
     if (!event.target.closest || !event.target.closest('#next-open')) return;
-    const open = b => !b.classList.contains('done') && !b.classList.contains('stale') && !b.classList.contains('held');
-    const target = [...document.querySelectorAll('.cell[data-actionable="1"], .cell.NOT_READ')].find(open);
+    const target = nextOpenTarget(); window.NEXT_TARGET = target;
     const item = target && target.closest('.item[data-page]');
     if (item && Number(item.dataset.page) !== page) show(Number(item.dataset.page), false);
   }, true);
@@ -1759,7 +1821,7 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
     verdict_name = {"READER_RIGHT": "제안에 동의 — 지금 GT를 지킬 근거를 못 찾음", "GT_STANDS": "지금 GT가 맞다고 봄",
                     "CANT_TELL": "못 정함"}
     # 반론 AI를 부르지 않은 까닭을 칸마다 말한다 — 이유가 없으면 사람은 AI가 실패한 줄 알고 «다시 봐줘»를 되풀이한다.
-    not_called = {"GT_HOLDS": "(두 값이 같아 묻지 않았음)", "NEEDS_HUMAN_LOOK": "사진을 본 AI가 확신하지 못해 반론 AI는 부르지 않았습니다 — 사진을 직접 보고 값 버튼을 눌러 주세요",
+    not_called = {"GT_HOLDS": "(두 값이 같아 묻지 않았음)", "NEEDS_HUMAN_LOOK": "사진을 본 AI가 확신하지 못해 GT가 맞는지 다시 보는 AI는 부르지 않았습니다 — 사진을 직접 보고 값 버튼을 눌러 주세요",
                   "NOT_READ": "(사진을 본 AI의 답이 없어 묻지 않았음)", "NO_EVIDENCE": "(증거가 없어 묻지 않았음)"}
     defense_text = verdict_name.get(rebuttal.get("verdict"), not_called.get(cell["status"], "(답이 돌아오지 않음)"))
     actionable = "1" if cell["status"] in ACTIONABLE else "0"
@@ -1770,17 +1832,15 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
     # 근거 구역 — 결정할 것(위)과 읽을 것(아래)을 무게로 가른다. 값은 진하게, 근거 문장은 회색.
     if reading:
         low = " (확신 낮음)" if reading.get("confidence") == "LOW" else ""
-        reader_html = (f'<b>{e(_label(field, reading.get("value")))}</b>{low}'
+        # 값을 내지 못한 판독은 «(빈칸)»이 아니라 말로 — «(빈칸)»은 GT가 빈칸이라는 뜻과 헷갈린다
+        reader_html = ((f'<b>{e(_label(field, reading.get("value")))}</b>{low}' if reading.get("value") not in (None, "", [])
+                        else "<b>값을 고르지 못했습니다</b>")
                        + (f' — [{evidence}] {e(_ai(reading.get("observation")))}' if reading.get("observation") else ""))
-        cited = [str(rule) for rule in reading.get("rulesApplied") or []]
-        if cited:
-            known = field.get("ruleTexts") or {}
-            reader_html += '<br><span class="sub">따른 정책 규칙 — ' + " · ".join(
-                f'{e(rule)} {e(known[rule])}' if rule in known else f'{e(rule)} (정책에 없는 규칙입니다 — 근거를 직접 봐 주세요)'
-                for rule in cited) + "</span>"
+        reader_html += _citations_html(reading, field, item)
     else:
         reader_html = "(답이 돌아오지 않음)"
-    defense_html = (f'<b>{e(defense_text)}</b>' + (f' — [{defense_ids}] {e(_ai(rebuttal.get("why")))}' if rebuttal else ""))
+    defense_html = (f'<b>{e(defense_text)}</b>' + (f' — [{defense_ids}] {e(_ai(rebuttal.get("why")))}' if rebuttal else "")
+                    + (_citations_html(rebuttal, field, item) if rebuttal else ""))
     contradicted = "GT_SELF_CONTRADICTION" in (cell.get("signals") or [])
     # 고치자는 제안은 근거가 접혀 있어도 한 줄은 보이게 — 무엇을 보고 그 값을 냈는지 모른 채 누르지 않게.
     first = re.split(r"(?<=[.?!다])\s+", _ai(reading.get("observation") or "").strip())[0] if reading.get("observation") else ""
@@ -1825,16 +1885,36 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
     <dl>
       <dt>AI가 사진에서 본 것</dt>
       <dd>{reader_html}</dd>
-      <dt>지금 GT 쪽에서 다시 본 AI</dt>
+      <dt>지금 GT가 맞는지 다시 본 AI</dt>
       <dd>{defense_html}</dd>
     </dl>
     {f'<details class="def"><summary>이 항목의 정책 보기</summary><div class="deftext">{field["definitionHtml"]}</div></details>' if field.get("definitionHtml") else ''}
-    <details class="meta"><summary>기록용 정보</summary>왜 올라왔나 {e(reasons)} · GT 출처 <span title="{e(cell.get('currentSource') or '')}">{e(AUTHORITY_SHORT.get(cell.get("authority"), "없음") if cell.get("currentSource") else "없음")}</span>{f" · 지난 판정 {e(cell['previousDecision'])}" if cell.get('previousDecision') else ''}</details>
+    <details class="meta"><summary>기록용 정보</summary>왜 올라왔나 {e(reasons)} · GT 출처 <span>{e(AUTHORITY_SHORT.get(cell.get("authority"), "없음") if cell.get("currentSource") else "없음")}</span>{f" · 지난 판정 {e(cell['previousDecision'])}" if cell.get('previousDecision') else ''}</details>
   </details>
   </div>
   <p class="result"></p>
   <button type="button" class="change">바꾸기</button>
 </div>"""
+
+
+def _citations_html(answer: dict[str, Any], field: dict[str, Any], item: dict[str, Any]) -> str:
+    """AI가 근거로 댄 규칙과 판례를 사람이 읽는 문장으로. 규칙은 지금 정책의 문장, 판례는 그 배치에서 이 건에 준 사례(번호 → 물음·답).
+    번호만 보이면 사람이 정책 페이지와 사례 파일을 열어 찾아야 한다. 받지 않은 것을 댔으면 그렇다고 적는다."""
+    e = html.escape
+    rules = [str(rule) for rule in answer.get("rulesApplied") or []]
+    cases = [str(case) for case in answer.get("casesApplied") or []]
+    parts = []
+    if rules:
+        known = field.get("ruleTexts") or {}
+        parts.append('<br><span class="sub">따른 정책 규칙 — ' + " · ".join(
+            f'{e(rule)} {e(known[rule])}' if rule in known else f'{e(rule)} (정책에 없는 규칙입니다 — 근거를 직접 봐 주세요)'
+            for rule in rules) + "</span>")
+    if cases:
+        given = item.get("_cases") or {}
+        parts.append('<br><span class="sub">따른 판례 — ' + " · ".join(
+            f'«{e(given[case]["question"])}» → {e(given[case]["answerName"])}' if case in given
+            else f'{e(case)} (이 상품에 주지 않은 판례입니다 — 근거를 직접 봐 주세요)' for case in cases) + "</span>")
+    return "".join(parts)
 
 
 def _diff_html(field: dict[str, Any], cell: dict[str, Any], reading: dict[str, Any]) -> str:
@@ -1914,6 +1994,13 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
     except (OSError, KeyError, TaskError, NameError):
         rule_texts = {}
     column_names = task.get("columnNames") or {}
+    # 준비가 건마다 준 판례 표(번호 → 물음·답). 이 화면의 배치 것만 쓴다 — 번호는 배치마다 다시 매겨진다.
+    try:
+        given_policy = json.loads((root / "policy-given.json").read_text(encoding="utf-8"))
+        if given_policy.get("batchId") != review.get("batchId"):
+            given_policy = {}
+    except (OSError, json.JSONDecodeError):
+        given_policy = {}
     for field_id, field in fields.items():
         field["ruleTexts"] = rule_texts.get(field_id) or {}
         field["textNames"] = _names_for_text(fields, field, column_names)
@@ -1944,7 +2031,7 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
             kind = role_names.get(str(image.get("role")))
             return (f'<b title="원래 이름 {e(image["imageId"])}">{e(image.get("viewId") or "")}</b>'
                     + (f' · {e(kind)}' if kind else "")
-                    + (f'<span class="meta-rule" title="잘린 규칙 {e(rule)}"></span>' if rule else ""))
+                    + (f'<span class="meta-rule" data-rule="{e(rule)}"></span>' if rule else ""))  # 자른 규칙은 기록용 — 마우스에 띄우지 않는다
         # AI가 근거로 든 사진을 앞에, «AI 근거» 표시와 함께. 사진이 많으면 나머지는 접는다 — 12장을 같은 무게로 늘어놓으면
         # 무엇을 봐야 할지 사람이 다시 찾아야 한다. 증거만 본 AI의 인용만 쓴다(반론 AI는 전부를 인용하곤 해 표시가 무의미해진다).
         cited = []
@@ -1993,11 +2080,14 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
             text += ('<p class="why">'
                      + " · ".join(f'<span title="{e(str(column_names.get(name, name)))}">{e(str(value))}</span>' for name, value in item["context"].items())
                      + "</p>")
+        # 빠진 사진 — 운영팀에게는 장 수만, 사진 이름(D02T04 같은 내부 코드)은 «기록용 정보» 안에
         gaps = ""
-        if item.get("missing"):
-            gaps += f'<p class="why">못 받은 사진: {e(" · ".join(m["imageId"] for m in item["missing"]))}</p>'
-        if item.get("omitted"):
-            gaps += f'<p class="why">너무 많아 고르게 뽑고 뺀 사진: {e(" · ".join(item["omitted"]))}</p>'
+        lost = [m["imageId"] for m in item.get("missing") or []]
+        dropped = list(item.get("omitted") or [])
+        if lost or dropped:
+            said = " · ".join(part for part in (f"못 받은 사진 {len(lost)}장" if lost else "", f"너무 많아 고르게 뽑고 뺀 사진 {len(dropped)}장" if dropped else "") if part)
+            names = " · ".join(part for part in (f"못 받음: {' · '.join(lost)}" if lost else "", f"뺌: {' · '.join(dropped)}" if dropped else "") if part)
+            gaps += f'<details class="meta"><summary>{e(said)}</summary>{e(names)}</details>'
         caution = any((cell.get("reading") or {}).get("definitionGap") for cell in item["cells"])
         title = " · ".join(part for part in (item.get("title"), item.get("group")) if part)
         subtitle = f' <small style="color:var(--muted);font-weight:400">{e(title)}</small>' if title else ""
@@ -2012,6 +2102,7 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
         if target is not None:
             target["ask"] = {"question": legacy, "here": "", "imageIds": [], "options": [], "legacy": True}
         ask = (f'<p class="ask"><b>AI가 묻는 것</b> — {e(legacy)}</p>' if legacy and target is None else "")
+        item["_cases"] = ((given_policy.get("items") or {}).get(item["id"]) or {}).get("cases") or {}
         cell_parts = [_cell_html(item, cell, fields.get(cell["field"]) or {}, signals, clear_ok, review.get("batchId"), caution)
                       for cell in item["cells"]]
         cells = "".join(cell_parts)
@@ -2037,7 +2128,7 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
                 '판정에는 문제가 없지만, 읽기 어려우면 Claude에게 «이 건 한국어로 다시 봐줘»라고 말해 주세요.</p>')
     if (review.get("warnings") or {}).get("rulesUnknown"):
         odd = review["warnings"]["rulesUnknown"]
-        warn += (f'<p class="notice">AI가 이 상품에 주지 않은 정책 규칙을 따랐다고 적은 칸이 있습니다'
+        warn += (f'<p class="notice">AI가 이 상품에 주지 않은 규칙·판례를 근거로 적은 칸이 있습니다'
                  f'({e(", ".join(sorted({str(row.get("item")) for row in odd})))}). 그 칸은 근거를 직접 보고 골라 주세요.</p>')
     body = f"""<div class="shell">{sidebar_html("review", review["profileId"])}<div class="wrap">
 <header class="masthead">

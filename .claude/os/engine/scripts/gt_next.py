@@ -48,6 +48,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,15 +128,21 @@ def _busy_message(state: dict[str, Any]) -> str:
     return "이미 AI가 검수중입니다."
 
 
+# 한 프로세스 안의 «도는 중인가» 확인은 차례로 — 서버는 요청을 스레드로 받는다. 두 요청이 같이 잠금을 잠깐 쥐어 보면
+# 서로의 잠깐을 «다른 러너가 돈다»로 읽는다(증분 화면이 아무것도 안 도는데 «다른 AI 작업 중»을 띄웠다).
+_probe = threading.Lock()
+
+
 def running(run_dir: Path | None = None) -> dict[str, Any] | None:
     """지금 도는 준비. 없으면 None. 파일이 아니라 잠금으로 가른다 — 죽은 러너의 상태 파일을 «도는 중»으로 읽지 않게."""
     folder = _dir(run_dir)
     if folder in _held:
         return _read_state(folder)
-    handle = _try_lock(folder)
-    if handle is None:
-        return _read_state(folder)
-    _release(handle)
+    with _probe:
+        handle = _try_lock(folder)
+        if handle is None:
+            return _read_state(folder)
+        _release(handle)
     return None
 
 

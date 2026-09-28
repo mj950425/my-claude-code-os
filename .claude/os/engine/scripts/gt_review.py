@@ -45,6 +45,7 @@ from catalog_profile import PROJECT_ROOT, discover_profiles, load_profile, outpu
 from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page, apply, current_answers, reasked, definition_gaps, effective, export,
                           locked, read_ledger, record)
 from gt_next import gate, lock_dir
+from gt_policy import check_audit
 from gt_images import ImageIndex, prepare as prepare_evidence, require_pillow
 from gt_review_render import call_name, change_moment, flow_steps, legacy_ask
 from gt_task import (
@@ -559,7 +560,9 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
         policy_path.write_text(policy_text, encoding="utf-8")
         given["items"][item["id"]] = policy_meta
         # 조회층 — 사례 목록(제목)과 사례 파일. 이 상품 자신의 답은 싣지 않는다(그건 이 칸의 정답이다).
-        cases_index = write_reader_cases(folder / "cases", [case for case in cases if case["key"] != item["key"]])
+        cases_index, case_names = write_reader_cases(folder / "cases", [case for case in cases if case["key"] != item["key"]])
+        # 사례 번호(C01)는 배치 안에서만 뜻이 있다 — 판독이 «C07을 따랐다»고 하면 화면이 물음·답으로 되돌린다(사람 쪽 기록).
+        given["items"][item["id"]]["cases"] = case_names
         view = {
             "schemaVersion": "gt-review-reader-view-v5",
             "policy": relative_or_absolute(policy_path),
@@ -624,22 +627,24 @@ def reader_cases(profile: dict[str, Any], task: dict[str, Any], definitions: Pat
     fields = field_map(task)
     policy = definition_policy(definitions, {fid: [str(c) for c in spec["labels"]] for fid, spec in fields.items()},
                                {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()})
-    by_question = {(rule["field"], rule.get("물음")): rule for rules in policy["rules"].values() for rule in rules if rule.get("물음")}
+    from gt_policy import rule_links
+    links = rule_links(policy)
     cases = []
     for row in answered_questions(profile, task):
-        rule = by_question.get((row["field"], row["question"]))
-        cases.append({"key": row["key"], "field": row["field"], "fieldName": row["fieldName"], "question": row["question"],
+        rule = links.get((row["field"], row["decisionId"])) or links.get((row["field"], row["question"]))
+        cases.append({"key": row["key"], "decisionId": row["decisionId"], "field": row["field"], "fieldName": row["fieldName"], "question": row["question"],
                       "here": row.get("here") or "", "answer": row["answer"], "answerName": row["answerName"],
                       "rule": rule["id"] if rule else None, "ruleText": rule_line(rule) if rule else None,
                       "decidedAt": row.get("decidedAt")})
     return cases
 
 
-def write_reader_cases(folder: Path, cases: list[dict[str, Any]]) -> Path | None:
+def write_reader_cases(folder: Path, cases: list[dict[str, Any]]) -> tuple[Path | None, dict[str, dict[str, Any]]]:
     """사례 목록(index.json — 제목만)과 사례 파일(C01.json …)을 쓴다. 사례가 없으면 아무것도 쓰지 않는다.
-    사례 번호는 배치 안에서만 뜻이 있다 — 판정 ID를 쓰면 판독자가 원장에서 그 키를 찾을 실마리가 된다."""
+    사례 번호는 배치 안에서만 뜻이 있다 — 판정 ID를 쓰면 판독자가 원장에서 그 키를 찾을 실마리가 된다.
+    돌려주는 표(번호 → 판정 ID·물음·답)는 사람 쪽에만 남긴다(`policy-given.json`)."""
     if not cases:
-        return None
+        return None, {}
     folder.mkdir(parents=True, exist_ok=True)
     index = []
     for number, case in enumerate(cases, 1):
@@ -652,7 +657,10 @@ def write_reader_cases(folder: Path, cases: list[dict[str, Any]]) -> Path | None
                       "answerName": case["answerName"], "rule": case["rule"], "file": relative_or_absolute(folder / f"{case_id}.json")})
     path = folder / "index.json"
     write_json(path, {"schemaVersion": "gt-review-cases-v1", "cases": index})
-    return path
+    names = {f"C{number:02d}": {"decisionId": case.get("decisionId"), "field": case["field"], "question": case["question"],
+                                "answerName": case["answerName"], "rule": case["rule"]}
+             for number, case in enumerate(cases, 1)}
+    return path, names
 
 
 def reread(profile: dict[str, Any], task: dict[str, Any], root: Path) -> int:
@@ -759,20 +767,26 @@ def sweep_warnings(profile: dict[str, Any], value: dict[str, Any]) -> dict[str, 
 
 
 def rule_warnings(root: Path, value: dict[str, Any]) -> list[dict[str, Any]]:
-    """판독이 인용한 규칙(rulesApplied) 가운데 그 건의 정책 파일에 없던 것 — 받지 않은 규칙을 따랐다고 적었거나(지어냄),
-    범위 밖이라 뺀 규칙을 댔다. 어느 쪽이든 그 칸의 판독 근거를 사람이 한 번 더 봐야 한다. 받은 규칙은 준비가 남긴
-    `policy-given.json`에 있다 — 배치가 다르면 대조하지 않는다."""
+    """판독·반론이 인용한 규칙(rulesApplied)과 판례(casesApplied·casesOpened) 가운데 그 건이 받지 않은 것 — 받지 않은 규칙·판례를
+    따랐다고 적었거나(지어냄), 범위 밖이라 뺀 규칙을 댔다. 어느 쪽이든 그 칸의 근거를 사람이 한 번 더 봐야 한다. 받은 것은 준비가
+    남긴 `policy-given.json`에 있다 — 배치가 다르면 대조하지 않는다."""
     given = read_json(root / "policy-given.json") or {}
     if not given.get("items") or given.get("batchId") != value.get("batchId"):
         return []
     found = []
     for item in value.get("items") or []:
-        rules = ((given["items"].get(item.get("id")) or {}).get("rules")) or {}
-        for reading in (item.get("reading") or {}).get("readings") or []:
-            cited = [str(rule) for rule in reading.get("rulesApplied") or []]
-            unknown = [rule for rule in cited if rule not in (rules.get(str(reading.get("field"))) or [])]
+        meta = given["items"].get(item.get("id")) or {}
+        rules = meta.get("rules") or {}
+        cases = meta.get("cases") or {}
+        cited_rows = [("판독", row) for row in (item.get("reading") or {}).get("readings") or []]
+        cited_rows += [("반론", row) for row in (item.get("defense") or {}).get("rebuttals") or []]
+        for who, row in cited_rows:
+            field = str(row.get("field"))
+            unknown = [str(rule) for rule in row.get("rulesApplied") or [] if str(rule) not in (rules.get(field) or [])]
+            unknown += [str(case) for case in [*(row.get("casesApplied") or []), *(row.get("casesOpened") or [])]
+                        if str(case) not in cases]
             if unknown:
-                found.append({"item": item.get("id"), "field": reading.get("field"), "rules": unknown})
+                found.append({"item": item.get("id"), "field": row.get("field"), "by": who, "rules": sorted(set(unknown))})
     return found
 
 
@@ -940,6 +954,13 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
     print(json.dumps(publish(find_profile(args.task), base=args.base, confirm=args.yes, open_pr=not args.no_pr),
                      ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    from gt_decisions import restore
+
+    print(json.dumps(restore(find_profile(args.task), confirm=args.yes), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -1117,6 +1138,8 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
     fields = {field["id"]: field for field in task["fields"]}
     path = gt_dir(profile) / ASKED_LOG
     shown = {(r.get("batchId"), r.get("key"), r.get("field")): r for r in read_jsonl_file(path)} if path.is_file() else {}
+    from gt_policy import rewrites
+    fixes = rewrites(profile)
     rows = []
     for (key, field_id), entry in effective(read_ledger(profile)).items():
         if entry["decision"] not in ("CORRECT", "CONFIRM") or field_id not in fields:
@@ -1126,10 +1149,21 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
             continue
         field = fields[field_id]
         value = entry["after"] if entry["decision"] == "CORRECT" else entry["before"]
+        # 사람이 다듬은 물음이 있으면 그것을 쓴다(원장의 판정은 그대로다 — gt_policy «사례의 물음 다듬기»).
+        fixed = fixes.get(entry["decisionId"])
+        if fixed:
+            ask = {**ask, "question": fixed["question"], "here": fixed.get("here") or ask.get("here") or ""}
         rows.append({"id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
                      "fieldName": field.get("name") or field_id, "question": ask["question"], "here": ask.get("here") or "",
                      "answer": value, "answerName": _value_name(field, value),
                      "reviewer": entry.get("reviewer"), "decidedAt": entry.get("decidedAt")})
+    # 증분 검수에서 답한 물음도 같은 정책 위의 사람 판단이다 — 한 목록으로(정책 페이지의 «검수 문답», 다음 판독자의 사례)
+    try:
+        import incr_review
+
+        rows.extend(incr_review.answered_questions(profile, task))
+    except (ImportError, OSError, ValueError):
+        pass
     return sorted(rows, key=lambda row: (row["field"], row["decidedAt"] or ""))
 
 
@@ -1151,9 +1185,11 @@ def qa_candidates(profile: dict[str, Any]) -> list[dict[str, Any]]:
     """규칙으로 다듬을 거리 — 답한 물음(`answered_questions`)에, 이미 규칙의 `물음:`으로 들어갔는지를 붙인다."""
     task = load_task(profile)
     policy = _policy(profile, task)
-    asked_in_policy = {(rule["field"], rule.get("물음")) for rule in
-                       [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"]] if rule.get("물음")}
-    return [{**row, "inPolicy": (row["field"], row["question"]) in asked_in_policy} for row in answered_questions(profile, task)]
+    every = [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"]]
+    asked_in_policy = {(rule["field"], rule.get("물음")) for rule in every if rule.get("물음")}
+    asked_in_policy |= {(rule["field"], decision) for rule in every for decision in re.findall(r"GTD-\d+(?:-[0-9a-f]{4})?", str(rule.get("출처") or ""))}
+    return [{**row, "inPolicy": (row["field"], row["question"]) in asked_in_policy or (row["field"], row["decisionId"]) in asked_in_policy}
+            for row in answered_questions(profile, task)]
 
 
 def _value_name(field: dict[str, Any], value: Any) -> str:
@@ -1218,7 +1254,8 @@ def _categories(profile: dict[str, Any], keys: list[str]) -> dict[str, str]:
 
 
 def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer: str, confirm: bool,
-           scope: str | None = None, replace: str | None = None) -> dict[str, Any]:
+           scope: str | None = None, replace: str | None = None, condition: str | None = None,
+           audit_file: str | None = None, accept_risk: str | None = None) -> dict[str, Any]:
     """고른 판정을 규칙 한 건으로 정책에 옮긴다. 한 번에 규칙 하나 — 같은 칸·같은 답의 판정만 묶는다.
     답이 갈린 판정을 한 규칙으로 묶지 않는다(정책이 스스로 모순된다)."""
     reviewer, rule = (reviewer or "").strip(), (rule or "").strip()
@@ -1239,11 +1276,17 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
         asked = " / ".join(dict.fromkeys(row["question"] for row in picked))
         raise DecisionRejected(f"정책에 넣을 규칙 문장을 --rule로 주세요. 물음: {asked} → 답: {picked[0]['answerName']}. "
                                "이 상품을 떠나서도 통하는 한 문장으로, 사람이 확인한 문장이어야 합니다.")
-    field_id, first = picked[0]["field"], picked[0]
+    from gt_policy import question_problems
+    # 규칙의 «물음:»은 표준 물음(경계 물음 하나)인 사례에서 고른다 — 옛 배치의 섞인 물음이 정책에 그대로 옮겨지지 않게.
+    standard = [row for row in picked if not question_problems(row["question"])]
+    field_id, first = picked[0]["field"], (standard or picked)[0]
     if ((profile.get("gtTask") or {}).get("definitionsRoot") or "project") != "project":
         raise DecisionRejected("정의 문서가 이 저장소 밖에 있습니다 — 그 저장소에서 고쳐 주세요.")
     keys = list(dict.fromkeys(row["key"] for row in picked))
-    notes = []
+    notes = [] if standard else ["고른 사례의 물음이 모두 표준이 아닙니다 — 규칙의 «물음:»에 옛 물음이 그대로 들어갑니다. "
+                                 "먼저 qa --rewrite로 다듬으면 다듬은 물음이 들어갑니다."]
+    condition = _condition_for(rule, condition, first["answer"])
+    categories = _check_scope(profile, task, scope)
     if scope:
         seen = _categories(profile, keys)
         names = [name.strip() for name in scope.split(",") if name.strip()]
@@ -1258,6 +1301,7 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
     rule_id = next_rule_id(policy, field_id)
     today = datetime.now(timezone.utc).date().isoformat()
     lines = [f"- `{rule_id}` {rule} → `{first['answer']}`",
+             f"  - 조건: {condition}",
              f"  - 물음: {first['question']}",
              f"  - 출처: 검수 문답 · {today} · {reviewer} · {', '.join(row['decisionId'] for row in picked)}"]
     if scope:
@@ -1275,8 +1319,12 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
         text, taken = _remove_rule(text, field_id, replace)
         taken[0] = taken[0].replace(f"- `{replace}` ", f"- `{field_id}/{replace}` ", 1)
         plan["archive"] = taken + [f"  - 대체: {rule_id} · {today} · {reviewer}"]
+    subject = {"id": rule_id, "text": rule, "value": str(first["answer"]), "조건": condition, "범위": scope}
+    plan["audit"] = _audit(profile, task, policy, field_id, subject, categories, exclude={replace} if replace else set(),
+                           skip_cases={row["decisionId"] for row in picked})
     if not confirm:
         return plan
+    plan["history"] = history = _risk_note(history, check_audit(plan["audit"], audit_file, accept_risk), accept_risk)
     text = _append_to_block(text, field_id, "### 규칙", lines)
     if replace:
         text = _append_to_block(text, "보관", None, plan["archive"])
@@ -1309,7 +1357,8 @@ RULE_ACTIONS = ("add", "edit", "retire")
 
 def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: str, confirm: bool,
                 text: str | None = None, value: str | None = None, scope: str | None = None,
-                rule_id: str | None = None, reason: str | None = None) -> dict[str, Any]:
+                rule_id: str | None = None, reason: str | None = None, condition: str | None = None,
+                audit_file: str | None = None, accept_risk: str | None = None) -> dict[str, Any]:
     reviewer = (reviewer or "").strip()
     if action not in RULE_ACTIONS:
         raise DecisionRejected(f"규칙 작업은 {' · '.join(RULE_ACTIONS)} 가운데 하나입니다.")
@@ -1353,12 +1402,19 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
             raise DecisionRejected("넣을 규칙 문장을 --text로 주세요. 이 상품을 떠나서도 통하는 한 문장이어야 합니다.")
         new_id = next_rule_id(policy, field_id)
         code = check_value(value)
-        lines = [f"- `{new_id}` {text.strip()}" + (f" → `{code}`" if code else ""),
-                 f"  - 출처: 직접 작성 · {today} · {reviewer}"]
+        categories = _check_scope(profile, task, scope)
+        cond = _condition_for(text, condition, code)
+        lines = [f"- `{new_id}` {text.strip()}" + (f" → `{code}`" if code else "")]
+        if cond:
+            lines.append(f"  - 조건: {cond}")
+        lines.append(f"  - 출처: 직접 작성 · {today} · {reviewer}")
         if (scope or "").strip():
             lines.append(f"  - 범위: {scope.strip()}")
         body = _append_to_block(body, field_id, "### 규칙", lines)
         plan.update(rule=lines, ruleId=new_id)
+        plan["audit"] = _audit(profile, task, policy, field_id,
+                               {"id": new_id, "text": text.strip(), "value": code, "조건": cond, "범위": (scope or "").strip()},
+                               categories)
         history = stamp + f"{name} {new_id} 추가 — 직접 작성({reviewer})"
     else:
         if not rule_id or rule_id not in active:
@@ -1372,9 +1428,15 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
             new_text = (text or "").strip() or old["text"]
             code = old.get("value") if value is None else check_value(value)
             new_scope = old.get("범위") if scope is None else scope.strip()
-            if (new_text, code, new_scope or None) == (old["text"], old.get("value"), old.get("범위") or None):
-                raise DecisionRejected(f"{rule_id}에서 바뀌는 것이 없습니다 — 문장(--text)·값(--value)·범위(--scope) 중 하나를 바꿔 주세요.")
+            categories = _check_scope(profile, task, new_scope)
+            # 문장이 바뀌면 조건도 다시 자른다(사람이 --condition으로 주지 않았다면). 문장이 그대로면 옛 조건을 쓴다.
+            cond = (condition or "").strip() or (old.get("조건") if new_text == old["text"] else None)
+            cond = _condition_for(new_text, cond, code)
+            if (new_text, code, new_scope or None, cond) == (old["text"], old.get("value"), old.get("범위") or None, old.get("조건")):
+                raise DecisionRejected(f"{rule_id}에서 바뀌는 것이 없습니다 — 문장(--text)·값(--value)·범위(--scope)·조건(--condition) 중 하나를 바꿔 주세요.")
             lines = [f"- `{new_id}` {new_text}" + (f" → `{code}`" if code else "")]
+            if cond:
+                lines.append(f"  - 조건: {cond}")
             if old.get("물음"):
                 lines.append(f"  - 물음: {old['물음']}")  # 이 규칙을 낳은 물음은 고쳐도 같다 — 사례와 규칙을 잇는 줄이다
             lines.append(f"  - 출처: 직접 작성 · {today} · {reviewer} · {rule_id} 고침")
@@ -1385,6 +1447,9 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
             archive = taken + [f"  - 대체: {new_id} · {today} · {reviewer}"]
             body = _append_to_block(body, field_id, "### 규칙", lines)
             plan.update(rule=lines, ruleId=new_id, replaces=rule_id)
+            plan["audit"] = _audit(profile, task, policy, field_id,
+                                   {"id": new_id, "text": new_text, "value": code, "조건": cond, "범위": new_scope}, categories,
+                                   exclude={rule_id})
             history = stamp + f"{name} {new_id} 추가, {rule_id} 대체 — 직접 고침({reviewer})"
         else:
             if not (reason or "").strip():
@@ -1397,9 +1462,54 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
     plan["history"] = history
     if not confirm:
         return plan
+    if plan.get("audit"):
+        plan["history"] = history = _risk_note(history, check_audit(plan["audit"], audit_file, accept_risk), accept_risk)
     _commit_policy(profile, path, original, body, history, new_version, today)
     plan["applied"] = True
     return plan
+
+
+def _condition_for(text: str, given: str | None, value: Any) -> str | None:
+    """값을 내는 규칙의 조건 — 사람이 준 것, 없으면 문장에서 자른 초안(미리 보기에서 사람이 확인한다). 못 자르면 묻는다."""
+    from gt_task import derive_condition
+
+    if not value:
+        return (given or "").strip() or None
+    cond = (given or "").strip() or derive_condition(text)
+    if not cond:
+        raise DecisionRejected("규칙 문장에서 조건(«~이면» 부분)을 잘라내지 못했습니다 — --condition으로 «어떤 상황이면»만 따로 적어 주세요.")
+    return cond
+
+
+def _check_scope(profile: dict[str, Any], task: dict[str, Any], scope: str | None) -> dict[str, Any] | None:
+    """범위 이름이 이 과제의 카테고리 마디인지 — 오타 범위는 어느 상품에도 걸리지 않아 규칙이 조용히 죽는다."""
+    from gt_policy import category_map, near_names, scope_problems
+
+    categories = category_map(profile, task)
+    names = [name.strip() for name in (scope or "").split(",") if name.strip()]
+    odd = scope_problems(names, categories)
+    if odd:
+        hints = "; ".join(f"«{name}»" + (f" — 비슷한 이름: {', '.join(near_names(name, categories))}" if near_names(name, categories) else "")
+                          for name in odd)
+        raise DecisionRejected(f"범위가 이 과제의 카테고리 이름이 아닙니다: {hints}. 카테고리 경로의 한 마디를 그대로 적어 주세요.")
+    return categories
+
+
+def _audit(profile: dict[str, Any], task: dict[str, Any], policy: dict[str, Any], field_id: str, subject: dict[str, Any],
+           categories: dict[str, Any] | None, exclude: set[str] | None = None, skip_cases: set[str] | None = None) -> dict[str, Any]:
+    from gt_policy import audit_request, candidate_pairs, field_cases
+
+    field = field_map(task)[field_id]
+    rules = [rule for rule in policy["rules"].get(field_id, []) if rule["id"] not in (exclude or set())]
+    cases = field_cases(profile, task, policy).get(field_id, [])
+    pairs = candidate_pairs(field, rules, cases, categories, subject=subject, skip_cases=skip_cases)
+    return audit_request(profile, field, subject, pairs)
+
+
+def _risk_note(history: str, blocking: list[dict[str, Any]], accept_risk: str | None) -> str:
+    if not blocking:
+        return history
+    return history + f" — 검사 경고({', '.join(row['with'] for row in blocking)})를 무릅씀: {accept_risk.strip()}"
 
 
 def rule_list(profile: dict[str, Any]) -> dict[str, Any]:
@@ -1421,15 +1531,58 @@ def cmd_rule(args: argparse.Namespace) -> int:
     if not args.field:
         raise DecisionRejected("어느 칸의 규칙인지 --field로 주세요(칸 ID나 이름).")
     print(json.dumps(rule_change(profile, args.action, args.field, args.reviewer or "", args.yes, text=args.text,
-                                 value=args.value, scope=args.scope, rule_id=args.id, reason=args.reason),
+                                 value=args.value, scope=args.scope, rule_id=args.id, reason=args.reason,
+                                 condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk),
                      ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_policy(args: argparse.Namespace) -> int:
+    """정책의 건강(check), 정리 워크플로우의 입력(review), 그 결과를 제안 목록으로(finish). 셋 다 정책을 고치지 않는다."""
+    from gt_policy import category_map, health, lint_cases, review_input, scope_problems
+    from gt_task import rule_scope
+
+    profile = find_profile(args.task)
+    task = load_task(profile)
+    policy = _policy(profile, task)
+    if args.action == "check":
+        categories = category_map(profile, task)
+        odd = [{"field": rule["field"], "rule": rule["id"], "scope": bad}
+               for rules in policy["rules"].values() for rule in rules
+               for bad in scope_problems(rule_scope(rule), categories)]
+        out = {**health(profile, task, policy), "scopeUnknown": odd, "categoriesKnown": categories is not None,
+               "casesNotStandardList": lint_cases(profile)}
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+    root = output_root(profile) / "policy-review"
+    if args.action == "review":
+        value = review_input(profile, task, policy)
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / "input.json"
+        write_json(path, value)
+        fields = [f["id"] for f in value["fields"] if f["rules"] or f["cases"]]
+        print(json.dumps({"workflowArgs": {"task": profile["id"], "input": relative_or_absolute(path), "fields": fields,
+                                           "normalize": [f["id"] for f in value["fields"] if any(c["problems"] for c in f["cases"])]},
+                          "note": None if fields else "규칙도 사례도 없습니다 — 정리할 것이 없습니다."}, ensure_ascii=False, indent=2))
+        return 0
+    # finish
+    from gt_policy import finish_review
+    print(json.dumps(finish_review(profile, task, Path(args.source)), ensure_ascii=False, indent=2))
     return 0
 
 
 def cmd_qa(args: argparse.Namespace) -> int:
     profile = find_profile(args.task)
-    if args.add:
-        print(json.dumps(qa_add(profile, args.add, args.rule or "", args.reviewer or "", args.yes, args.scope, args.replace),
+    if args.lint:
+        from gt_policy import lint_cases
+        print(json.dumps({"task": profile["id"], "notStandard": lint_cases(profile)}, ensure_ascii=False, indent=2))
+    elif args.rewrite:
+        from gt_policy import record_rewrite
+        print(json.dumps(record_rewrite(profile, args.rewrite, args.question or "", args.here, args.reviewer or "", args.yes),
+                         ensure_ascii=False, indent=2))
+    elif args.add:
+        print(json.dumps(qa_add(profile, args.add, args.rule or "", args.reviewer or "", args.yes, args.scope, args.replace,
+                                condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk),
                          ensure_ascii=False, indent=2))
     else:
         print(json.dumps({"task": profile["id"], "answered": qa_candidates(profile)}, ensure_ascii=False, indent=2))
@@ -1507,6 +1660,10 @@ def status_of(profile: dict[str, Any]) -> dict[str, Any]:
         status["holdsItems"] = sum(1 for item in review.get("items") or []
                                    if False)  # 묶음 유지 버튼이 없어졌다 — 누를 횟수는 늘 0
     status["definitionGaps"] = definition_gaps(profile, latest)
+    # 정책의 건강 — 한 칸의 규칙이 너무 많거나(정리할 때) 표준이 아닌 물음의 사례가 있으면(조회층에서 못 찾는다) 알린다.
+    from gt_policy import health
+    task_now = load_task(profile)
+    status["policy"] = health(profile, task_now, _policy(profile, task_now))
     return status
 
 
@@ -1560,8 +1717,20 @@ def main() -> int:
     qa.add_argument("--rule", help="정책에 넣을 규칙 문장(사람이 확인한 것). 이 상품을 떠나서도 통하는 한 문장")
     qa.add_argument("--scope", help="이 규칙이 걸리는 상품 카테고리 이름(쉼표로 여럿). 없으면 모든 상품")
     qa.add_argument("--replace", help="이 규칙이 대체하는 같은 칸의 규칙 ID(R0 같은) — 보관으로 옮긴다")
+    qa.add_argument("--condition", help="규칙의 조건(«~이면» 부분). 없으면 문장에서 잘라 초안을 낸다")
+    qa.add_argument("--audit", help="중복·충돌 판정 파일. 없으면 미리 보기가 알려 준 자리에서 찾는다")
+    qa.add_argument("--accept-risk", help="중복·충돌 판정을 무릅쓰고 넣는 이유 — 변경 이력에 남는다")
+    qa.add_argument("--lint", action="store_true", help="표준이 아닌 물음(물음 둘·사진 번호·물음 아님)을 가진 사례 목록")
+    qa.add_argument("--rewrite", help="물음을 다듬을 판정 ID(GTD-…). --question과 함께. 원장은 그대로다")
+    qa.add_argument("--question", help="다듬은 물음 — 경계 물음 하나, 사진·상품 이야기 없이")
+    qa.add_argument("--here", help="다듬은 «이 사진에서» 한 문장(없으면 그대로)")
     qa.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇을 넣을지만 말한다")
     qa.set_defaults(run=cmd_qa)
+    pol = sub.add_parser("policy", help="정책의 건강을 보고(check), 정리 워크플로우를 준비하고(review), 그 결과를 제안으로 만든다(finish)")
+    pol.add_argument("action", choices=("check", "review", "finish"))
+    pol.add_argument("--task", required=True)
+    pol.add_argument("--from", dest="source", help="finish — 워크플로우 출력 파일")
+    pol.set_defaults(run=cmd_policy)
     rule = sub.add_parser("rule", help="정책의 규칙을 보고, 사람이 직접 더하거나(add) 고치거나(edit) 뺀다(retire)")
     rule.add_argument("action", nargs="?", choices=RULE_ACTIONS, help="없으면 지금 규칙 목록만 본다")
     rule.add_argument("--task", required=True)
@@ -1571,9 +1740,16 @@ def main() -> int:
     rule.add_argument("--value", help="규칙이 가리키는 허용값 코드. 값 여럿 필드는 «A|B». edit에서 «»(빈 문자열)이면 값을 뗀다")
     rule.add_argument("--scope", help="걸리는 상품 카테고리 이름(쉼표로 여럿). edit에서 «»(빈 문자열)이면 모든 상품")
     rule.add_argument("--reason", help="retire의 이유 — 보관에 남는다")
+    rule.add_argument("--condition", help="조건(«~이면» 부분). 없으면 문장에서 잘라 초안을 낸다")
+    rule.add_argument("--audit", help="중복·충돌 판정 파일. 없으면 미리 보기가 알려 준 자리에서 찾는다")
+    rule.add_argument("--accept-risk", help="중복·충돌 판정을 무릅쓰고 넣는 이유 — 변경 이력에 남는다")
     rule.add_argument("--reviewer", help="고치는 사람")
     rule.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")
     rule.set_defaults(run=cmd_rule)
+    back = sub.add_parser("restore", help="«되돌려줘» — 마지막 반영 전의 원본 GT로 되돌린다(--yes가 있을 때만)")
+    back.add_argument("--task", required=True)
+    back.add_argument("--yes", action="store_true")
+    back.set_defaults(run=cmd_restore)
     app = sub.add_parser("apply")
     app.add_argument("--task", required=True)
     app.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")
@@ -1587,7 +1763,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return args.run(args)
-    except (TaskError, DecisionRejected) as error:
+    except (TaskError, DecisionRejected) as error:  # gt_policy.PolicyRejected는 TaskError다
         print(f"멈춤: {error}", file=sys.stderr)
         return 2
     except FileNotFoundError as error:

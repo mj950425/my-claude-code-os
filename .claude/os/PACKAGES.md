@@ -140,6 +140,8 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 | engine | `catalog-policy-cluster-scout` | 같은 이유로 막힌 **군집 하나**가 어떤 정책 결함인가 |
 | engine | `gt-blind-reader` | GT 개선 과제의 **한 건**을 정답도 모델 값도 모른 채 증거와 정의만으로 읽는다 |
 | engine | `gt-defender` | 판독이 GT와 갈린 칸에서 **GT를 지킬 근거**를 찾는다. 못 찾으면 그렇다고 답한다 |
+| engine | `policy-auditor` | 정책 규칙·사례의 **후보 쌍 하나**가 같은 경계에 같은 값(중복)인가 다른 값(충돌)인가. 정책은 고치지 않는다 |
+| engine | `case-normalizer` | 표준이 아닌 **사례 물음 하나**를 경계 물음 하나로 다듬은 초안. 답은 바꾸지 않는다 |
 | review | `catalog-run-reviewer` | run **하나**가 사람 판정의 근거가 될 수 있는가. 상품은 판정하지 않는다 |
 | review | `catalog-scene-cast-tagger` | 이 장면이 **어떤 종류**이고 여기 나온 사람은 **누구**인가. 값은 정하지 않는다 |
 | review | `catalog-target-match-reader` | **사람 없는 컷**의 물건이 파는 그 물건인가 |

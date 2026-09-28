@@ -136,11 +136,24 @@ class FlowTest(Base):
         for field, value in (("finish", "GLOSSY"), ("sheen", "HIGH")):
             self.label("N1", field, value)
         incr_review.record(self.profile, self.batch, "N2", "finish", "HOLD", "민준", expected_ai="GLOSSY")
+        # 한 번에 확정한 칸이 있으면 표본을 다른 사람이 눈가림으로 다시 봐야 결과가 나간다
+        blocked = incr_review.export(self.profile, self.batch)
+        self.assertEqual((blocked["ok"], blocked["recheckPending"]), (False, 1))
+        self.assertEqual(incr_review.screen_data(self.profile, self.batch)["recheckCells"], {"N1": ["tones"]})
+        with self.assertRaises(incr_review.IncrRejected):  # 확정한 본인은 다시 볼 수 없다
+            self.label("N1", "tones", "WARM", channel="screen-recheck")
+        self.label("N1", "tones", "WARM|COOL", channel="screen")  # 본인이 «바꾸기»로 고쳐도 다시 본 것이 아니다
+        self.assertEqual(incr_review.status(self.profile, self.batch)["recheckedItems"], 0)
+        seen = incr_review.record(self.profile, self.batch, "N1", "tones", "LABEL", "지은", value="WARM|COOL",
+                                  expected_ai=self.ai("N1", "tones"), channel="screen-recheck")
+        self.assertTrue(seen["recheckAgreed"], "앞 답과 같은 값을 골랐다 — 확인")
+        counts = incr_review.status(self.profile, self.batch)
+        self.assertEqual((counts["recheckedItems"], counts["recheckChanged"]), (1, 0))
         result = incr_review.export(self.profile, self.batch)
         self.assertEqual((result["labeled"], result["pending"]), (1, 1))
         labeled = [json.loads(line) for line in (self.root / "incr" / self.profile["id"] / "labeled" /
                                                  f"{self.batch}.jsonl").read_text(encoding="utf-8").splitlines()]
-        self.assertEqual((labeled[0]["sku"], labeled[0]["color"], labeled[0]["tones"]), ("N1", "RED", ["WARM"]))
+        self.assertEqual((labeled[0]["sku"], labeled[0]["color"], sorted(labeled[0]["tones"])), ("N1", "RED", ["COOL", "WARM"]))
         self.assertEqual(labeled[0]["colorSource"], "INCR_REVIEW_AI_AGREED")
 
         status = incr_review.status(self.profile, self.batch)
@@ -148,6 +161,40 @@ class FlowTest(Base):
         screen = incr_review.screen_data(self.profile, self.batch)
         self.assertEqual(screen["items"][0]["reading"]["cells"]["color"]["value"], "RED")
         self.assertTrue(screen["items"][0]["images"][0]["url"].startswith(f"/f/{self.profile['id']}/incr/"))
+
+    def test_a_recheck_that_disagrees_grows_the_sample(self) -> None:
+        bulk = [{"batch": "b", "key": f"K{n:02d}", "field": "color", "channel": "screen-bulk", "reviewer": "민준"} for n in range(20)]
+        self.assertEqual(len(incr_review.recheck_keys(self.profile, "b", bulk)), 2)
+        missed = bulk + [{"batch": "b", "key": "K00", "field": "color", "channel": "screen-recheck", "reviewer": "지은", "recheckAgreed": False}]
+        self.assertEqual(len(incr_review.recheck_keys(self.profile, "b", missed)), 6, "한 건이라도 달랐으면 표본을 키운다")
+        self.assertEqual(incr_review.recheck_cells(missed, "b", "K00"), [], "눈가림으로 다시 본 칸은 끝났다")
+        self.assertEqual(incr_review.recheck_cells(missed, "b", "K01"), ["color"])
+
+    def test_a_disagreeing_recheck_waits_for_a_third_person(self) -> None:
+        self.read({"IN-001": "RED", "IN-002": "BLUE"})
+        bulk = self.label("N1", "color", "RED", channel="screen-bulk")
+        seen = incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", "지은", value="BLUE",
+                                  expected_ai="RED", channel="screen-recheck")
+        self.assertFalse(seen["recheckAgreed"])
+        latest = incr_review.effective_decisions(self.profile, incr_review.load_task(self.profile), self.batch)
+        dispute = latest[("N1", "color")]["disputed"]
+        self.assertEqual(dispute["parties"], ["민준", "지은"])
+        self.assertEqual([a["value"] for a in dispute["answers"]], [bulk["value"], "BLUE"])
+        self.assertEqual(incr_review.status(self.profile, self.batch)["cellsDisputed"], 1, "갈린 칸은 확정으로 세지 않는다")
+        with self.assertRaises(incr_review.IncrRejected):  # 세 번째 사람도 한 번에 확정(AI 편)으로는 가르지 못한다
+            incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", "리드", value="RED", expected_ai="RED", channel="screen-bulk")
+        for who in ("민준", "지은"):  # 두 사람 가운데 누가 다시 눌러도 풀리지 않는다
+            with self.assertRaises(incr_review.IncrRejected):
+                incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", who, value="RED", expected_ai="RED", channel="screen")
+        # 세 번째 사람이 두 번째 사람의 값(지금 마지막 판정과 같은 값)을 골라도 가르는 답이다
+        incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", "리드", value="BLUE", expected_ai="RED", channel="screen")
+        self.assertEqual(incr_review.status(self.profile, self.batch)["cellsDisputed"], 0, "세 번째 사람이 골랐다")
+
+    def test_many_misses_send_every_bulk_item_back(self) -> None:
+        bulk = [{"batch": "b", "key": f"K{n:02d}", "field": "color", "channel": "screen-bulk", "reviewer": "민준"} for n in range(20)]
+        misses = [{"batch": "b", "key": f"K{n:02d}", "field": "color", "channel": "screen-recheck", "reviewer": "지은", "recheckAgreed": False}
+                  for n in range(2)]
+        self.assertEqual(len(incr_review.recheck_keys(self.profile, "b", bulk + misses)), 20)
 
     def test_a_decision_on_an_ai_value_the_person_did_not_see_is_refused(self) -> None:
         self.read({"IN-001": "RED"})
@@ -172,6 +219,42 @@ class FlowTest(Base):
         self.assertEqual(len(fresh["items"]), 1)
         self.assertIsNotNone(self.ai("N1", "color"))
         self.assertIsNone(self.ai("N2", "color"), "확정 안 한 건의 지난 판독은 버린다(사진 번호가 바뀔 수 있다)")
+
+    def test_bulk_confirm_takes_only_what_the_ai_was_sure_of(self) -> None:
+        """«AI 제안대로 모두 확정»은 확신 높은 AI 값만 — 확신 낮음·AI가 물은 칸은 사람이 직접 고른다(자동화 편향을 막는다)."""
+        self.read({"IN-001": "RED"})
+        # 광택 강도(sheen)는 가짜 판독에서 확신 낮음이다
+        with self.assertRaises(incr_review.IncrRejected) as refused:
+            incr_review.record(self.profile, self.batch, "N1", "sheen", "LABEL", "민준", value="HIGH", expected_ai="HIGH", channel="screen-bulk")
+        self.assertIn("한 번에 확정할 수 없습니다", str(refused.exception))
+        # AI 값과 다른 값도 한 번에 확정으로는 받지 않는다
+        with self.assertRaises(incr_review.IncrRejected):
+            incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", "민준", value="BLUE", expected_ai="RED", channel="screen-bulk")
+        ok = incr_review.record(self.profile, self.batch, "N1", "color", "LABEL", "민준", value="RED", expected_ai="RED", channel="screen-bulk")
+        self.assertRegex(ok["decisionId"], r"^INC-\d{6}-[0-9a-f]{4}$", "다른 컴퓨터의 원장과 합쳐도 번호가 겹치지 않게")
+        status = incr_review.status(self.profile, self.batch)
+        self.assertEqual((status["cellsBulk"], status["cellsIndividual"]), (1, 0), "한 번에 확정한 칸은 «AI와 같음»과 따로 센다")
+
+    def test_an_answered_ai_question_becomes_a_case_for_the_next_reader(self) -> None:
+        """AI가 사람에게 물은 칸의 답은 골든셋 검수의 답과 같은 목록(정책의 «검수 문답» · 다음 판독자의 사례)으로 간다."""
+        self.read({"IN-001": "RED"})
+        readings = json.loads((incr_review.work_dir(self.profile, self.batch) / "readings.json").read_text(encoding="utf-8"))
+        readings["N1"]["cells"]["finish"]["askHuman"] = {"question": "반사만 보이면 유광인가?", "here": "P01의 반사", "options": []}
+        (incr_review.work_dir(self.profile, self.batch) / "readings.json").write_text(json.dumps(readings, ensure_ascii=False), encoding="utf-8")
+        entry = self.label("N1", "finish", "MATTE")
+        self.assertEqual(entry["basedOn"]["ask"]["question"], "반사만 보이면 유광인가?")
+        import gt_review
+
+        cases = lambda: [(row["key"], row["field"], row["answer"]) for row in gt_review.answered_questions(self.profile)  # noqa: E731
+                         if row.get("source") == "incr"]
+        self.assertEqual(cases(), [], "한 사람의 답은 아직 사례가 아니다")
+        self.assertIn("N1", incr_review.recheck_keys(self.profile, self.batch), "AI가 물은 칸은 표본이 아니라 전부 다시 본다")
+        self.assertEqual(incr_review.recheck_cells(incr_review.read_ledger(self.profile), self.batch, "N1"), ["finish"])
+        with self.assertRaises(incr_review.IncrRejected):  # 답한 본인은 다시 볼 수 없다
+            self.label("N1", "finish", "MATTE", channel="screen-recheck")
+        incr_review.record(self.profile, self.batch, "N1", "finish", "LABEL", "지은", value="MATTE",
+                           expected_ai=self.ai("N1", "finish"), channel="screen-recheck")
+        self.assertEqual(cases(), [("N1", "finish", "MATTE")], "두 사람이 같은 값을 고른 답이 사례가 된다")
 
     def test_an_output_from_another_run_is_refused(self) -> None:
         incr_review.prepare(self.profile, self.batch)
@@ -277,9 +360,24 @@ class ServerTest(Base):
         self.assertEqual(self.post("/incr-decide", {**base, "batch": self.batch})[0], 400)
         self.assertEqual(self.post("/incr-decide", {**base, "batch": self.batch, "expectedAi": "RED"}, origin="https://evil.example")[0], 400)
         self.assertEqual(incr_review.read_ledger(self.profile), [])
-        code, reply = self.post("/incr-decide", {**base, "batch": self.batch, "expectedAi": "RED", "bulk": True})
+        # 화면은 그 칸의 마지막 판정(없으면 null)을 늘 함께 보낸다 — 없으면 받지 않는다
+        self.assertEqual(self.post("/incr-decide", {**base, "batch": self.batch, "expectedAi": "RED", "bulk": True})[0], 400)
+        code, reply = self.post("/incr-decide", {**base, "batch": self.batch, "expectedAi": "RED", "bulk": True, "expectedLatest": None})
         self.assertEqual(code, 200, reply)
         self.assertEqual(reply["decision"]["channel"], "screen-bulk")
+        # 두 사람이 같은 칸 — 옛 화면(마지막 판정 없음으로 본)의 클릭은 거절된다(조용히 덮어쓰지 않는다)
+        code, stale = self.post("/incr-decide", {**base, "value": "BLUE", "batch": self.batch, "expectedAi": "RED", "expectedLatest": None,
+                                                 "reviewer": "다른 사람"})
+        self.assertEqual(code, 400, stale)
+        self.assertIn("먼저 이 칸을 답했습니다", stale["error"])
+        # 표본 다시 보기 — 한 번에 확정한 사람 스스로는 안 되고, 다른 사람은 된다
+        first = reply["decision"]["decisionId"]
+        again = {**base, "batch": self.batch, "expectedAi": "RED", "recheck": True, "expectedLatest": first}
+        self.assertEqual(self.post("/incr-decide", again)[0], 400)
+        code, checked = self.post("/incr-decide", {**again, "reviewer": "검수 리드"})
+        self.assertEqual((code, checked["decision"]["channel"]), (200, "screen-recheck"), checked)
+        self.assertEqual(checked["status"]["recheckItems"], 1)
+        self.assertEqual(checked["status"]["recheckedItems"], 1)
         self.assertEqual(reply["status"]["cellsLabeled"], 1, "수는 status가 센 그대로 돌아온다")
         # 다른 AI 작업이 잠금을 쥐고 있으면 409
         handle = gt_next._try_lock(self.root / "lock")
@@ -380,6 +478,12 @@ class ScreenTest(unittest.TestCase):
         self.assertIn("PENDING.push(", page, "이름 없이 누른 판정은 여럿이어도 차례대로 기록된다")
         self.assertIn("INFLIGHT", page, "같은 판정이 겹쳐 와도 한 번만 보낸다")
         self.assertNotIn("innerHTML", page, "데이터는 글자로만 넣는다")
+        self.assertIn("'다음 후보 받기 →'", page, "마지막 페이지의 넘김 버튼은 골든셋 검수처럼 «다음 후보 받기»가 된다")
+        body = page[page.index("async function goNext()"):]
+        self.assertLess(body.index("$('do-run').click()"), body.index("/incr-tasks"),
+                        "«다음 후보 받기»는 이 묶음의 못 읽은 건부터 — 다른 묶음으로 가는 것은 그 뒤다")
+        self.assertIn("남은 후보 없음", body)
+        self.assertNotIn("function nextStep", page, "다 답한 묶음에 따로 안내 판을 두지 않는다 — 골든셋 검수와 같은 버튼으로 이어 간다")
 
     def test_derived_incremental_files_are_not_tracked(self) -> None:
         for path in (".claude/os/runs/x/incr/b/readings.json", ".claude/incr/x/labeled/b.jsonl"):

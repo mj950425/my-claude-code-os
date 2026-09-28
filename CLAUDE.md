@@ -34,7 +34,7 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
    골든셋도 같다 — 정답은 `.claude/gt/<id>/gt.jsonl` **한 곳에만** 있다(GT 개선 전용 팩은 예외 — 정답은 `gtTask.gt`가
    가리키는 원본 파일 하나다. 이 레포 안(`.claude/gt/<id>/gt.jsonl`)이면 GitHub에서 관리하고 판정을 넣은 뒤 `publish`가 PR로 올린다.
    외부 레포에 있을 수도 있다. 원본을 가진 쪽이 그 파일을 소유하므로 여기에 사본을 두면 답이 둘이 된다.
-   이 저장소에는 판정 원장(`decisions.json`)과 건넨 목록의 기록(`handed-out.jsonl` — «반영해줘»로 만든 상류 목록에 무엇을 실었는지, 덧붙이기만 한다. 미리 보기는 적지 않는다),
+   이 저장소에는 판정 원장(`decisions.json`)과 사람이 다듬은 문답 물음(`asked-rewrites.jsonl` — 덧붙이기만, 원장은 그대로), 건넨 목록의 기록(`handed-out.jsonl` — «반영해줘»로 만든 상류 목록에 무엇을 실었는지, 덧붙이기만 한다. 미리 보기는 적지 않는다),
    그리고 그 둘의 파생물(정정·확인 목록, 마지막 목록의 표지 `export.json`)만 `.claude/gt/<id>/gt-review/`에 둔다. 원장과 건넨 기록은
    지우지 않는다 — 다시 만들 수 없다. 파생물은 지워도 «반영해줘»가 다시 만든다). 계보가 여럿이면
    `build_gt.py`가 순위로 합치고 진 라벨을 이력으로 남긴다. 정답이 두 파일에 있으면 화면마다
@@ -85,7 +85,8 @@ NextStep "나만의 클로드 코드 OS 만들기" 미션 저장소다. 주차�
 | 산출물을 브라우저에서 본다 | `./serve.sh start` → http://127.0.0.1:7391 |
 | GT 정정 후보를 승인한다 | 위 화면의 각 조서 아래 **판정** 칸. 근거 판례·정책 규칙을 함께 고른다 |
 | 판독기에게 정책을 넘긴다 | `policy/rule-briefs/<규칙ID>.md`를 **내용째로**. 손으로 발췌하지 않는다 · GT 개선 과제는 `prepare`가 건마다 자른다(아래 «GT 개선 하네스») |
-| GT 개선 과제의 규칙을 더하고·고치고·뺀다 | 스킬 `gt-improve` «규칙 추가해줘» — `gt_review.py rule add\|edit\|retire`. 계약 [gt-task.md](.claude/os/engine/contracts/gt-task.md) «정책 문서의 모양» |
+| GT 개선 과제의 규칙을 더하고·고치고·뺀다 | 스킬 `gt-improve` «규칙 추가해줘» — `gt_review.py rule add\|edit\|retire`. 넣기 전에 `policy-auditor`가 중복·충돌을 가른다(문지기). 계약 [gt-task.md](.claude/os/engine/contracts/gt-task.md) «정책 관리» |
+| 정책·문답을 정리한다 (중복·충돌·합치기·물음 다듬기) | 스킬 `gt-improve` «정책 정리해줘» — `policy check\|review\|finish` + 워크플로우 `policy-review.js`. 정리는 제안만, 고치는 것은 사람 |
 | 이 결과로 판정을 시작해도 되는지 본다 | 스킬 `catalog-run-review` · [handoff.md](.claude/os/review/contracts/handoff.md) |
 | 다음에 무엇을 고칠지 고른다 (GT·정책 개선 포인트) | 스킬 `catalog-improvement-sweep` |
 | 판독기가 든 근거가 사진과 맞는지 되짚는다 | 스킬 `catalog-evidence-recheck` |

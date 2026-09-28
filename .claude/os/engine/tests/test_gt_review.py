@@ -418,7 +418,8 @@ class GtReviewTest(unittest.TestCase):
         after = definitions.read_text(encoding="utf-8")
         sheen = after[after.index("## sheen"):after.index("## tones")]
         self.assertIn("### 규칙", sheen)
-        self.assertIn(f"- `R1` {rule} → `NONE`\n  - 물음: {question}\n  - 출처: 검수 문답 · ", sheen)
+        # 조건 줄은 문장의 «~이면» 부분을 자른 초안이다 — 미리 보기에서 사람이 보고, 다르면 --condition으로 준다.
+        self.assertIn(f"- `R1` {rule} → `NONE`\n  - 조건: 조명 반사만 보이고 표면 결이 없으면\n  - 물음: {question}\n  - 출처: 검수 문답 · ", sheen)
         self.assertIn("  - 근거: A", sheen)
         self.assertIn("## 변경 이력", after)
         self.assertTrue(json.loads(self.fx.task("qa").stdout)["answered"][0]["inPolicy"])
@@ -485,8 +486,21 @@ class GtReviewTest(unittest.TestCase):
         keys = {item["id"]: item["key"] for item in self.fx.worklist()["items"]}
         return {keys[entry["id"]]: json.loads(_path(entry["view"]).read_text(encoding="utf-8")) for entry in args["items"]}
 
+    def _set_category(self, sku: str, category: str) -> None:
+        images = self.fx.root / "data" / "images.jsonl"
+        rows = [json.loads(line) for line in images.read_text(encoding="utf-8").splitlines() if line.strip()]
+        for row in rows:
+            if row["sku"] == sku:
+                row["category"] = category
+        images.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+
     def test_each_reader_gets_only_the_policy_that_applies_to_its_product(self) -> None:
-        # 필수층 — 규칙은 범위(카테고리)로만 거른다. 픽스처 상품의 카테고리는 «잡화>테스트».
+        # 필수층 — 규칙은 범위(카테고리)로만 거른다. 픽스처 상품의 카테고리는 «잡화>테스트», F만 «가방>백팩».
+        self._set_category("F", "가방>백팩")
+        # 범위는 이 과제의 카테고리 마디여야 한다 — 오타 범위는 어느 상품에도 걸리지 않아 규칙이 조용히 죽는다.
+        typo = self.fx.task("rule", "add", "--field", "sheen", "--text", "가밤 끈의 광택은 보지 않는다", "--scope", "가밤",
+                            "--reviewer", "민준", "--yes", check=False)
+        self.assertIn("카테고리 이름이 아닙니다", typo.stderr)
         self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다", "--value", "NONE",
                      "--reviewer", "민준", "--yes")
         self.fx.task("rule", "add", "--field", "광택 강도", "--text", "테스트 상품은 결을 먼저 본다", "--scope", "테스트",
@@ -498,7 +512,7 @@ class GtReviewTest(unittest.TestCase):
         self.fx.task("rule", "add", "--field", "sheen", "--text", "가방 끈의 광택은 보지 않는다", "--scope", "가방",
                      "--reviewer", "민준", "--yes")
         views = self._views()
-        view = next(iter(views.values()))
+        view = views["A"]
         self.assertNotIn("definitions", view, "판독자에게 원래 정의 문서를 가리키지 않는다")
         text = _path(view["policy"]).read_text(encoding="utf-8")
         sheen = text[text.index("## sheen"):text.index("## tones")]
@@ -511,7 +525,8 @@ class GtReviewTest(unittest.TestCase):
         self.assertIn("### 허용값", sheen)
         # 무엇을 실었는지는 사람 쪽 기록에 — 판독 파일 폴더 밖이다.
         given = json.loads((self.fx.review_dir() / "policy-given.json").read_text(encoding="utf-8"))
-        meta = next(iter(given["items"].values()))
+        ids = {item["key"]: item["id"] for item in self.fx.worklist()["items"]}
+        meta = given["items"][ids["A"]]
         self.assertEqual(meta["rules"]["sheen"], ["R1", "R2"])
         self.assertEqual(meta["dropped"]["sheen"], ["R4"])
 
@@ -523,6 +538,32 @@ class GtReviewTest(unittest.TestCase):
                      "--reviewer", "민준", "--yes")
         text = _path(next(iter(self._views().values()))["policy"]).read_text(encoding="utf-8")
         self.assertIn("- `R1` 가방 끈의 광택은 보지 않는다\n  - 범위: 가방", text)
+
+    def test_readers_and_defenders_cite_precedents_the_screen_can_read_back(self) -> None:
+        # 판례도 근거다 — 판독·반론이 «C01을 따랐다»고 적으면 화면이 그 번호를 물음·답으로 되돌린다. 받지 않은 번호는 알린다.
+        self.fx.task("prepare")
+        question = "조명 반사만 보이면 광택이 있는 것인가?"
+        self._answer_with_ask("A", "NONE", question)
+        self.fx.task("prepare")
+        given = json.loads((self.fx.review_dir() / "policy-given.json").read_text(encoding="utf-8"))
+        ids = {item["key"]: item["id"] for item in self.fx.worklist()["items"]}
+        b_cases = given["items"][ids["B"]]["cases"]
+        self.assertEqual([row["question"] for row in b_cases.values()], [question])
+        reader_text = "".join(path.read_text(encoding="utf-8") for path in (self.fx.review_dir() / "reader").rglob("*.json"))
+        self.assertNotIn("GTD-", reader_text, "판독자 폴더에는 판정 ID가 없다 — 원장에서 키를 찾을 실마리가 된다")
+        case_id = next(iter(b_cases))
+        out = self.fx.sweep(
+            {"B": [{**reading("sheen", "NONE"), "casesOpened": [case_id], "casesApplied": [case_id]}],
+             "C": [{**reading("sheen", "NONE"), "casesApplied": ["C99"]}]},
+            {"B": [{"field": "sheen", "verdict": "READER_RIGHT", "why": "판례가 판독 편", "evidenceImageIds": ["P01"],
+                    "rulesApplied": [], "casesApplied": [case_id]}]})
+        self.fx.task("finish", "--from", str(out))
+        review = json.loads((self.fx.review_dir() / "review.json").read_text(encoding="utf-8"))
+        flagged = [(row["item"], row["rules"]) for row in review["warnings"]["rulesUnknown"]]
+        self.assertEqual(flagged, [(ids["C"], ["C99"])])
+        page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
+        self.assertIn(f"따른 판례 — «{question}» → 없음", page)
+        self.assertIn("C99 (이 상품에 주지 않은 판례입니다", page)
 
     def test_rules_can_be_added_edited_and_retired_by_hand_without_losing_lineage(self) -> None:
         definitions = self.fx.root / "definitions.md"
@@ -538,7 +579,7 @@ class GtReviewTest(unittest.TestCase):
         self.fx.task("rule", "add", "--field", "sheen", "--text", "반사만 보이면 광택이 없다", "--value", "NONE",
                      "--reviewer", "민준", "--yes")
         after = definitions.read_text(encoding="utf-8")
-        self.assertIn("- `R1` 반사만 보이면 광택이 없다 → `NONE`\n  - 출처: 직접 작성 · ", after)
+        self.assertIn("- `R1` 반사만 보이면 광택이 없다 → `NONE`\n  - 조건: 반사만 보이면\n  - 출처: 직접 작성 · ", after)
         # 고치기 — 새 ID를 받고 옛 규칙은 보관으로(무엇으로 바뀌었는지와 함께). 같은 ID의 문장이 바뀌면 옛 판독이 무엇을 따랐는지 모른다.
         self.fx.task("rule", "edit", "--field", "sheen", "--id", "R1", "--value", "LOW", "--reviewer", "지은", "--yes")
         after = definitions.read_text(encoding="utf-8")
@@ -577,7 +618,131 @@ class GtReviewTest(unittest.TestCase):
         self.assertEqual([(by_key[row["item"]], row["field"], row["rules"]) for row in flagged], [("B", "sheen", ["R9"])])
         page = (self.fx.review_dir() / "review.html").read_text(encoding="utf-8")
         self.assertIn("따른 정책 규칙 — R1 반사만 보이면 광택이 없다", page)
-        self.assertIn("주지 않은 정책 규칙", page)
+        self.assertIn("주지 않은 규칙·판례", page)
+
+    def _answer_with_ask(self, key: str, value: str, question: str) -> str:
+        entry = json.loads(self.fx.record("--key", key, "--field", "sheen", "--decision", "CORRECT", "--value", value,
+                                          "--reviewer", "민준", "--ask", question).stdout)
+        return entry["decisionId"]
+
+    def _verdict(self, preview: dict, verdict: str) -> None:
+        audit = preview["audit"]
+        path = _path(audit["verdictFile"])
+        path.write_text(json.dumps({"hash": audit["hash"], "verdicts": [
+            {"pair": pair["pair"], "verdict": verdict, "why": "시험"} for pair in audit["pairs"]]}, ensure_ascii=False),
+            encoding="utf-8")
+
+    def test_a_rule_that_may_clash_with_a_case_waits_for_the_auditor(self) -> None:
+        # 문지기 — 사람이 «반사만 보이면 광택이 없다»고 답한 사례가 있는데, 반대 값의 규칙을 넣으려 한다.
+        self.fx.task("prepare")
+        case_id = self._answer_with_ask("A", "NONE", "조명 반사만 보이면 광택이 있는 것인가?")
+        definitions = self.fx.root / "definitions.md"
+        before = definitions.read_text(encoding="utf-8")
+        args = ("rule", "add", "--field", "sheen", "--text", "조명 반사가 보이면 광택이 강하다", "--value", "HIGH", "--reviewer", "민준")
+        preview = json.loads(self.fx.task(*args).stdout)
+        pairs = preview["audit"]["pairs"]
+        self.assertEqual([(p["a"]["id"], p["b"]["kind"], p["b"]["id"]) for p in pairs], [("R1", "case", case_id)])
+        self.assertTrue(_path(preview["audit"]["request"]).is_file(), "에이전트에게 보일 요청 파일을 쓴다")
+        # 판정 없이는 넣지 않는다.
+        blocked = self.fx.task(*args, "--yes", check=False)
+        self.assertIn("중복·충돌 검사가 필요합니다", blocked.stderr)
+        self.assertEqual(definitions.read_text(encoding="utf-8"), before)
+        # 충돌이면 이유 없이는 넣지 않는다.
+        self._verdict(preview, "CONFLICT")
+        self.assertIn("충돌", self.fx.task(*args, "--yes", check=False).stderr)
+        self.assertEqual(definitions.read_text(encoding="utf-8"), before)
+        # 사람이 이유를 적으면 넣고, 그 이유는 변경 이력에 남는다.
+        self.fx.task(*args, "--yes", "--accept-risk", "옛 답은 스튜디오 조명 사진이라 예외다")
+        after = definitions.read_text(encoding="utf-8")
+        self.assertIn("- `R1` 조명 반사가 보이면 광택이 강하다 → `HIGH`", after)
+        self.assertIn(f"검사 경고({case_id})를 무릅씀: 옛 답은 스튜디오 조명 사진이라 예외다", after)
+
+    def test_rules_with_scopes_that_never_meet_are_not_sent_to_the_auditor(self) -> None:
+        # 범위가 겹치지 않는 두 규칙은 문장이 반대여도 충돌이 아니다 — 같은 상품에 함께 걸리지 않는다.
+        self._set_category("F", "가방>백팩")
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "금속 장식이 보이면 광택이 강하다", "--value", "HIGH",
+                     "--scope", "가방", "--reviewer", "민준", "--yes")
+        apart = json.loads(self.fx.task("rule", "add", "--field", "sheen", "--text", "금속 장식이 보이면 광택이 없다",
+                                        "--value", "NONE", "--scope", "테스트", "--reviewer", "민준").stdout)
+        self.assertEqual(apart["audit"]["pairs"], [])
+        # 범위가 없는 규칙은 모든 상품에 걸린다 — 가방 규칙과 만난다. 판정이 «무관»이면 넣는다.
+        args = ("rule", "add", "--field", "sheen", "--text", "금속 장식이 보이면 광택이 약하다", "--value", "LOW", "--reviewer", "민준")
+        meets = json.loads(self.fx.task(*args).stdout)
+        self.assertEqual([p["b"]["id"] for p in meets["audit"]["pairs"]], ["R1"])
+        self._verdict(meets, "UNRELATED")
+        self.fx.task(*args, "--yes")
+        # 이웃이 바뀌면 지문이 바뀐다 — 옛 판정 파일로 새 규칙을 넣지 못한다.
+        again = json.loads(self.fx.task("rule", "add", "--field", "sheen", "--text", "금속 장식이 보이면 광택이 강하다 2",
+                                        "--value", "HIGH", "--reviewer", "민준").stdout)
+        self.assertNotEqual(again["audit"]["hash"], meets["audit"]["hash"])
+
+    def test_question_lint_tells_a_demonstrative_from_a_particle(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        from gt_policy import question_problems
+
+        self.assertEqual(question_problems("착용 사진 속 프레임이 상품과 같은지 확인되지 않아도 그 착용자를 근거로 쓸 수 있는가?"), [],
+                         "«프레임이 상품과»의 «이»는 조사다")
+        self.assertTrue(question_problems("이 상품의 반사는 광택인가?"))
+        self.assertTrue(question_problems("P03의 반사는 광택인가?"))
+
+    def test_every_case_promoted_together_becomes_part_of_the_rule(self) -> None:
+        # 문답 여럿을 한 규칙으로 올리면 모두 그 규칙의 사례다(출처의 판정 ID로 잇는다) — 물음 글자가 달라도.
+        # 규칙의 «물음:»은 표준 물음인 사례에서 고른다.
+        self.fx.task("prepare")
+        messy = self._answer_with_ask("A", "NONE", "(1) P01 반사는 광택인가요? (2) 결이 보이나요?")
+        clean = self._answer_with_ask("B", "NONE", "조명 반사만 보이면 광택이 있는 것인가?")
+        self.fx.task("qa", "--add", messy, "--add", clean, "--rule", "조명 반사만 보이면 광택이 없다", "--reviewer", "민준", "--yes")
+        text = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        self.assertIn("  - 물음: 조명 반사만 보이면 광택이 있는 것인가?", text)
+        listed = json.loads(self.fx.task("qa").stdout)["answered"]
+        self.assertTrue(all(row["inPolicy"] for row in listed), "함께 올린 사례가 모두 규칙에 들어갔다")
+
+    def test_case_questions_are_linted_and_rewritten_without_touching_the_ledger(self) -> None:
+        self.fx.task("prepare")
+        messy = "(1) P01에서 반사가 보이는데 광택인가요? (2) 표면 결이 보이나요?"
+        case_id = self._answer_with_ask("A", "NONE", messy)
+        lint = json.loads(self.fx.task("qa", "--lint").stdout)["notStandard"]
+        self.assertEqual([row["decisionId"] for row in lint], [case_id])
+        self.assertTrue(any("둘 이상" in problem for problem in lint[0]["problems"]))
+        self.assertEqual(json.loads(self.fx.task("status").stdout)["policy"]["casesNotStandard"], 1)
+        # 다듬은 물음도 표준이어야 넣는다.
+        bad = self.fx.task("qa", "--rewrite", case_id, "--question", "P01의 반사는 광택인가?", "--reviewer", "민준", "--yes",
+                           check=False)
+        self.assertIn("표준이 아닙니다", bad.stderr)
+        ledger_before = json.dumps(self.fx.ledger(), ensure_ascii=False)
+        self.fx.task("qa", "--rewrite", case_id, "--question", "조명 반사만 보이면 광택이 있는 것인가?",
+                     "--here", "P01에서 반사가 보인다", "--reviewer", "민준", "--yes")
+        self.assertEqual(json.dumps(self.fx.ledger(), ensure_ascii=False), ledger_before, "원장은 그대로다")
+        listed = json.loads(self.fx.task("qa").stdout)["answered"]
+        self.assertEqual(listed[0]["question"], "조명 반사만 보이면 광택이 있는 것인가?")
+        self.assertEqual(json.loads(self.fx.task("qa", "--lint").stdout)["notStandard"], [])
+
+    def test_policy_review_prepares_small_args_and_finish_keeps_only_real_ids(self) -> None:
+        self.fx.task("prepare")
+        case_id = self._answer_with_ask("A", "NONE", "(1) P01 반사는 광택인가요? (2) 결이 보이나요?")
+        self.fx.task("rule", "add", "--field", "sheen", "--text", "결이 없으면 광택이 없다", "--value", "NONE",
+                     "--reviewer", "민준", "--yes")
+        out = self.fx.task("policy", "review").stdout
+        args = json.loads(out)["workflowArgs"]
+        self.assertEqual(args["fields"], ["sheen"])
+        self.assertEqual(args["normalize"], ["sheen"])
+        self.assertLess(len(json.dumps(args, ensure_ascii=False)), 600, "인자는 경로와 칸 목록뿐이다")
+        result = {"schemaVersion": "gt-policy-review-v1", "task": "fixture-color-sheen", "input": args["input"],
+                  "drafts": [{"decisionId": case_id, "question": "조명 반사만 보이면 광택이 있는 것인가?", "here": "P01", "why": "x"},
+                             {"decisionId": "GTD-99999", "question": "없는 사례인가?", "here": "", "why": "x"}],
+                  "audits": [{"field": "sheen", "verdicts": [],
+                              "merge": [{"rules": ["R1", "R7"], "text": "x면 y", "why": "없는 규칙"}],
+                              "retire": [{"rules": ["R1"], "why": "사례와 겹친다"}]}]}
+        path = self.fx.root / "policy-out.json"
+        path.write_text(json.dumps({"result": result}, ensure_ascii=False), encoding="utf-8")
+        before = (self.fx.root / "definitions.md").read_text(encoding="utf-8")
+        proposals = json.loads(self.fx.task("policy", "finish", "--from", str(path)).stdout)
+        self.assertEqual(len(proposals["drafts"]), 1)
+        self.assertIn(f"--rewrite {case_id}", proposals["drafts"][0]["command"])
+        kinds = [p["kind"] for p in proposals["audits"][0]["proposals"]]
+        self.assertEqual(kinds, ["retire"], "없는 규칙(R7)을 가리킨 합치기는 버린다")
+        self.assertEqual(len(proposals["dropped"]), 2)
+        self.assertEqual((self.fx.root / "definitions.md").read_text(encoding="utf-8"), before, "정리는 정책을 고치지 않는다")
 
     def test_golden_keys_link_to_the_product_page_the_profile_names(self) -> None:
         # 주소 칸은 프로필이 선언한다(linkField). GT 행에 없으면 사진 원본 행(같은 키)에서 찾는다. http(s)만 링크로 쓴다.
@@ -647,6 +812,10 @@ class GtReviewTest(unittest.TestCase):
         cases = {
             "출처": "\n### 규칙\n\n- `R1` 반사면 없다 → `NONE`\n  - 근거: A\n",
             "허용값이 아닌": "\n### 규칙\n\n- `R1` 반사면 없다 → `SHINY`\n  - 출처: 직접 작성 · 2026-09-27 · 민준\n",
+            # 값을 내는 규칙은 조건 줄이 있어야 중복·충돌을 대조할 수 있다.
+            "«조건» 줄이 없습니다": "\n### 규칙\n\n- `R1` 반사면 없다 → `NONE`\n  - 출처: 직접 작성 · 2026-09-27 · 민준\n",
+            # 규칙은 이 상품을 떠나서도 통하는 경계다 — 사진 번호가 있으면 다음 판독자에게 뜻이 없다.
+            "«P01»": "\n### 규칙\n\n- `R1` P01처럼 반사면 없다 → `NONE`\n  - 조건: 반사면\n  - 출처: 직접 작성 · 2026-09-27 · 민준\n",
             "모르는 줄": "\n### 규칙\n\n- `R1` 반사면 없다\n  - 출처: 직접 작성\n  - 메모: 아무거나\n",
             "모양이 아닙니다": "\n### 규칙\n\n* R1 반사면 없다\n",
             "겹칩니다": ("\n### 규칙\n\n- `R1` 반사면 없다\n  - 출처: 직접 작성\n"
@@ -2595,11 +2764,50 @@ class ServerTest(unittest.TestCase):
         current = json.loads(connection.getresponse().read())["current"]
         self.assertEqual(current["B\u0000color"], "BLUE")
 
-    def post(self, body: dict, headers: dict | None = None) -> tuple[int, dict]:
+    def post(self, body: dict, headers: dict | None = None, as_screen: bool = True) -> tuple[int, dict]:
+        if as_screen and "expectedLatest" not in body and body.get("key") and body.get("field"):
+            # 화면처럼 — 그 칸의 마지막 판정을 읽어 함께 보낸다(먼저 누른 답을 덮지 않는 대조)
+            connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+            connection.request("GET", f"/gt-decided?task={body.get('task')}")
+            latest = (json.loads(connection.getresponse().read() or b"{}").get("latest") or {}).get(f"{body['key']}\u0000{body['field']}")
+            body = {**body, "expectedLatest": (latest or {}).get("decisionId")}
         connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         connection.request("POST", "/gt-decide", json.dumps(body), {"Content-Type": "application/json", **(headers or {})})
         response = connection.getresponse()
         return response.status, json.loads(response.read() or b"{}")
+
+    def test_the_first_answer_stays_and_the_second_is_told(self) -> None:
+        base = {"task": "fixture-color-sheen", "key": "B", "field": "color", "decision": "CONFIRM", "expectedBefore": "BLUE",
+                "batch": self.fx.worklist()["batchId"]}
+        status, answer = self.post({**base, "reviewer": "민준"}, as_screen=False)
+        self.assertEqual((status, answer["error"]), (400, "화면이 오래됐습니다 — 새로고침한 뒤 다시 눌러 주세요."))
+        status, first = self.post({**base, "reviewer": "민준"})  # 화면처럼 — 지금 본 마지막 판정과 함께
+        self.assertEqual(status, 200, first)
+        self.assertRegex(first["decision"]["decisionId"], r"^GTD-\d{5}-[0-9a-f]{4}$", "다른 컴퓨터의 원장과 합쳐도 겹치지 않는 번호")
+        # 지은의 화면은 민준이 답하기 전에 열었다 — 그때 본 마지막 판정은 민준의 답이 대신한 것이다
+        seen_before = first["decision"].get("supersedes")
+        status, second = self.post({**base, "reviewer": "지은", "decision": "HOLD", "expectedLatest": seen_before})
+        self.assertEqual(status, 400)
+        self.assertIn("민준님이 먼저 이 칸을 답했습니다", second["error"])
+
+    def test_old_numbers_and_new_numbers_do_not_collide(self) -> None:
+        # 꼬리 없는 옛 번호가 쌓인 원장에서도 새 번호는 그 뒤로 이어지고, 옛 번호와 겹치지 않는다
+        from gt_decisions import ledger_path
+
+        base = {"task": "fixture-color-sheen", "key": "B", "field": "color", "expectedBefore": "BLUE",
+                "batch": self.fx.worklist()["batchId"], "reviewer": "민준"}
+        status, first = self.post({**base, "decision": "CONFIRM"})
+        self.assertEqual(status, 200, first)
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {k: v for k, v in self.fx.env.items() if k.startswith("CATALOG_OS_")}):
+            ledger = ledger_path(self.fx.saved_profile())
+        text = ledger.read_text(encoding="utf-8").replace(first["decision"]["decisionId"], "GTD-00090")  # 옛 모양 번호로
+        ledger.write_text(text, encoding="utf-8")
+        status, second = self.post({**base, "decision": "HOLD"})
+        self.assertEqual(status, 200, second)
+        self.assertRegex(second["decision"]["decisionId"], r"^GTD-00091-[0-9a-f]{4}$", "옛 번호 뒤로 이어진다")
+        self.assertEqual(second["decision"]["supersedes"], "GTD-00090", "옛 번호의 판정을 그대로 가리킨다")
 
     def test_decide_then_read_back(self) -> None:
         base = {"task": "fixture-color-sheen", "key": "B", "field": "color", "reviewer": "민준",
@@ -2712,6 +2920,23 @@ class ApplyButtonTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("node"), "node가 없으면 워크플로우를 돌려 볼 수 없다")
+class PolicyWorkflowParityTest(unittest.TestCase):
+    """정리 워크플로우(policy-review.js)와 파이썬(gt_policy)이 같은 판정 이름·스키마를 쓰는가. 한쪽만 바뀌면 finish가 판정을 모두
+    «모르는 판정»으로 버리거나, 스키마가 달라 결과를 받지 못한다 — 조용히 틀리는 자리라 글자로 맞춘다."""
+
+    def test_verdicts_and_schema_match(self) -> None:
+        sys.path.insert(0, str(SCRIPTS))
+        from gt_policy import REVIEW_SCHEMA, VERDICTS
+
+        body = (WORKFLOW.parent / "policy-review.js").read_text(encoding="utf-8")
+        self.assertIn(f"schemaVersion: '{REVIEW_SCHEMA}'", body)
+        self.assertIn("enum: [" + ", ".join(f"'{v}'" for v in VERDICTS) + "]", body)
+        # 워크플로우는 과제를 모른다 — 에이전트 유형 말고 과제·칸 이름을 적지 않는다.
+        for agent in ("case-normalizer", "policy-auditor"):
+            self.assertIn(f"agentType: '{agent}'", body)
+            self.assertTrue((PROJECT_ROOT / ".claude/agents/engine" / f"{agent}.md").is_file(), f"{agent} 링크가 없다")
+
+
 class WorkflowParityTest(unittest.TestCase):
     """워크플로우가 반론을 부르는 칸 = 화면(merge·cell_status)이 «두 눈이 갈림»으로 볼 칸. 두 규칙이 같다는 것을 실제로 돌려 본다.
     워크플로우 스크립트를 그대로 node에서 돌리고, 판독자·반론자만 가짜로 둔다."""

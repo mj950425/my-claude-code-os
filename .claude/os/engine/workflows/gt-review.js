@@ -74,9 +74,10 @@ const READING_SCHEMA = {
           definitionGap: { type: 'boolean', description: '정의 문서가 이 경우를 다루지 않아 기준 밖에서 판단해야 했으면 true' },
           rulesApplied: { type: 'array', items: { type: 'string' }, description: '정책 파일 «### 규칙»에서 이 값을 정하는 데 따른 규칙의 ID(R1 같은). 따른 규칙이 없으면 빈 배열' },
           casesOpened: { type: 'array', items: { type: 'string' }, description: '사례 목록에서 열어 본 사례의 ID(C01 같은). 열지 않았으면 빈 배열' },
+          casesApplied: { type: 'array', items: { type: 'string' }, description: '열어 본 사례 가운데 이 값을 정하는 근거로 따른 사례의 ID. 열었지만 사정이 달라 따르지 않은 사례는 넣지 않는다' },
           askHuman: ASK_SCHEMA,
         },
-        required: ['field', 'value', 'confidence', 'evidenceImageIds', 'observation', 'rulesApplied'],
+        required: ['field', 'value', 'confidence', 'evidenceImageIds', 'observation', 'rulesApplied', 'casesApplied'],
       },
     },
     note: { type: 'string', description: '건 전체에 대한 한국어 요약. 증거가 부족했다면 무엇이 없었는지. 사람에게 묻는 말은 여기 쓰지 않고 그 칸의 askHuman에 쓴다' },
@@ -95,11 +96,14 @@ const DEFENSE_SCHEMA = {
         properties: {
           field: { type: 'string', description: '위 목록의 필드 id 그대로' },
           verdict: { type: 'string', enum: ['READER_RIGHT', 'GT_STANDS', 'CANT_TELL'] },
-          why: { type: 'string', description: '정의 문서의 기준과 증거를 들어 한국어로 한두 문장' },
+          why: { type: 'string', description: '정책 파일의 기준·규칙·판례와 증거를 들어 한국어로 한두 문장' },
           evidenceImageIds: { type: 'array', items: { type: 'string' } },
+          rulesApplied: { type: 'array', items: { type: 'string' }, description: '판정의 근거로 든 정책 파일 «### 규칙»의 ID. 없으면 빈 배열' },
+          casesOpened: { type: 'array', items: { type: 'string' }, description: '사례 목록에서 열어 본 사례의 ID. 없으면 빈 배열' },
+          casesApplied: { type: 'array', items: { type: 'string' }, description: '판정의 근거로 든 사례의 ID. 없으면 빈 배열' },
           askHuman: Object.assign({}, ASK_SCHEMA, { description: 'CANT_TELL일 때, 사람이 무엇을 가르면 되는지. 다른 판정에는 쓰지 않는다' }),
         },
-        required: ['field', 'verdict', 'why', 'evidenceImageIds'],
+        required: ['field', 'verdict', 'why', 'evidenceImageIds', 'rulesApplied', 'casesApplied'],
       },
     },
   },
@@ -127,7 +131,9 @@ const CASES = `
   정책이 아니라 사례다. 규칙이 된 사례(rule이 있는 것)는 정책 파일의 그 규칙을 따른다.
   askHuman을 남기기 **전에** 이 목록에서 같은 경계를 찾는다. 있으면 그 사례 파일을 열어 보고 그 답을 따르며 다시 묻지 않는다 —
   사진의 사정이 다르면 이 사진에 보이는 대로 판단한다(답을 이 상품의 값으로 옮겨 오지 않는다).
-  연 사례의 ID를 casesOpened에 적는다. 목록에 없는 사례 파일은 열지 않는다.`
+  연 사례의 ID를 casesOpened에, 그 가운데 값을 정하는 근거로 따른 사례를 casesApplied에 적는다 — 판례도 근거다.
+  사례를 열었지만 사진의 사정이 달라 따르지 않았다면 casesApplied에 넣지 않고 observation(반론이면 why)에 그 사례와 다른 점을 적는다.
+  목록에 없는 사례 파일은 열지 않는다.`
 
 function readerPrompt(item) {
   return `판독 파일 ${item.view} 하나를 읽고, 그 안의 건 하나를 판독한다.
@@ -167,12 +173,14 @@ GT를 모르는 판독자가 증거만 보고 아래 칸에서 지금 GT와 다�
 ${lines}
 
 네 일은 판독을 확인해 주는 것이 아니라 **지금 GT를 지키는 것**이다. 그 건의 사진을 전부 열고,
-정책 파일의 기준으로 GT 값이 맞다고 볼 근거를 찾는다. 판독자가 놓친 사진, 정의의 예외 조항,
+정책 파일의 기준으로 GT 값이 맞다고 볼 근거를 찾는다. 판독자가 놓친 사진, 정의의 예외 조항, 정책 파일의 «### 규칙»,
 판독자가 기준을 잘못 적용한 자리를 본다. GT가 빈칸인 칸은 판독 값보다 나은 값이 있는지 본다.
+판독 파일에 사례 목록(cases)이 있으면 사람이 같은 경계에 답한 판례가 있는지도 찾는다 — 판례가 GT 편이면 GT_STANDS의 근거이고,
+판독 편이면 억지로 반박하지 않고 READER_RIGHT다. 근거로 든 규칙은 rulesApplied, 판례는 casesApplied에 적는다.
 
 - 근거를 찾으면 GT_STANDS. 찾지 못하면 READER_RIGHT — 억지로 반박하지 않는다.
 - 증거로 어느 쪽도 설 수 없으면 CANT_TELL. 사람이 무엇을 가르면 되는지 askHuman에 적는다(question은 상품을 떠난 경계 물음, here는 이 사진의 자리).
-- 위 목록의 칸에만 답한다. GT 파일과 작업 목록은 열지 않는다 — 네가 볼 GT 값은 위에 다 있다.
+- 위 목록의 칸에만 답한다. GT 파일과 작업 목록은 열지 않는다 — 네가 볼 GT 값은 위에 다 있다.${CASES}
 - why 문장에서 값은 위 목록의 이름(괄호 앞 글자)으로만 부른다. 괄호 안 코드는 옮겨 쓰지 않는다.${COMMON}`
 }
 

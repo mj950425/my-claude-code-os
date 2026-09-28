@@ -127,5 +127,25 @@
       "productName": "상품명"
     },
     "linkField": "pdpUrl"
+  },
+  "incremental": {
+    "schemaVersion": "incr-source-v1",
+    "note": "증분 검수의 새 데이터를 운영에서 모으는 법 — engine/scripts/incr_collect.py가 읽는다. 조회는 읽기 전용 mysql-query 스킬로",
+    "platforms": [
+      "MUSINSA",
+      "EGOOCM"
+    ],
+    "categoryPrefix": "잡화>",
+    "key": "{platform}:{goodsNo}",
+    "hosts": {
+      "MUSINSA": "https://image.msscdn.net",
+      "EGOOCM": "https://img.29cm.co.kr"
+    },
+    "pdp": {
+      "MUSINSA": "https://www.musinsa.com/products/{goodsNo}",
+      "EGOOCM": "https://www.29cm.co.kr/products/{goodsNo}"
+    },
+    "detail": true,
+    "maxDetailImages": 6
   }
 }

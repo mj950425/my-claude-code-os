@@ -41,7 +41,9 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import io
+import math
 import json
 import os
 import re
@@ -50,13 +52,14 @@ import shutil
 import signal
 import subprocess
 import sys
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
 from catalog_profile import PROJECT_ROOT, output_root, relative_or_absolute
 from gt_task import (MANY_SEPARATOR, TaskError, export_value, field_map, in_range, is_many, key_fields, key_of, load_task, normalize,
-                     read_jsonl)
+                     read_jsonl, resolve)
 
 SCHEMA = "incr-review-v1"
 DECISIONS = ("LABEL", "HOLD")
@@ -217,8 +220,10 @@ def push(profile: dict[str, Any], source: Path, images: Path | None = None, name
     except BaseException:
         shutil.rmtree(home, ignore_errors=True)
         raise
+    # 시험 등록 상품처럼 보이는 줄 — 밀어넣은 파일은 그 파일을 가진 쪽의 것이라 빼지 않고 알리기만 한다
+    tests = [key for key, row in rows.items() if any(isinstance(value, str) and NOT_FOR_SALE.search(value) for value in row.values())]
     return {"ok": True, "task": profile["id"], "batch": batch, "rows": len(rows), "rowsWithPhotos": joined,
-            "answerColumnsAlreadyFilled": filled, "screen": f"/incr?task={profile['id']}&batch={batch}"}
+            "answerColumnsAlreadyFilled": filled, "rowsLookLikeTests": tests, "screen": f"/incr?task={profile['id']}&batch={batch}"}
 
 
 # ---------------------------------------------------------------- AI 추론
@@ -318,7 +323,9 @@ def finish(profile: dict[str, Any], batch: str, output: Path) -> dict[str, Any]:
             field = row.get("field")
             if field in fields:
                 cells[field] = {name: row.get(name) for name in
-                                ("value", "confidence", "evidenceImageIds", "observation", "definitionGap", "askHuman")}
+                                # 규칙·판례 인용도 남긴다 — AI가 무엇을 근거로 댔는지 사람이 되짚을 수 있게(gt-review.js 판독 스키마).
+                                ("value", "confidence", "evidenceImageIds", "observation", "definitionGap", "askHuman",
+                                 "rulesApplied", "casesOpened", "casesApplied")}
                 cells[field]["value"] = normalize(fields[field], cells[field]["value"], lenient=True)
         if not cells:
             continue
@@ -338,7 +345,7 @@ BUSY = "다른 AI 작업(골든셋 검수나 다른 증분)이 도는 중입니�
 
 def run(profile: dict[str, Any], batch: str, reread: bool = False) -> dict[str, Any]:
     """준비 → 판독(워크플로우 read 단계, 헤드리스) → 합치기. 잠금은 골든셋 검수의 러너와 **같은 하나**다 —
-    워크플로우는 한 번에 하나만 돈다(CLAUDE.md «다음 후보 받기»). 러너의 공용 상태(`runs/.gt-next/state.json`)에도
+    워크플로우는 한 번에 하나만 돈다(CLAUDE.md «다음 후보 받기»). 러너가 함께 쓰는 상태 파일(`runs/.gt-next/state.json`)에도
     «증분이 돈다»를 적는다 — 골든셋 화면이 잠금이 쥐어진 것만 보고 지난 실행의 문장을 지금 것으로 보이지 않게."""
     import gt_next
 
@@ -419,10 +426,15 @@ def effective_decisions(profile: dict[str, Any], task: dict[str, Any], batch: st
     판정은 확정으로 세지 않고 `outOfPolicy`로 표시해 다시 묻는다(골든셋 검수의 POLICY_CHANGED_SINCE_DECISION과 같은 뜻)."""
     fields = field_map(task)
     latest: dict[tuple[str, str], dict[str, Any]] = {}
+    history: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for entry in read_ledger(profile) if ledger is None else ledger:
         if entry.get("batch") == batch and entry.get("field") in fields:
             latest[(entry["key"], entry["field"])] = entry
+            history[(entry["key"], entry["field"])].append(entry)
     for cell, entry in list(latest.items()):
+        dispute = _dispute(history[cell])
+        if dispute:
+            latest[cell] = entry = {**entry, "disputed": dispute}
         if entry["decision"] != "LABEL":
             continue
         spec = fields[cell[1]]
@@ -433,20 +445,45 @@ def effective_decisions(profile: dict[str, Any], task: dict[str, Any], batch: st
     return latest
 
 
+def _dispute(history: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """표본 다시 보기에서 두 사람의 답이 갈렸고, 아직 **세 번째 사람**이 가르지 않았으면 그 갈림. 한 사람 대 한 사람이면 뒤에 누른 쪽이
+    이기는 것이 아니다 — 확정으로 세지 않고 세 번째 사람에게 올린다. 두 사람 가운데 누가 다시 눌러도 갈림은 풀리지 않는다."""
+    misses = [i for i, entry in enumerate(history) if entry.get("channel") == "screen-recheck" and entry.get("recheckAgreed") is False]
+    if not misses:
+        return None
+    at = misses[-1]
+    recheck = history[at]
+    before = next((entry for entry in history[:at] if entry.get("decisionId") == recheck.get("supersedes")), None) or (history[at - 1] if at else {})
+    parties = {str(entry.get("reviewer") or "").strip() for entry in history[: at + 1]
+               if _needs_second(entry) or entry.get("channel") == "screen-recheck"}
+    if any(entry.get("decision") == "LABEL" and str(entry.get("reviewer") or "").strip() not in parties for entry in history[at + 1:]):
+        return None
+    return {"parties": sorted(parties),
+            "answers": [{"value": before.get("value"), "reviewer": before.get("reviewer")},
+                        {"value": recheck.get("value"), "reviewer": recheck.get("reviewer")}]}
+
+
 def done_keys(latest: dict[tuple[str, str], dict[str, Any]], rows: dict[str, Any], fields: list[str]) -> set[str]:
     return {key for key in rows if all(_labeled(latest.get((key, field))) for field in fields)}
 
 
 def _labeled(entry: dict[str, Any] | None) -> bool:
-    return bool(entry) and entry["decision"] == "LABEL" and not entry.get("outOfPolicy")
+    return bool(entry) and entry["decision"] == "LABEL" and not entry.get("outOfPolicy") and not entry.get("disputed")
 
 
 def record(profile: dict[str, Any], batch: str, key: str, field: str, decision: str, reviewer: str,
-           value: Any = None, reason: str = "", channel: str = "spoken", expected_ai: Any = None) -> dict[str, Any]:
+           value: Any = None, reason: str = "", channel: str = "spoken", expected_ai: Any = None, gap: bool = False,
+           expected_latest: Any = ...) -> dict[str, Any]:
     """사람 판정 한 줄. 화면 버튼과 CLI가 같은 함수를 지난다 — 문이 둘이면 규격도 둘이 된다.
 
     `expected_ai`는 **사람이 본 AI 제안**(없었으면 None)이다. 지금 판독과 다르면 거절한다 — 화면을 연 뒤 «다시 읽기»가 판독을
-    바꿨으면, 원장에 사람이 보지 않은 AI 값이 사람 판정과 짝지어 남는다(골든셋 원장의 expectedBefore와 같은 선)."""
+    바꿨으면, 원장에 사람이 보지 않은 AI 값이 사람 판정과 짝지어 남는다(골든셋 원장의 expectedBefore와 같은 선).
+
+    `expected_latest`는 **화면이 본 그 칸의 마지막 판정 ID**(없었으면 None)다. 넘기면 지금 원장의 마지막 판정과 대 보고 다르면 거절한다 —
+    두 사람이 같은 칸을 누르면 나중 사람이 조용히 덮어쓰던 것을 막는다(화면은 늘 넘긴다. 말로 받은 판정은 넘기지 않아도 된다).
+
+    한 번에 확정(`screen-bulk`)은 **AI가 확신 있게 낸 값 그대로**만 받는다 — 확신 낮음·AI가 사람에게 물은 칸은 직접 골라야 한다.
+    화면도 그 칸을 빼고 보내지만, 기록기가 한 번 더 막는다(화면이 옛 판이어도 AI 제안에 끌려 확정되지 않게)."""
     task = load_task(profile)
     fields = field_map(task)
     if batch not in batches(profile):
@@ -459,7 +496,7 @@ def record(profile: dict[str, Any], batch: str, key: str, field: str, decision: 
         raise IncrRejected("판정한 사람의 이름이 없습니다 — 화면 맨 위에 이름을 적어 주세요.")
     if decision not in DECISIONS:
         raise IncrRejected(f"판정은 {' · '.join(DECISIONS)} 중 하나입니다: {decision}")
-    if channel not in ("screen", "screen-bulk", "spoken"):
+    if channel not in ("screen", "screen-bulk", "screen-recheck", "spoken"):
         raise IncrRejected(f"들어온 길을 알 수 없습니다: {channel}")
     spec = fields[field]
     chosen = None
@@ -477,33 +514,104 @@ def record(profile: dict[str, Any], batch: str, key: str, field: str, decision: 
     ai_value = normalize(spec, reading.get("value"), lenient=True)
     if normalize(spec, expected_ai, lenient=True) != ai_value:
         raise IncrRejected("AI 제안이 화면을 연 뒤 바뀌었습니다 — 화면을 새로고침해 주세요.")
+    ask = reading.get("askHuman") if isinstance(reading.get("askHuman"), dict) and (reading.get("askHuman") or {}).get("question") else None
+    if channel == "screen-bulk" and not (decision == "LABEL" and chosen == ai_value and _ai_ok(task, field, {"cells": {field: reading}})):
+        raise IncrRejected("AI가 확신하지 못했거나 사람에게 물은 칸은 한 번에 확정할 수 없습니다 — 그 칸의 값을 직접 골라 주세요.")
+    if channel == "screen-bulk" and any(isinstance(v, str) and NOT_FOR_SALE.search(v)
+                                        for v in (input_rows(profile, task, batch).get(key) or {}).values()):
+        raise IncrRejected("시험 등록 건으로 보여 한 번에 확정하지 않습니다 — 검수할 데이터가 맞으면 값을 직접 골라 주세요.")
     with _locked(profile):
         ledger = read_ledger(profile)
         previous = next((entry for entry in reversed(ledger)
                          if entry.get("batch") == batch and entry["key"] == key and entry["field"] == field), None)
+        if channel == "screen-recheck":
+            # 표본 다시 보기 — 한 번에 확정한 칸을 **다른 사람이** 앞 답을 보지 않고 새로 고른다(눈가림). 같으면 확인, 다르면 그 값으로 바뀐다.
+            cell_history = [entry for entry in ledger if entry.get("batch") == batch and entry["key"] == key and entry["field"] == field]
+            bulk_by = {str(entry.get("reviewer") or "").strip() for entry in cell_history if _needs_second(entry)}
+            if not bulk_by or decision != "LABEL":
+                raise IncrRejected("다시 보기는 한 번에 확정했거나 AI가 물은 칸에서 값을 고르는 일입니다 — 화면을 새로고침해 주세요.")
+            if any(entry.get("channel") == "screen-recheck" for entry in cell_history):
+                raise IncrRejected("이 칸은 이미 다른 사람이 다시 봤습니다 — 화면을 새로고침해 주세요.")
+            if reviewer.strip() in bulk_by | {str((previous or {}).get("reviewer") or "").strip()}:
+                raise IncrRejected("자기가 확정한 칸은 스스로 다시 볼 수 없습니다 — 다른 사람이 봐야 표본 검사가 됩니다.")
+        dispute = _dispute([entry for entry in ledger if entry.get("batch") == batch and entry["key"] == key and entry["field"] == field])
+        if dispute and channel == "screen-bulk":
+            raise IncrRejected("두 분의 답이 갈린 칸은 한 번에 확정할 수 없습니다 — 사진을 보고 값을 직접 골라 주세요.")
+        if dispute and reviewer.strip() in dispute["parties"]:
+            raise IncrRejected("이 칸은 두 분의 답이 갈렸습니다 — 두 분이 아닌 세 번째 분이 사진을 보고 골라야 확정됩니다.")
+        if expected_latest is not ... and (previous or {}).get("decisionId") != expected_latest:
+            who = (previous or {}).get("reviewer") or "다른 사람"
+            raise IncrRejected(f"{who}님이 먼저 이 칸을 답했습니다 — 화면에 그 답을 들였습니다. 보고 다시 골라 주세요.")
         entry = {
-            "decisionId": f"INC-{len(ledger) + 1:06d}", "batch": batch, "key": key, "field": field,
+            # 번호 뒤의 무작위 꼬리 — 다른 컴퓨터에서 쌓은 원장을 합쳐도 번호가 겹치지 않게
+            "decisionId": f"INC-{len(ledger) + 1:06d}-{secrets.token_hex(2)}", "batch": batch, "key": key, "field": field,
             "decision": decision, "value": chosen, "aiValue": ai_value, "aiConfidence": reading.get("confidence"),
             "aiRunId": ((_read_json(work_dir(profile, batch) / "readings.json", {}) or {}).get(key) or {}).get("runId"),
             "agreedWithAi": decision == "LABEL" and ai_value is not None and chosen == ai_value,
             "reviewer": reviewer.strip(), "reason": reason, "channel": channel, "decidedAt": _now(),
-            "basis": f"definitions#{field}",
+            # 사람이 «정책이 다루지 않는 경우»로 표시했으면 골든셋 검수와 같은 모양(:gap) — 정의에 절을 더할 자리다.
+            "basis": f"definitions#{field}" + (":gap" if gap else ""),
         }
         if previous:
             entry["supersedes"] = previous["decisionId"]
+        if channel == "screen-recheck":
+            # 눈가림으로 고른 값이 앞 확정과 같았나 — 표본의 «바뀜»은 이것만 센다(바꾸기로 같은 값을 다시 눌러도 바뀜이 아니다)
+            entry["recheckAgreed"] = bool(previous) and previous.get("decision") == "LABEL" and previous.get("value") == chosen
+        if ask:
+            # AI가 사람에게 물은 칸의 답 — 곧 정책의 «검수 문답»이다(골든셋 검수와 같은 basedOn.ask). 다음 판독자에게 사례로 간다.
+            entry["basedOn"] = {"ask": {name: ask.get(name) for name in ("question", "here", "imageIds", "options") if ask.get(name)}}
         path = incr_home(profile) / LEDGER
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return entry
 
 
+def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """증분에서 사람이 답한 AI의 물음 — 골든셋 검수의 `answered_questions`와 같은 모양. 같은 정책 위의 사람 판단이라 두 원장의 답을
+    한 목록으로 읽는다(정책 페이지의 «검수 문답», 다음 판독자의 사례). 묶음·칸마다 지금 유효한 판정 하나, 값을 고른 판정만."""
+    task = task or load_task(profile)
+    fields = field_map(task)
+    latest: dict[tuple[str, str, str], dict[str, Any]] = {}
+    history: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for entry in read_ledger(profile):
+        if entry.get("field") in fields:
+            latest[(entry.get("batch"), entry["key"], entry["field"])] = entry
+            history[(entry.get("batch"), entry["key"], entry["field"])].append(entry)
+    rows = []
+    for (batch_id, key, field_id), entry in latest.items():
+        cell = history[(batch_id, key, field_id)]
+        # 사례는 두 사람의 답만 — 다른 사람이 눈가림으로 같은 값을 골랐거나, 갈림을 세 번째 사람이 갈랐다. 한 사람의 판단이 곧 사례가 되지 않게.
+        if not any(item.get("channel") == "screen-recheck" for item in cell) or _dispute(cell):
+            continue
+        ask = next(((item.get("basedOn") or {}).get("ask") for item in reversed(cell) if (item.get("basedOn") or {}).get("ask")), None) or {}
+        if entry["decision"] != "LABEL" or not str(ask.get("question") or "").strip():
+            continue
+        spec = fields[field_id]
+        value = normalize(spec, entry.get("value"), lenient=True)
+        if not in_range(spec, value):
+            continue
+        names = spec.get("labelNames") or {}
+        rows.append({"id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
+                     "fieldName": spec.get("name") or field_id, "question": ask["question"], "here": ask.get("here") or "",
+                     "answer": value, "answerName": " + ".join(str(names.get(part, part)) for part in str(value).split(MANY_SEPARATOR)),
+                     "reviewer": entry.get("reviewer"), "decidedAt": entry.get("decidedAt"), "source": "incr"})
+    return rows
+
+
 # ---------------------------------------------------------------- 내보내기·상태
 
 
-def export(profile: dict[str, Any], batch: str) -> dict[str, Any]:
+def export(profile: dict[str, Any], batch: str, skip_recheck: bool = False) -> dict[str, Any]:
     """모든 칸을 사람이 확정한 줄만, 밀어넣은 줄 그대로에 라벨을 채워 쓴다. 칸마다 누가 확정했는지(`<열>Source`)도 함께.
-    값은 원래 형으로 되돌린다(`gt_task.export_value` — 골든셋 «반영해줘»와 같은 함수)."""
+    값은 원래 형으로 되돌린다(`gt_task.export_value` — 골든셋 «반영해줘»와 같은 함수).
+    표본 다시 보기가 끝나지 않았으면 쓰지 않는다 — 한 번에 확정한 칸이 검사를 받기 전에 밖으로 나가지 않게.
+    혼자 일하는 팀처럼 다시 볼 사람이 없으면 CLI `--skip-recheck`로만 넘긴다(그 사실이 결과 줄에 남는다)."""
     task = load_task(profile)
+    counts = status(profile, batch, task)
+    unchecked = counts["recheckItems"] - counts["recheckedItems"]
+    if unchecked and not skip_recheck:
+        return {"ok": False, "recheckPending": unchecked,
+                "error": f"표본 {unchecked}건을 아직 다른 사람이 다시 보지 않았습니다 — «표본 다시 보기»에서 다른 분이 확인한 뒤 반영해 주세요."}
     fields = field_map(task)
     rows = input_rows(profile, task, batch)
     latest = effective_decisions(profile, task, batch)
@@ -516,16 +624,22 @@ def export(profile: dict[str, Any], batch: str) -> dict[str, Any]:
         for (field, spec), cell in zip(fields.items(), cells):
             column = str(spec.get("gtField") or field)
             labeled[column] = export_value(spec, cell["value"], original=row.get(column))
-            labeled[f"{column}Source"] = "INCR_REVIEW_AI_AGREED" if cell["agreedWithAi"] else "INCR_REVIEW_HUMAN"
+            # 누가 어떻게 정했나 — 한 번에 확정한 칸(AI 값 그대로)과 칸마다 보고 AI와 같게 고른 칸을 가른다(품질 표본의 대상이 다르다)
+            labeled[f"{column}Source"] = ("INCR_REVIEW_AI_BULK" if cell.get("channel") == "screen-bulk" else
+                                         "INCR_REVIEW_AI_AGREED" if cell["agreedWithAi"] else "INCR_REVIEW_HUMAN")
         labeled["incrReview"] = {"batch": batch, "decisionIds": [cell["decisionId"] for cell in cells],
-                                 "reviewers": sorted({cell["reviewer"] for cell in cells})}
+                                 "reviewers": sorted({cell["reviewer"] for cell in cells}),
+                                 **({"recheckSkipped": unchecked} if unchecked else {})}
         out.append(labeled)
     target = incr_home(profile) / "labeled" / f"{batch}.jsonl"
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(".jsonl.tmp")
     temp.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in out), encoding="utf-8")
     temp.replace(target)
-    return {"ok": True, "file": relative_or_absolute(target), "labeled": len(out), "pending": len(rows) - len(out)}
+    # 빠진 줄을 말없이 버리지 않는다 — 두 사람의 답이 갈려 세 번째 사람을 기다리는 줄은 따로 센다
+    disputed = sorted({key for (key, _field), entry in latest.items() if entry.get("disputed")})
+    return {"ok": True, "file": relative_or_absolute(target), "labeled": len(out), "pending": len(rows) - len(out),
+            "disputedRows": len(disputed)}
 
 
 def status(profile: dict[str, Any], batch: str, task: dict[str, Any] | None = None,
@@ -538,8 +652,10 @@ def status(profile: dict[str, Any], batch: str, task: dict[str, Any] | None = No
     work = work_dir(profile, batch)
     readings = _read_json(work / "readings.json", {}) or {}
     worklist_head = _worklist_head(work)
+    ledger = read_ledger(profile) if ledger is None else ledger
     latest = effective_decisions(profile, task, batch, ledger)
     labeled = [entry for entry in latest.values() if _labeled(entry)]
+    sample = recheck_keys(profile, batch, ledger)
     items_done = len(done_keys(latest, rows, fields))
     return {
         "batch": batch, "meta": _read_json(batch_home(profile, batch) / "batch.json", {}),
@@ -550,6 +666,24 @@ def status(profile: dict[str, Any], batch: str, task: dict[str, Any] | None = No
         "cellsHeld": sum(1 for entry in latest.values() if entry["decision"] == "HOLD"),
         "cellsOutOfPolicy": sum(1 for entry in latest.values() if entry.get("outOfPolicy")),
         "cellsAgreedWithAi": sum(1 for entry in labeled if entry["agreedWithAi"]),
+        # 한 번에 확정한 칸은 AI 값을 그대로 받은 것이라 «AI와 같음»에 넣으면 AI가 맞힌 비율처럼 부풀려진다 — 따로 센다
+        "cellsBulk": sum(1 for entry in labeled if entry.get("channel") == "screen-bulk"),
+        # 칸마다 보고 고른 칸 — 표본 다시 보기(눈가림)의 답은 AI를 가린 채 고른 것이라 «AI와 같게»에 섞지 않는다(따로 센다)
+        "cellsIndividual": sum(1 for entry in labeled if entry.get("channel") not in ("screen-bulk", "screen-recheck")),
+        "cellsIndividualAgreed": sum(1 for entry in labeled if entry.get("channel") not in ("screen-bulk", "screen-recheck")
+                                     and entry["agreedWithAi"]),
+        "cellsRechecked": sum(1 for entry in labeled if entry.get("channel") == "screen-recheck"),
+        # 표본 다시 보기에서 두 사람의 답이 갈려 세 번째 사람을 기다리는 칸 — 확정으로 세지 않는다
+        "cellsDisputed": sum(1 for entry in latest.values() if entry.get("disputed")),
+        "recheckItems": len(sample),
+        # 다시 본 건 — 표본 건의 한 번에 확정한 칸을 모두 **다른 사람이 눈가림으로** 다시 골랐다(«바꾸기»로 고친 것은 다시 본 것이 아니다)
+        "recheckedItems": sum(1 for key in sample if not recheck_cells(ledger, batch, key)),
+        # 다시 봤더니 앞 확정과 다른 값이 나온 건
+        "recheckChanged": len({entry["key"] for entry in ledger if entry.get("batch") == batch and entry.get("channel") == "screen-recheck"
+                               and entry.get("recheckAgreed") is False}),
+        # AI 판독의 셈 — 화면 머리의 «처음 올라온 칸 — AI 제안 · 직접 봐야 할» 줄. 화면이 다시 세지 않게 여기서 센다.
+        "cellsWithAi": sum(1 for key in rows for field in fields if _ai_ok(task, field, readings.get(key))),
+        "cellsAsking": sum(1 for key in rows if key in readings for field in fields if not _ai_ok(task, field, readings.get(key))),
         "prepared": bool(worklist_head.get("prepared")),
         "labeledFile": relative_or_absolute(incr_home(profile) / "labeled" / f"{batch}.jsonl")
         if (incr_home(profile) / "labeled" / f"{batch}.jsonl").is_file() else None,
@@ -557,10 +691,81 @@ def status(profile: dict[str, Any], batch: str, task: dict[str, Any] | None = No
     }
 
 
+# 판매용이 아닌 시험 등록 상품 — 이름에 이 말이 있으면 검수할 데이터가 아닐 가능성이 크다(운영 DB에 섞여 있다).
+# 모을 때(`incr_collect.pick`)는 빼고 뺀 목록을 알리며, 파일로 밀어넣을 때는 빼지 않고 알리기만 한다.
+NOT_FOR_SALE = re.compile(r"테스트\s*상품|구매\s*금지|test\s*product|\[test\]|\(test\)", re.IGNORECASE)
+
+RECHECK_SHARE = 0.1  # 한 번에 확정한 건 가운데 다른 사람이 다시 볼 몫
+RECHECK_SHARE_AFTER_MISS = 0.3  # 다시 봤더니 한 건이라도 달랐으면 표본을 키운다 — 한 번에 확정을 덜 믿을 이유가 생겼다
+RECHECK_FULL_AT = 0.2  # 다시 본 건 가운데 이만큼 넘게 어긋나면 한 번에 확정한 건을 모두 다시 본다
+
+
+def _needs_second(entry: dict[str, Any]) -> bool:
+    """두 번째 눈이 필요한 판정 — 한 번에 확정한 칸(AI 값을 그대로 받았다)과, AI가 사람에게 물은 칸의 답(가장 어려운 칸이고
+    그 답이 다음 판독의 사례가 된다 — 한 사람의 판단이 곧 사례가 되지 않게)."""
+    return entry.get("channel") == "screen-bulk" or (
+        entry.get("decision") == "LABEL" and entry.get("channel") in ("screen", "spoken") and bool((entry.get("basedOn") or {}).get("ask")))
+
+
+def recheck_cells(ledger: list[dict[str, Any]], batch: str, key: str) -> list[str]:
+    """이 건에서 아직 다시 보지 않은 칸 — 한 번에 확정했거나 AI가 물은 칸을 답했고, 눈가림 다시 보기가 아직 없는 칸."""
+    history = [entry for entry in ledger if entry.get("batch") == batch and entry["key"] == key]
+    bulk = {entry["field"] for entry in history if _needs_second(entry)}
+    seen = {entry["field"] for entry in history if entry.get("channel") == "screen-recheck"}
+    return sorted(bulk - seen)
+
+
+def recheck_keys(profile: dict[str, Any], batch: str, ledger: list[dict[str, Any]] | None = None) -> list[str]:
+    """표본 다시 보기 대상 — 이 묶음에서 한 번에 확정한 적이 있는 건의 약 10%(적어도 한 건). 고르는 순서는 키의 해시라 누가 열어도 같고,
+    확정을 더할수록 표본이 늘어도 앞서 고른 건은 대개 그대로 남는다(해시가 작은 순)."""
+    ledger = read_ledger(profile) if ledger is None else ledger
+    bulk = sorted({entry["key"] for entry in ledger if entry.get("batch") == batch and entry.get("channel") == "screen-bulk"},
+                  key=lambda key: hashlib.sha1(f"{batch}|{key}".encode("utf-8")).hexdigest())
+    # AI가 물은 칸을 답한 건은 표본이 아니라 전부 — 가장 어려운 칸이고 그 답이 사례가 된다
+    asked = sorted({entry["key"] for entry in ledger if entry.get("batch") == batch and _needs_second(entry)
+                    and entry.get("channel") != "screen-bulk"}, key=lambda key: hashlib.sha1(f"{batch}|{key}".encode("utf-8")).hexdigest())
+    # 표본을 키우는 신호는 한 번에 확정한 칸의 재검에서만 — AI가 물은 칸은 원래 애매해 갈림이 잦아, 섞으면 한 번에 확정을 괜히 덜 믿게 된다
+    bulk_cells = {(entry["key"], entry["field"]) for entry in ledger if entry.get("batch") == batch and entry.get("channel") == "screen-bulk"}
+    rechecks = [entry for entry in ledger if entry.get("batch") == batch and entry.get("channel") == "screen-recheck"
+                and (entry["key"], entry["field"]) in bulk_cells]
+    missed = {entry["key"] for entry in rechecks if entry.get("recheckAgreed") is False}
+    seen = {entry["key"] for entry in rechecks}
+    # 어긋남이 쌓이면 표본을 계단으로 키운다 — 한 건이면 30%, 다시 본 건의 20% 넘게(두 건 이상) 어긋나면 한 번에 확정한 건 전부
+    share = (1.0 if len(missed) >= 2 and len(missed) / len(seen) >= RECHECK_FULL_AT else
+             RECHECK_SHARE_AFTER_MISS if missed else RECHECK_SHARE)
+    picked = bulk[: max(1, math.ceil(len(bulk) * share))] if bulk else []
+    return picked + [key for key in asked if key not in picked]
+
+
+def _ai_ok(task: dict[str, Any], field: str, reading: dict[str, Any] | None) -> bool:
+    """AI가 이 칸에 허용값을 확신 있게 냈는가(사람에게 묻지 않고) — 한 번에 확정할 수 있는 칸."""
+    cell = ((reading or {}).get("cells") or {}).get(field) or {}
+    spec = field_map(task)[field]
+    value = normalize(spec, cell.get("value"), lenient=True)
+    return in_range(spec, value) and cell.get("confidence") != "LOW" and not (cell.get("askHuman") or {}).get("question")
+
+
 def _worklist_head(work: Path) -> dict[str, Any]:
     """작업 목록 전체(사진·맥락이 든 큰 파일)를 읽지 않고 머리만 — 목록 화면은 이것만 필요하다."""
     worklist = _read_json(work / "worklist.json", {}) or {}
     return {"prepared": bool(worklist.get("items")), "noEvidence": worklist.get("noEvidence")}
+
+
+def _plain_reading(reading: dict[str, Any] | None) -> dict[str, Any] | None:
+    """화면에 보일 AI 문장을 운영팀의 말로(골든셋 검수와 같은 `_ai`) — 원본 판독 파일은 그대로 두고 보이는 사본만 바꾼다."""
+    if not reading:
+        return reading
+    from gt_review_render import _ai
+
+    cells = {}
+    for field, cell in (reading.get("cells") or {}).items():
+        cell = dict(cell or {})
+        if cell.get("observation"):
+            cell["observation"] = _ai(cell["observation"])
+        if isinstance(cell.get("askHuman"), dict) and cell["askHuman"].get("question"):
+            cell["askHuman"] = {**cell["askHuman"], "question": _ai(cell["askHuman"]["question"])}
+        cells[field] = cell
+    return {**reading, "cells": cells}
 
 
 def task_name(profile: dict[str, Any]) -> str:
@@ -610,6 +815,15 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
     readings = _read_json(work / "readings.json", {}) or {}
     latest = effective_decisions(profile, task, batch)
     base = output_root(profile).resolve()
+    # 사람도 판독자와 같은 기준을 본다 — 골든셋 검수의 «이 항목의 정책 보기»·값 설명과 같은 자료(정의 문서의 그 칸 절)
+    from gt_review_render import _inline, _md, _names_for_text
+    from gt_task import definition_texts, definition_value_notes
+
+    definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+    try:
+        texts, notes = definition_texts(definitions), definition_value_notes(definitions)
+    except (OSError, TaskError):
+        texts, notes = {}, {}
     names = task.get("columnNames") or {}
     role_names = (task.get("images") or {}).get("roleNames") or {}
 
@@ -627,6 +841,8 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
         link = str(item.get("link") or "")
         items.append({
             "key": key, "title": item.get("title"), "group": item.get("group"),
+            # 시험 등록 상품처럼 보이는 건 — 빼지 않고 화면이 알린다(밀어넣은 파일은 그 파일을 가진 쪽의 것)
+            "looksLikeTest": any(isinstance(value, str) and bool(NOT_FOR_SALE.search(value)) for value in row.values()),
             "link": link if link.startswith(("http://", "https://")) else None,
             "images": [{"viewId": image["viewId"], "url": url(image["path"]),
                         "role": role_names.get(str(image.get("role")), image.get("role"))} for image in item.get("images") or []],
@@ -634,7 +850,7 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
             "text": [{"name": names.get(k, k), "value": v} for k, v in (item.get("text") or {}).items()],
             "noEvidence": item.get("noEvidence"), "notPrepared": bool(item.get("notPrepared")),
             "missing": len(item.get("missing") or []),
-            "reading": readings.get(key),
+            "reading": _plain_reading(readings.get(key)),
             "decisions": {field: latest[(key, field)] for field in fields if (key, field) in latest},
         })
     return {
@@ -642,9 +858,18 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
         "batches": batches(profile),
         "fields": [{"id": fid, "name": spec.get("name") or fid, "many": spec.get("cardinality") == "many",
                     "unknownLabel": spec.get("unknownLabel"),
+                    # 정책 글과 값 설명은 골든셋 검수와 **같은 함수**(_md·_inline)가 그린다 — 코드가 이름으로 바뀌고 글자는 이스케이프된다
+                    "definitionHtml": _md(texts[fid], _names_for_text(fields, spec, names)) if texts.get(fid) else "",
+                    "valueNotesHtml": {code: _inline(note, _names_for_text(fields, spec, names))
+                                       for code, note in (notes.get(fid) or {}).items()},
                     "labels": [{"code": str(label), "name": (spec.get("labelNames") or {}).get(str(label)) or str(label)}
                                for label in spec["labels"]]} for fid, spec in fields.items()],
-        "items": items, "status": status(profile, batch, task),
+        "items": items, "status": status(profile, batch, task), "recheckKeys": recheck_keys(profile, batch),
+        "recheckCells": {key: recheck_cells(read_ledger(profile), batch, key) for key in recheck_keys(profile, batch)},
+        # 건마다 한 번에 확정한 사람 — 화면이 그 사람에게는 눈가림 다시 보기 자리를 보이지 않는다(기록기도 막는다)
+        "recheckBy": {key: sorted({str(entry.get("reviewer") or "").strip() for entry in read_ledger(profile)
+                                   if entry.get("batch") == batch and entry["key"] == key and _needs_second(entry)})
+                      for key in recheck_keys(profile, batch)},
     }
 
 
@@ -669,6 +894,9 @@ def main() -> int:
         cmd.add_argument("--batch", required=name in ("record", "export"))
         if name == "run":
             cmd.add_argument("--reread", action="store_true", help="못 읽은 건만 다시(없으면 확정 안 한 건을 처음부터 다시 읽는다)")
+        if name == "export":
+            cmd.add_argument("--skip-recheck", action="store_true",
+                             help="표본 다시 보기를 끝내지 않고 쓴다(다시 볼 사람이 없을 때만 — 결과 줄에 recheckSkipped로 남는다)")
         if name == "record":
             cmd.add_argument("--key", required=True)
             cmd.add_argument("--field", required=True)
@@ -702,7 +930,7 @@ def main() -> int:
             elif args.command == "status":
                 result = status(profile, batch)
             elif args.command == "export":
-                result = export(profile, batch)
+                result = export(profile, batch, skip_recheck=args.skip_recheck)
             else:
                 result = record(profile, batch, args.key, args.field, "HOLD" if args.hold else "LABEL", args.reviewer,
                                 value=args.value, reason=args.reason, channel="spoken",
