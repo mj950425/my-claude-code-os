@@ -1,0 +1,1002 @@
+[
+  {
+    "seller_product_id": 9394742,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041233,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.921Z"
+    },
+    "published_version": 1790585041233
+  },
+  {
+    "seller_product_id": 9446710,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041909,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.947Z"
+    },
+    "published_version": 1790585041909
+  },
+  {
+    "seller_product_id": 9446714,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042267,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.963Z"
+    },
+    "published_version": 1790585042267
+  },
+  {
+    "seller_product_id": 9447714,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041530,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.911Z"
+    },
+    "published_version": 1790585041530
+  },
+  {
+    "seller_product_id": 9567738,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040401,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.930Z"
+    },
+    "published_version": 1790585040401
+  },
+  {
+    "seller_product_id": 9567744,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040458,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.871Z"
+    },
+    "published_version": 1790585040458
+  },
+  {
+    "seller_product_id": 9569556,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585039773,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.886Z"
+    },
+    "published_version": 1790585039773
+  },
+  {
+    "seller_product_id": 9569557,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585039804,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.901Z"
+    },
+    "published_version": 1790585039804
+  },
+  {
+    "seller_product_id": 9584491,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040504,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.855Z"
+    },
+    "published_version": 1790585040504
+  },
+  {
+    "seller_product_id": 9584666,
+    "gender": "MALE",
+    "gender_source": "IMAGES",
+    "gender_target_version": 1790585040880,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040880
+  },
+  {
+    "seller_product_id": 9584667,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040908,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.842Z"
+    },
+    "published_version": 1790585040908
+  },
+  {
+    "seller_product_id": 9584694,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041550,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.903Z"
+    },
+    "published_version": 1790585041550
+  },
+  {
+    "seller_product_id": 9584713,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040560,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.908Z"
+    },
+    "published_version": 1790585040560
+  },
+  {
+    "seller_product_id": 9584888,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585039681,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.917Z"
+    },
+    "published_version": 1790585039681
+  },
+  {
+    "seller_product_id": 9584896,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040208,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.895Z"
+    },
+    "published_version": 1790585040208
+  },
+  {
+    "seller_product_id": 9614294,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041881,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.880Z"
+    },
+    "published_version": 1790585041881
+  },
+  {
+    "seller_product_id": 9614303,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042321,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.887Z"
+    },
+    "published_version": 1790585042321
+  },
+  {
+    "seller_product_id": 9672577,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040935,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.888Z"
+    },
+    "published_version": 1790585040935
+  },
+  {
+    "seller_product_id": 9719120,
+    "gender": "UNDETERMINED",
+    "gender_source": "NONE",
+    "gender_target_version": 1790585041826,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.892Z"
+    },
+    "published_version": 1790585041826
+  },
+  {
+    "seller_product_id": 9836703,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042075,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.885Z"
+    },
+    "published_version": 1790585042075
+  },
+  {
+    "seller_product_id": 10025708,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585039863,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.898Z"
+    },
+    "published_version": 1790585039863
+  },
+  {
+    "seller_product_id": 10218128,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040644,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.876Z"
+    },
+    "published_version": 1790585040644
+  },
+  {
+    "seller_product_id": 10218130,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040665,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.891Z"
+    },
+    "published_version": 1790585040665
+  },
+  {
+    "seller_product_id": 10365939,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040532,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040532
+  },
+  {
+    "seller_product_id": 10366515,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040794,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.922Z"
+    },
+    "published_version": 1790585040794
+  },
+  {
+    "seller_product_id": 10366546,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041502,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.929Z"
+    },
+    "published_version": 1790585041502
+  },
+  {
+    "seller_product_id": 10366574,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040151,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.932Z"
+    },
+    "published_version": 1790585040151
+  },
+  {
+    "seller_product_id": 10366949,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040371,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.927Z"
+    },
+    "published_version": 1790585040371
+  },
+  {
+    "seller_product_id": 10367484,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041936,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.889Z"
+    },
+    "published_version": 1790585041936
+  },
+  {
+    "seller_product_id": 10367527,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040765,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.907Z"
+    },
+    "published_version": 1790585040765
+  },
+  {
+    "seller_product_id": 10367569,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040296,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040296
+  },
+  {
+    "seller_product_id": 10367985,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040062,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.843Z"
+    },
+    "published_version": 1790585040062
+  },
+  {
+    "seller_product_id": 10368328,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041359,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.909Z"
+    },
+    "published_version": 1790585041359
+  },
+  {
+    "seller_product_id": 10368899,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042294,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.846Z"
+    },
+    "published_version": 1790585042294
+  },
+  {
+    "seller_product_id": 10368931,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040588,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.859Z"
+    },
+    "published_version": 1790585040588
+  },
+  {
+    "seller_product_id": 10368975,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042047,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.874Z"
+    },
+    "published_version": 1790585042047
+  },
+  {
+    "seller_product_id": 10369065,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040990,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040990
+  },
+  {
+    "seller_product_id": 10369100,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041578,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.835Z"
+    },
+    "published_version": 1790585041578
+  },
+  {
+    "seller_product_id": 10369109,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041964,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.854Z"
+    },
+    "published_version": 1790585041964
+  },
+  {
+    "seller_product_id": 10369123,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042102,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.858Z"
+    },
+    "published_version": 1790585042102
+  },
+  {
+    "seller_product_id": 10376687,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042212,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.862Z"
+    },
+    "published_version": 1790585042212
+  },
+  {
+    "seller_product_id": 10376708,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040032,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040032
+  },
+  {
+    "seller_product_id": 10376752,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041101,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.843Z"
+    },
+    "published_version": 1790585041101
+  },
+  {
+    "seller_product_id": 10376776,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040092,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.850Z"
+    },
+    "published_version": 1790585040092
+  },
+  {
+    "seller_product_id": 10376795,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040710,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.855Z"
+    },
+    "published_version": 1790585040710
+  },
+  {
+    "seller_product_id": 10376978,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041074,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.859Z"
+    },
+    "published_version": 1790585041074
+  },
+  {
+    "seller_product_id": 10377484,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042185,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.863Z"
+    },
+    "published_version": 1790585042185
+  },
+  {
+    "seller_product_id": 10377687,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040001,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.844Z"
+    },
+    "published_version": 1790585040001
+  },
+  {
+    "seller_product_id": 10378324,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585039650,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.872Z"
+    },
+    "published_version": 1790585039650
+  },
+  {
+    "seller_product_id": 10378509,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041633,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.879Z"
+    },
+    "published_version": 1790585041633
+  },
+  {
+    "seller_product_id": 10378561,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040325,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040325
+  },
+  {
+    "seller_product_id": 10379565,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041018,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.842Z"
+    },
+    "published_version": 1790585041018
+  },
+  {
+    "seller_product_id": 10379586,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041474,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.866Z"
+    },
+    "published_version": 1790585041474
+  },
+  {
+    "seller_product_id": 10387899,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041854,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.848Z"
+    },
+    "published_version": 1790585041854
+  },
+  {
+    "seller_product_id": 10387960,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041991,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.864Z"
+    },
+    "published_version": 1790585041991
+  },
+  {
+    "seller_product_id": 10387991,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585040738,
+    "ut": {
+      "$date": "2026-09-28T08:45:58.827Z"
+    },
+    "published_version": 1790585040738
+  },
+  {
+    "seller_product_id": 10388631,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041989,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.911Z"
+    },
+    "published_version": 1790585041989
+  },
+  {
+    "seller_product_id": 10388673,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041789,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.902Z"
+    },
+    "published_version": 1790585041789
+  },
+  {
+    "seller_product_id": 10388722,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041890,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.892Z"
+    },
+    "published_version": 1790585041890
+  },
+  {
+    "seller_product_id": 10389224,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041937,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.877Z"
+    },
+    "published_version": 1790585041937
+  },
+  {
+    "seller_product_id": 10389250,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042382,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.870Z"
+    },
+    "published_version": 1790585042382
+  },
+  {
+    "seller_product_id": 10389315,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041871,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.905Z"
+    },
+    "published_version": 1790585041871
+  },
+  {
+    "seller_product_id": 10389711,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041698,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.903Z"
+    },
+    "published_version": 1790585041698
+  },
+  {
+    "seller_product_id": 10389755,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042416,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.896Z"
+    },
+    "published_version": 1790585042416
+  },
+  {
+    "seller_product_id": 10389801,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042039,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.886Z"
+    },
+    "published_version": 1790585042039
+  },
+  {
+    "seller_product_id": 10389851,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041907,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.877Z"
+    },
+    "published_version": 1790585041907
+  },
+  {
+    "seller_product_id": 10457762,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042057,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.870Z"
+    },
+    "published_version": 1790585042057
+  },
+  {
+    "seller_product_id": 10489780,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042164,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.862Z"
+    },
+    "published_version": 1790585042164
+  },
+  {
+    "seller_product_id": 10491842,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042230,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.908Z"
+    },
+    "published_version": 1790585042230
+  },
+  {
+    "seller_product_id": 10491937,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042334,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.900Z"
+    },
+    "published_version": 1790585042334
+  },
+  {
+    "seller_product_id": 10542251,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041822,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.892Z"
+    },
+    "published_version": 1790585041822
+  },
+  {
+    "seller_product_id": 10581795,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042131,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.885Z"
+    },
+    "published_version": 1790585042131
+  },
+  {
+    "seller_product_id": 10581816,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042346,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.878Z"
+    },
+    "published_version": 1790585042346
+  },
+  {
+    "seller_product_id": 10581819,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042371,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.870Z"
+    },
+    "published_version": 1790585042371
+  },
+  {
+    "seller_product_id": 10771330,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042071,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.903Z"
+    },
+    "published_version": 1790585042071
+  },
+  {
+    "seller_product_id": 10851463,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041954,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.897Z"
+    },
+    "published_version": 1790585041954
+  },
+  {
+    "seller_product_id": 10882985,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042200,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.896Z"
+    },
+    "published_version": 1790585042200
+  },
+  {
+    "seller_product_id": 10940286,
+    "gender": "FEMALE",
+    "gender_source": "BRAND_GENDER_OVERRIDE",
+    "gender_target_version": 1790606128161,
+    "ut": {
+      "$date": "2026-09-28T14:35:28.240Z"
+    },
+    "published_version": 1790606128161
+  },
+  {
+    "seller_product_id": 10992225,
+    "gender": "FEMALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042441,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.874Z"
+    },
+    "published_version": 1790585042441
+  },
+  {
+    "seller_product_id": 10993730,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042356,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.862Z"
+    },
+    "published_version": 1790585042356
+  },
+  {
+    "seller_product_id": 10994200,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585042473,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.918Z"
+    },
+    "published_version": 1790585042473
+  },
+  {
+    "seller_product_id": 10994202,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585042506,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.923Z"
+    },
+    "published_version": 1790585042506
+  },
+  {
+    "seller_product_id": 11020129,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041971,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.914Z"
+    },
+    "published_version": 1790585041971
+  },
+  {
+    "seller_product_id": 11020134,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042099,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.919Z"
+    },
+    "published_version": 1790585042099
+  },
+  {
+    "seller_product_id": 11020135,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042147,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.916Z"
+    },
+    "published_version": 1790585042147
+  },
+  {
+    "seller_product_id": 11020143,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042301,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.918Z"
+    },
+    "published_version": 1790585042301
+  },
+  {
+    "seller_product_id": 11020146,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042318,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.912Z"
+    },
+    "published_version": 1790585042318
+  },
+  {
+    "seller_product_id": 11020148,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042398,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.916Z"
+    },
+    "published_version": 1790585042398
+  },
+  {
+    "seller_product_id": 11020155,
+    "gender": "MALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041735,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.908Z"
+    },
+    "published_version": 1790585041735
+  },
+  {
+    "seller_product_id": 11168670,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042243,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.891Z"
+    },
+    "published_version": 1790585042243
+  },
+  {
+    "seller_product_id": 11168711,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042431,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.882Z"
+    },
+    "published_version": 1790585042431
+  },
+  {
+    "seller_product_id": 11168749,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042463,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.875Z"
+    },
+    "published_version": 1790585042463
+  },
+  {
+    "seller_product_id": 11168840,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585042269,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.882Z"
+    },
+    "published_version": 1790585042269
+  },
+  {
+    "seller_product_id": 11168870,
+    "gender": "UNISEX",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585041924,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.871Z"
+    },
+    "published_version": 1790585041924
+  },
+  {
+    "seller_product_id": 11290651,
+    "gender": "FEMALE",
+    "gender_source": "BRAND_GENDER_OVERRIDE",
+    "gender_target_version": 1790606128489,
+    "ut": {
+      "$date": "2026-09-28T14:35:28.560Z"
+    },
+    "published_version": 1790606128489
+  },
+  {
+    "seller_product_id": 11407180,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585041756,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.889Z"
+    },
+    "published_version": 1790585041756
+  },
+  {
+    "seller_product_id": 11407182,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585041841,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.880Z"
+    },
+    "published_version": 1790585041841
+  },
+  {
+    "seller_product_id": 11407210,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585042178,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.871Z"
+    },
+    "published_version": 1790585042178
+  },
+  {
+    "seller_product_id": 11407215,
+    "gender": "MALE",
+    "gender_source": "NAME",
+    "gender_target_version": 1790585042189,
+    "ut": {
+      "$date": "2026-09-28T08:45:59.861Z"
+    },
+    "published_version": 1790585042189
+  },
+  {
+    "seller_product_id": 11446710,
+    "gender": "FEMALE",
+    "gender_source": "DETAIL_IMAGE",
+    "gender_target_version": 1790585360640,
+    "ut": {
+      "$date": "2026-09-28T08:49:53.051Z"
+    },
+    "published_version": 1790585360640
+  }
+]

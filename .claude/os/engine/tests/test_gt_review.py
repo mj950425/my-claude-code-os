@@ -373,8 +373,8 @@ class GtReviewTest(unittest.TestCase):
         body = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("needsRestart", body)
         calls = re.findall(r"agent\((\w+)Prompt\([^)]*\), \{\s*agentType", body)
-        self.assertEqual(sorted(calls), ["defense", "reader"], "두 호출 모두 agentType을 갖는다 — 유형 없는 대역은 쓰지 않는다")
-        self.assertEqual(len(re.findall(r"\bagent\(", body)), 2)
+        self.assertEqual(sorted(calls), ["defense", "reader", "second"], "모든 호출이 agentType을 갖는다 — 유형 없는 대역은 쓰지 않는다")
+        self.assertEqual(len(re.findall(r"\bagent\(", body)), 3)
 
     def test_workflow_knows_no_task(self) -> None:
         body = WORKFLOW.read_text(encoding="utf-8")
@@ -1372,8 +1372,10 @@ class SourceAndUpstreamTest(unittest.TestCase):
     def test_prompts_and_agent_docs_match_the_reader_layout(self) -> None:
         body = WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("runRoot", body)
+        self.assertIn("item.view", body, "건별 임시 판독 파일을 호출 인자로 읽어야 한다")
+        self.assertIn("function readerPrompt(item)", body)
         agent = (PROJECT_ROOT / ".claude/os/engine/agents/gt-blind-reader.md").read_text(encoding="utf-8")
-        self.assertIn("gt-review/reader/", agent)
+        self.assertIn("호출 시 제공된 정책", agent)
         self.assertNotIn("reader-view/", agent)
 
 
@@ -1871,9 +1873,10 @@ class ScreenAndBatchTest(unittest.TestCase):
         self.assertIn("이름(name)", self.fx.task("prepare", check=False).stderr)
 
     def test_the_defender_reads_text_evidence_too(self) -> None:
-        body = (PROJECT_ROOT / ".claude/os/engine/agents/gt-defender.md").read_text(encoding="utf-8")
-        self.assertIn("글", body)
-        self.assertIn("columnNames", body)
+        body = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("text·context", body)
+        self.assertIn("function defensePrompt(item, disputed)", body)
+        self.assertIn("item.view", body)
 
     def test_prepare_with_nothing_to_show_keeps_the_screen(self) -> None:
         self.fx.task("render")
@@ -2953,7 +2956,7 @@ class WorkflowParityTest(unittest.TestCase):
             "    const item = args.items.find((i) => prompt.includes(i.view));\n"
             "    return { readings: READINGS[item.id] };\n"
             "  }\n"
-            "  const id = /건\\((GI-\\d+)\\)/.exec(prompt)[1];\n"
+            "  const id = /^반론 (GI-\\d+)$/.exec(opts.label)[1];\n"
             "  for (const m of prompt.matchAll(/^- (\\w+): 지금 GT/gm)) defended.push([id, m[1]]);\n"
             "  return { rebuttals: [] };\n"
             "}\n"

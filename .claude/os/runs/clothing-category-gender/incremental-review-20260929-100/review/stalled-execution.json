@@ -1,0 +1,13 @@
+{
+  "caseId": "MUSINSA:6950034",
+  "cliPid": 53700,
+  "parentPid": 27519,
+  "bundle": "policy-multi-agent-qjfg3in3",
+  "observation": "Three child readers finished and enqueued task notifications at 03:29:15-03:29:25 UTC. Parent had not returned a result when its isolated CLI was terminated for retry.",
+  "childSessionIds": [
+    "a95f8d5b77e425771",
+    "afce0446836942738",
+    "ab40ee2b99556db18"
+  ],
+  "terminatedAt": "2026-09-29T03:38:40.857593+00:00"
+}

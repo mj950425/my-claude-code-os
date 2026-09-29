@@ -1,0 +1,19 @@
+{
+  "dimension": "ui",
+  "scores": {
+    "accessories-category-gender": 96,
+    "bag-category-gender": 97,
+    "clothing-category-gender": 97,
+    "clothing-thumbnail-observation": 97,
+    "clothing-thumbnail-model-gender": 98
+  },
+  "blockingIssues": [],
+  "evidence": [
+    "Score per GT-capable task averages its task-page score with the shared incremental-page score; policy-only tasks are scored on their available page. All task-page scores are 97 or higher and the incremental page scores 95.",
+    "Round 1's capability/link findings UI-1, UI-2, UI-3 are fixed; 24 generated HTML files have 1,655 unique internal link targets and all returned HTTP 200.",
+    "A live browser check of /incr?task=clothing-category-gender showed policy and Golden Set links resolve to that same task; /gt/clothing-category-gender redirects to the home card marked 준비 전 with the GT preparation prompt.",
+    "The policy-only clothing-thumbnail-model-gender page has no GT task in /gt-tasks and no incremental entry in /incr-tasks; its Golden Set Review and Golden Set controls are disabled and say 이 작업은 제공하지 않음.",
+    "The generated incremental template matches incr_render.page(). Final focused UI/template/temp-fixture test selection: 4 passed; the fixture test confirms decision persistence, status refresh, stale-write rejection, and independent recheck behavior.",
+    "Supported task policy/Golden Set pages were regenerated with gt_review.py pages; the policy-only profile emitted only its policy page. Prepared review pages were refreshed with render_current(record=False), which skips asked/blind-history recording. After the observation documentation update, its pages were regenerated again. incr.html was regenerated with incr_render.py and --check returned 같습니다. No SDK or database calls were made and no human decision ledgers were written."
+  ]
+}

@@ -56,6 +56,13 @@ INCR_STYLE = """
 .decide .cell .act:not(.chips):not(.notes) button.confirm-many:hover{background:var(--accent-ink);color:#fff}
 .decide .cell .act:not(.chips):not(.notes) button.confirm-many:disabled{opacity:.45;cursor:default}
 .decide .cell .result.disputed{color:var(--warn)}
+.why-value{margin:10px 0 2px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent) 7%,transparent);font-size:13px;line-height:1.55}
+.why-value .why-head{margin:0 0 4px}
+.why-value code{font-size:12px;padding:0 5px;border-radius:5px;background:var(--paper)}
+.why-value .why-facts{margin:0 0 4px;padding-left:18px}
+.why-value .why-shots a.pic{margin-right:4px}
+.why-value .why-more{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.why-value .why-more.warn{color:var(--warn)}
 .recheck-hint{grid-column:1/-1;margin:0 0 4px;font-size:13px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);z-index:50;padding:10px 16px;border-radius:10px;background:var(--ink);color:#fff;font-size:13.5px;max-width:80vw;box-shadow:var(--shadow)}
 .toast.bad{background:var(--bad)}
@@ -305,7 +312,9 @@ SCRIPT = r"""
     const one = item.images.length === 1;
     const box = make('div', 'shots' + (one ? ' one' : ''));
     let cited = new Set();
-    DATA.fields.forEach((f) => ((aiCell(item, f) || {}).evidenceImageIds || []).forEach((id) => cited.add(String(id))));
+    // 값을 정한 관찰의 사진(«왜 이 값인가»)이 있으면 그것이 근거다 — AI가 두루 든 사진 목록보다 좁고 정확하다
+    DATA.fields.forEach((f) => { const v = (aiCell(item, f) || {}).verdict; (v && v.deciding || []).forEach((d) => d.photos.forEach((id) => cited.add(String(id)))); });
+    if (!cited.size) DATA.fields.forEach((f) => ((aiCell(item, f) || {}).evidenceImageIds || []).forEach((id) => cited.add(String(id))));
     // 골든셋 검수와 같은 규칙 — 전부(또는 여섯 장 넘게) 짚었으면 짚은 것이 아니다. 표시하면 모든 사진에 «AI 근거»가 붙는다.
     // 사진을 두루(여섯 장 넘게·전부) 근거로 들었으면 짚은 사진이 없는 것과 같다 — 그 사실을 말하고 사진을 모두 펼쳐 둔다(사람이 직접 훑게)
     const broad = !blindFor(item) && cited.size > 0 && (cited.size > 6 || cited.size >= item.images.length) && item.images.length > 1;
@@ -359,6 +368,39 @@ SCRIPT = r"""
       frag.appendChild(a);
     });
     return frag;
+  }
+  // «왜 이 값인가» — 서버가 값 규칙 표로 계산한 것(gt_review_render.verdict)을 그리기만 한다. 걸린 규칙 · 그 규칙을 참으로 만든 관찰과
+  // 근거 사진(번호를 누르면 크게) · 앞 순위 근거가 없었다는 것 · 뒷순위에서 함께 «예»였던 관찰. 사람이 «어느 사진으로 어느 정책»을 한눈에 본다.
+  function whyValue(item, field, v) {
+    const box = make('div', 'why-value');
+    const head = make('p', 'why-head');
+    head.appendChild(make('b', null, '왜 ' + labelName(field, v.value) + '인가'));
+    head.appendChild(document.createTextNode(' — 정책 값 규칙 '));
+    head.appendChild(make('code', null, v.ruleId));
+    head.appendChild(document.createTextNode(' ' + (v.ruleText || '') + ' → ' + labelName(field, v.value) + (v.ruleWhy ? ' (' + v.ruleWhy + ')' : '')));
+    box.appendChild(head);
+    const list = make('ul', 'why-facts');
+    v.deciding.forEach((f) => {
+      const li = make('li');
+      li.appendChild(make('b', null, f.name + (f.yes ? ' 예' : ' 아니오')));
+      if (f.photos.length) {
+        const shots = make('span', 'why-shots');
+        f.photos.forEach((pid) => shots.appendChild(said(item, pid)));
+        li.appendChild(document.createTextNode(' · 사진 ')); li.appendChild(shots);
+      }
+      li.appendChild(document.createTextNode(' — ')); li.appendChild(said(item, f.why));
+      list.appendChild(li);
+    });
+    box.appendChild(list);
+    if (v.earlier.length) {
+      const none = v.earlier.filter((f) => !f.yes).map((f) => f.name);
+      const yes = v.earlier.filter((f) => f.yes).map((f) => f.name);
+      box.appendChild(make('p', 'why-more', '앞 순위 근거' + (none.length ? ' 없음: ' + none.join(' · ') : '')
+        + (yes.length ? (none.length ? ' / ' : ': ') + yes.join(' · ') + '는 예였지만 앞 순위 규칙의 조합이 맞지 않음' : '')));
+    }
+    if (v.alsoTrue.length) box.appendChild(make('p', 'why-more', '뒷순위에서 함께 예: ' + v.alsoTrue.map((f) => f.name).join(' · ') + ' — 값을 정하지는 않았습니다'));
+    if (!v.matchesReading) box.appendChild(make('p', 'why-more warn', '관찰로 계산한 값이 AI 제안과 다릅니다 — 사진을 직접 봐 주세요.'));
+    return box;
   }
   // 서버가 골든셋 검수와 같은 함수(_md·_inline)로 그린 정책 글 — 글자는 서버에서 이스케이프됐다. 문자열을 노드로 옮기기만 한다.
   function html(markup, tag = 'div', cls = null) {
@@ -421,6 +463,7 @@ SCRIPT = r"""
       chips.appendChild(b);
     });
     box.appendChild(chips);
+    if (ai && ai.verdict && ai.verdict.ruleId && !blindFor(item)) box.appendChild(whyValue(item, field, ai.verdict));
     const row = make('div', 'act');
     if (field.many) {
       const confirm = make('button', 'confirm-many', '고른 값으로 확정'); confirm.type = 'button';
@@ -469,6 +512,8 @@ SCRIPT = r"""
     const dd = make('dd');
     if (ai && ai.value) { dd.appendChild(make('b', null, labelName(field, ai.value) + (ai.confidence === 'LOW' ? ' (확신 낮음)' : ''))); dd.appendChild(document.createTextNode(' — ')); }
     dd.appendChild(said(item, (ai && ai.observation) || (item.reading ? '(설명 없음)' : 'AI가 아직 읽지 않았습니다.')));
+    // 관찰 칸 — 골든셋 검수와 같은 칩(서버가 같은 함수로 만든 HTML)
+    if (ai && ai.observationsHtml) dd.appendChild(html(ai.observationsHtml, 'div'));
     dl.appendChild(dd);
     grounds.appendChild(dl);
     if (field.definitionHtml) {
@@ -505,6 +550,40 @@ SCRIPT = r"""
         const opened = box.classList.toggle('open');
         change.textContent = opened ? '접기' : '바꾸기'; change.setAttribute('aria-expanded', String(opened));
       });
+    }
+    if (done) {
+      const precedent = make('button', 'toggle', decided.precedentId ? '판례 등록됨 · 수정' : '판례 등록');
+      precedent.type = 'button';
+      result.appendChild(document.createTextNode(' · ')); result.appendChild(precedent);
+      const editor = make('div', 'precedent-editor'); editor.hidden = true;
+      editor.appendChild(make('p', null, '이 판단을 비슷한 상품의 판례로 사용합니다. 판단 근거를 적어 주세요.'));
+      const whyLabel = make('label', null, '판단 근거 ');
+      const explanation = make('textarea'); explanation.rows = 3;
+      explanation.style.width = '100%'; explanation.value = decided.precedentReason || decided.reason || '';
+      whyLabel.appendChild(explanation); editor.appendChild(whyLabel);
+      const ruleLabel = make('label', null, '연결할 규칙 ID (선택, 쉼표로 구분) ');
+      const rules = make('input'); rules.value = (decided.precedentRuleIds || []).join(', ');
+      ruleLabel.appendChild(rules); editor.appendChild(ruleLabel);
+      const save = make('button', null, '판례 저장'); save.type = 'button'; editor.appendChild(save);
+      const cancel = make('button', null, '닫기'); cancel.type = 'button'; editor.appendChild(cancel);
+      precedent.addEventListener('click', () => { box.classList.add('open'); editor.hidden = false; explanation.focus(); });
+      cancel.addEventListener('click', () => { editor.hidden = true; });
+      save.addEventListener('click', () => {
+        if (!reviewer()) { toast('등록자 이름을 적어 주세요.', true); $('reviewer').focus(); return; }
+        if (!explanation.value.trim()) { explanation.focus(); toast('판단 근거를 적어 주세요.', true); return; }
+        save.disabled = true;
+        post('/incr-precedent', {task: TASK, batch: DATA.batch, key: item.key, field: field.id,
+          expectedLatest: decided.decisionId, reviewer: reviewer(), reason: explanation.value.trim(),
+          ruleIds: rules.value.split(',').map(x => x.trim()).filter(Boolean)})
+          .then(reply => {
+            if (!reply.ok) throw new Error(reply.error || '판례를 저장하지 못했습니다.');
+            decided.precedentId = reply.precedent.precedentId;
+            decided.precedentReason = reply.precedent.reason; decided.precedentRuleIds = reply.precedent.ruleIds;
+            precedent.textContent = '판례 등록됨 · 수정'; editor.hidden = true;
+            toast('판례로 등록했습니다. 다음 판독부터 비슷한 사례 검색에 사용합니다.');
+          }).catch(error => toast(error.message, true)).finally(() => { save.disabled = false; });
+      });
+      box.appendChild(editor);
     }
     box.appendChild(result);
     if (done) box.appendChild(change);
@@ -558,7 +637,7 @@ SCRIPT = r"""
       // 한 번에 확정 — 증분에서만. 눈가림 다시 보기 중에는 AI를 말하는 줄을 두지 않는다. AI가 확신한 칸만 확정하고, 직접 볼 칸은 몇 개인지 말한다(그 칸은 이 버튼으로 확정되지 않는다)
       const all = make('div', 'item-all');
       const sure = sureOpen(item).length, look = open(item).length - sure;
-      all.appendChild(make('span', 'hint', !sure ? 'AI가 확신하지 못한 칸입니다 — 사진을 보고 직접 골라 주세요.'
+      all.appendChild(make('span', 'hint', !sure ? (item.reading ? 'AI가 확신하지 못한 칸입니다 — 사진을 보고 직접 골라 주세요.' : 'AI가 아직 읽지 않았습니다 — 기다리거나 사진을 보고 직접 골라 주세요.')
         : look ? '사진을 보고 AI 제안이 맞으면 확정하세요. «직접 봐 주세요» 칸 ' + look + '개는 이 버튼으로 확정되지 않습니다 — 따로 골라 주세요.'
         : '사진을 보고 AI 제안이 맞으면 한 번에 확정하세요. 보류한 칸은 건드리지 않습니다.'));
       const button = make('button', null, !sure ? '남은 칸은 직접 골라 주세요' : look ? 'AI 제안 ' + sure + '칸 확정' : 'AI 제안대로 모두 확정'); button.type = 'button'; button.disabled = !sure; button.title = '키보드 A';
@@ -936,7 +1015,9 @@ SCRIPT = r"""
     const image = item.images[index];
     img.src = image.url; img.classList.remove('full');
     // 사진 칸과 같은 규칙 — 여섯 장 넘게(또는 전부) 짚었으면 짚은 것이 아니다
-    const citedAll = new Set(); DATA.fields.forEach((f) => ((aiCell(item, f) || {}).evidenceImageIds || []).forEach((id) => citedAll.add(String(id))));
+    // 사진 칸과 같은 근거 — 값을 정한 관찰의 사진이 먼저, 없으면 AI가 든 사진
+    const citedAll = new Set(); DATA.fields.forEach((f) => { const v = (aiCell(item, f) || {}).verdict; (v && v.deciding || []).forEach((d) => d.photos.forEach((id) => citedAll.add(String(id)))); });
+    if (!citedAll.size) DATA.fields.forEach((f) => ((aiCell(item, f) || {}).evidenceImageIds || []).forEach((id) => citedAll.add(String(id))));
     const citedHere = !blindFor(item) && citedAll.size <= 6 && citedAll.size < item.images.length && citedAll.has(image.viewId);
     box.querySelector('p').textContent = image.viewId + (image.role ? ' · ' + image.role : '') + (citedHere ? ' · AI 근거' : '') + ' (' + (index + 1) + ' / ' + item.images.length + ')';
     box.hidden = false;

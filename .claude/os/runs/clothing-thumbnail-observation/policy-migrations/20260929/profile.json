@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "catalog-data-profile-v1",
+  "id": "clothing-thumbnail-observation",
+  "displayName": "의류 썸네일 관찰",
+  "attributeName": "썸네일 관찰 필드(사람·구도·얼굴·방향·노출)",
+  "subjectName": "의류 썸네일",
+  "outputRoot": ".claude/os/runs/clothing-thumbnail-observation",
+  "source": {
+    "repository": "../core-catalog-platfom"
+  },
+  "gtTask": {
+    "schemaVersion": "gt-task-v1",
+    "unit": "썸네일 한 장",
+    "keyField": "id",
+    "groupField": "goodsNo",
+    "definitions": ".claude/os/attributes/clothing-thumbnail-observation/definitions.md",
+    "gt": {
+      "path": ".claude/gt/clothing-thumbnail-observation/gt.jsonl",
+      "root": "project",
+      "sourceField": "source",
+      "fieldSourcesField": "fieldSources"
+    },
+    "authority": {
+      "trusted": [
+        "^USER_"
+      ],
+      "reference": [
+        "^CLAUDE_HAND_LABEL"
+      ]
+    },
+    "correctionSourcePrefix": "USER_GT_REVIEW",
+    "fields": [
+      {
+        "id": "personPresence",
+        "name": "사람이 있는가",
+        "fillMissing": true
+      },
+      {
+        "id": "shotType",
+        "name": "몸이 어디까지 보이나",
+        "legacy": {
+          "MODEL_CROPPED": "MODEL_CLOSEUP",
+          "DETAIL_CLOSEUP": "MODEL_CLOSEUP"
+        },
+        "fillMissing": true,
+        "alternativesField": "shotTypeAlternatives"
+      },
+      {
+        "id": "faceVisibility",
+        "name": "얼굴이 보이나",
+        "fillMissing": true
+      },
+      {
+        "id": "productView",
+        "name": "상품이 어느 쪽을 보이나",
+        "legacy": {
+          "OBLIQUE": "SIDE"
+        },
+        "fillMissing": true
+      },
+      {
+        "id": "productVisibility",
+        "name": "상품이 통째로 보이나",
+        "fillMissing": true
+      }
+    ],
+    "constraints": [
+      {
+        "id": "ABSENT_HAS_NO_MODEL",
+        "text": "사람이 없으면 구도와 얼굴은 «사람 없음»이어야 합니다",
+        "when": {
+          "personPresence": "ABSENT"
+        },
+        "require": {
+          "shotType": [
+            "NO_MODEL"
+          ],
+          "faceVisibility": [
+            "NO_MODEL"
+          ]
+        }
+      },
+      {
+        "id": "PRESENT_HAS_A_MODEL",
+        "text": "사람이 있으면 구도와 얼굴이 «사람 없음»일 수 없습니다",
+        "when": {
+          "personPresence": "PRESENT"
+        },
+        "forbid": {
+          "shotType": [
+            "NO_MODEL"
+          ],
+          "faceVisibility": [
+            "NO_MODEL"
+          ]
+        }
+      }
+    ],
+    "images": {
+      "path": "tool/image-gender/gt-harness/data/thumbnail-observation-index-20260927.jsonl",
+      "root": "source",
+      "keyField": "id",
+      "fileField": "localPath",
+      "fileRoot": "source",
+      "fileBase": "tool/image-gender/gt-harness",
+      "idField": "id",
+      "maxImages": 1,
+      "contextFields": [
+        "standardCategory"
+      ]
+    },
+    "limit": 60,
+    "columnNames": {
+      "standardCategory": "표준 카테고리"
+    },
+    "linkField": "pdpUrl"
+  },
+  "incremental": {
+    "schemaVersion": "incr-source-v1",
+    "note": "증분 검수의 새 데이터를 운영에서 모으는 법 — engine/scripts/incr_collect.py가 읽는다. 조회는 읽기 전용 mysql-query 스킬로",
+    "platforms": [
+      "MUSINSA"
+    ],
+    "categoryPrefix": "의류>",
+    "key": "{goodsNo}-01",
+    "hosts": {
+      "MUSINSA": "https://image.msscdn.net/thumbnails",
+      "EGOOCM": "https://img.29cm.co.kr"
+    },
+    "pdp": {
+      "MUSINSA": "https://www.musinsa.com/products/{goodsNo}",
+      "EGOOCM": "https://www.29cm.co.kr/products/{goodsNo}"
+    },
+    "detail": false,
+    "maxDetailImages": 6
+  }
+}

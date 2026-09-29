@@ -1,0 +1,21 @@
+{
+  "dimension": "documents",
+  "scores": {
+    "accessories-category-gender": 94,
+    "bag-category-gender": 95,
+    "clothing-category-gender": 95,
+    "clothing-thumbnail-model-gender": 93,
+    "clothing-thumbnail-observation": 98
+  },
+  "blockingIssues": [],
+  "evidence": [
+    ".claude/os/engine/contracts/policy-document.md:43-54 documents shared SDK rendering, optional external promptDelivery, and approved precedents versus OPEN questions.",
+    ".claude/os/attributes/accessories-category-gender/package.md:17-21 explains dynamic policy delivery and precedent distinctions.",
+    ".claude/os/attributes/bag-category-gender/package.md:28-36 explains OPEN questions and UNCLASSIFIED versus UNDETERMINED.",
+    ".claude/os/attributes/clothing-category-gender/package.md:21-42 documents missing GT image preparation, source-index schema, and the separate 100-item incremental population.",
+    ".claude/os/attributes/clothing-thumbnail-model-gender/package.md:13-17 explains dynamic delivery and absence of a GT precedent ledger.",
+    ".claude/os/attributes/clothing-thumbnail-observation/package.md:23-32 maps the 26 short IDs in definitions.md:150-177 to decision ledger lines; the definitions keep compact IDs for clean SDK rendering.",
+    ".claude/os/engine/scripts/policy_prompt.py:208-225 and gt_task.py:672-680 implement the shared dynamic render path; gt_review.py:185-196 makes external prompt delivery conditional.",
+    ".claude/os/engine/scripts/gt_review.py:1277-1295 and policy_precedents.py:26-59 distinguish answered GT question candidates from explicit rule precedent links."
+  ]
+}

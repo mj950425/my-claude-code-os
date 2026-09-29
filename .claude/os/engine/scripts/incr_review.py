@@ -165,7 +165,15 @@ def batch_task(profile: dict[str, Any], task: dict[str, Any], batch: str) -> dic
     """이 묶음의 사진은 어디서 오나. 묶음에 사진 색인을 따로 받았으면 과제 선언의 모양(키·열·역할·파일 기준)은 그대로 두고 색인 파일만 바꾼다.
     색인 안의 상대 파일 경로는 색인 자리가 아니라 과제 선언의 `fileRoot`·`fileBase` 기준이다(계약에 적었다)."""
     own = batch_home(profile, batch) / "images.jsonl"
-    return _with_images(task, own) if own.is_file() else task
+    if not own.is_file():
+        return task
+    # 묶음의 조각은 수집기가 **운영의 지금 규칙**(`incremental.tileRule`, 없으면 운영 기본값)으로 잘랐다. 골든셋 색인의 `preTiledRule`
+    # (옛 판)로 조각을 가르면 제대로 잘린 조각을 원본으로 보고 다시 자르다 빠뜨리거나 다른 조각을 만든다 — 자른 규칙으로 읽는다.
+    import tile_rule  # noqa: PLC0415 — common, 수집기와 같은 기본값
+
+    rule = (profile.get("incremental") or {}).get("tileRule") or {"version": tile_rule.CURRENT, "decoder": tile_rule.JAVA_IMAGEIO}
+    batched = _with_images(task, own)
+    return {**batched, "images": {**batched["images"], "preTiledRule": rule}}
 
 
 def _with_images(task: dict[str, Any], path: Path) -> dict[str, Any]:
@@ -325,7 +333,7 @@ def finish(profile: dict[str, Any], batch: str, output: Path) -> dict[str, Any]:
                 cells[field] = {name: row.get(name) for name in
                                 # 규칙·판례 인용도 남긴다 — AI가 무엇을 근거로 댔는지 사람이 되짚을 수 있게(gt-review.js 판독 스키마).
                                 ("value", "confidence", "evidenceImageIds", "observation", "definitionGap", "askHuman",
-                                 "rulesApplied", "casesOpened", "casesApplied")}
+                                 "rulesApplied", "casesOpened", "casesApplied", "observations", "split")}
                 cells[field]["value"] = normalize(fields[field], cells[field]["value"], lenient=True)
         if not cells:
             continue
@@ -566,6 +574,69 @@ def record(profile: dict[str, Any], batch: str, key: str, field: str, decision: 
     return entry
 
 
+
+def register_precedent(profile, batch, key, field, reviewer, reason, expected_latest, rule_ids=None):
+    """Explicit human promotion of a current decision; no second reviewer or AI question required."""
+    task = load_task(profile)
+    fields = field_map(task)
+    if field not in fields or batch not in batches(profile) or key not in input_rows(profile, task, batch):
+        raise IncrRejected("등록할 과제·묶음·상품·속성을 찾지 못했습니다")
+    if not reviewer.strip() or not reason.strip():
+        raise IncrRejected("판례 등록자와 판단 근거를 적어 주세요")
+    from policy_prompt import decision_rules
+    definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+    known = {rule["id"] for rule in decision_rules(definitions, field)}
+    rule_ids = rule_ids or []
+    if not isinstance(rule_ids, list) or any(not isinstance(r, str) or r not in known for r in rule_ids):
+        raise IncrRejected("현재 정책에 있는 규칙 ID만 연결할 수 있습니다")
+    with _locked(profile):
+        latest = effective_decisions(profile, task, batch).get((key, field))
+        if not latest or latest.get("decisionId") != expected_latest:
+            raise IncrRejected("판정이 변경되었습니다. 새로고침한 뒤 등록해 주세요")
+        if not _labeled(latest):
+            raise IncrRejected("허용값으로 확정되고 의견 차이가 해소된 판정만 등록할 수 있습니다")
+        path = incr_home(profile) / "precedents.jsonl"
+        existing = list(read_jsonl(path)) if path.exists() else []
+        prior = next((row for row in reversed(existing) if row["sourceDecisionId"] == expected_latest), None)
+        entry = {"precedentId": (prior or {}).get("precedentId") or "PRE-" + secrets.token_hex(6),
+                 "sourceDecisionId": expected_latest, "batch": batch, "key": key, "field": field,
+                 "value": latest["value"], "reason": reason.strip(), "ruleIds": list(dict.fromkeys(rule_ids)),
+                 "reviewer": reviewer.strip(), "registeredAt": _now(),
+                 "policySha256": hashlib.sha256(definitions.read_bytes()).hexdigest()}
+        if prior and all(prior.get(k) == entry.get(k) for k in ("reason", "ruleIds", "value", "policySha256")):
+            return prior
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return entry
+
+
+def explicit_precedents(profile, task=None):
+    """Only registrations backed by the current, undisputed human decision remain active."""
+    task = task or load_task(profile)
+    path = incr_home(profile) / "precedents.jsonl"
+    if not path.exists():
+        return []
+    registrations = {row["sourceDecisionId"]: row for row in read_jsonl(path)}
+    fields, active, by_batch = field_map(task), [], {}
+    ledger = read_ledger(profile)
+    for row in registrations.values():
+        batch = row["batch"]
+        if batch not in by_batch:
+            by_batch[batch] = effective_decisions(profile, task, batch, ledger)
+        current = by_batch[batch].get((row["key"], row["field"]))
+        if not current or current.get("decisionId") != row["sourceDecisionId"] or not _labeled(current):
+            continue
+        spec = fields[row["field"]]
+        active.append({"id": "QA-" + row["precedentId"], "decisionId": row["precedentId"],
+                       "sourceDecisionId": row["sourceDecisionId"], "batch": batch,
+                       "key": row["key"], "field": row["field"], "fieldName": spec.get("name") or row["field"],
+                       "question": "이 사례의 판단 근거", "here": row["reason"],
+                       "answer": current["value"], "answerName": " + ".join((spec.get("labelNames") or {}).get(v, v) for v in str(current["value"]).split(MANY_SEPARATOR)),
+                       "ruleIds": row["ruleIds"], "reviewer": row["reviewer"], "decidedAt": row["registeredAt"],
+                       "source": "incr", "registration": "explicit"})
+    return active
+
+
 def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """증분에서 사람이 답한 AI의 물음 — 골든셋 검수의 `answered_questions`와 같은 모양. 같은 정책 위의 사람 판단이라 두 원장의 답을
     한 목록으로 읽는다(정책 페이지의 «검수 문답», 다음 판독자의 사례). 묶음·칸마다 지금 유효한 판정 하나, 값을 고른 판정만."""
@@ -591,11 +662,13 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
         if not in_range(spec, value):
             continue
         names = spec.get("labelNames") or {}
-        rows.append({"id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
+        rows.append({"batch": batch_id, "id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
                      "fieldName": spec.get("name") or field_id, "question": ask["question"], "here": ask.get("here") or "",
                      "answer": value, "answerName": " + ".join(str(names.get(part, part)) for part in str(value).split(MANY_SEPARATOR)),
                      "reviewer": entry.get("reviewer"), "decidedAt": entry.get("decidedAt"), "source": "incr"})
-    return rows
+    explicit = explicit_precedents(profile, task)
+    promoted = {(row["batch"], row["key"], row["field"]) for row in explicit}
+    return [row for row in rows if (row.get("batch"), row["key"], row["field"]) not in promoted] + explicit
 
 
 # ---------------------------------------------------------------- 내보내기·상태
@@ -751,15 +824,21 @@ def _worklist_head(work: Path) -> dict[str, Any]:
     return {"prepared": bool(worklist.get("items")), "noEvidence": worklist.get("noEvidence")}
 
 
-def _plain_reading(reading: dict[str, Any] | None) -> dict[str, Any] | None:
-    """화면에 보일 AI 문장을 운영팀의 말로(골든셋 검수와 같은 `_ai`) — 원본 판독 파일은 그대로 두고 보이는 사본만 바꾼다."""
+def _plain_reading(reading: dict[str, Any] | None, observed: dict[str, list[dict[str, str]]] | None = None,
+                   tables: dict[str, dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """화면에 보일 AI 문장을 운영팀의 말로(골든셋 검수와 같은 `_ai`) — 원본 판독 파일은 그대로 두고 보이는 사본만 바꾼다.
+    관찰 칸이면 골든셋 검수와 **같은 함수**(`_observations_html`)로 관찰 칩(예/아니오 · 갈림 · 애매)을 붙인다 — 화면이 다시 그리지 않게."""
     if not reading:
         return reading
-    from gt_review_render import _ai
+    from gt_review_render import _ai, _observations_html, verdict
 
     cells = {}
     for field, cell in (reading.get("cells") or {}).items():
         cell = dict(cell or {})
+        if (observed or {}).get(field) and cell.get("observations"):
+            cell["observationsHtml"] = _observations_html(cell, {"observe": observed[field]})
+        if (tables or {}).get(field) and cell.get("observations"):
+            cell["verdict"] = verdict(cell, tables[field])  # 어느 사진의 어느 관찰이 어느 값 규칙을 걸었나
         if cell.get("observation"):
             cell["observation"] = _ai(cell["observation"])
         if isinstance(cell.get("askHuman"), dict) and cell["askHuman"].get("question"):
@@ -773,7 +852,7 @@ def task_name(profile: dict[str, Any]) -> str:
     다른 이름으로 보이지 않게 이 함수 하나만 쓴다. 증분은 골든셋이 아니라 새 데이터라 꼬리를 뗀다."""
     from gt_review_render import call_name
 
-    return re.sub(r"\s*골든셋$", "", call_name(profile)) or call_name(profile)
+    return call_name(profile)
 
 
 LISTED_BATCHES = 12
@@ -813,7 +892,16 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
     work = work_dir(profile, batch)
     worklist = _read_json(work / "worklist.json", {}) or {}
     readings = _read_json(work / "readings.json", {}) or {}
+    # 관찰 칸의 관찰 항목(ID·이름) — 골든셋 검수와 같은 정책 해석에서
+    from gt_review import _policy
+    tables = _policy(profile, task).get("observed") or {}
+    observed = {fid: [{"id": item["id"], "name": item["name"]} for item in table["items"]] for fid, table in tables.items()}
     latest = effective_decisions(profile, task, batch)
+    for precedent in explicit_precedents(profile, task):
+        if precedent["batch"] == batch and (precedent["key"], precedent["field"]) in latest:
+            latest[(precedent["key"], precedent["field"])] = {
+                **latest[(precedent["key"], precedent["field"])], "precedentId": precedent["decisionId"],
+                "precedentReason": precedent["here"], "precedentRuleIds": precedent["ruleIds"]}
     base = output_root(profile).resolve()
     # 사람도 판독자와 같은 기준을 본다 — 골든셋 검수의 «이 항목의 정책 보기»·값 설명과 같은 자료(정의 문서의 그 칸 절)
     from gt_review_render import _inline, _md, _names_for_text
@@ -850,7 +938,7 @@ def screen_data(profile: dict[str, Any], batch: str) -> dict[str, Any]:
             "text": [{"name": names.get(k, k), "value": v} for k, v in (item.get("text") or {}).items()],
             "noEvidence": item.get("noEvidence"), "notPrepared": bool(item.get("notPrepared")),
             "missing": len(item.get("missing") or []),
-            "reading": _plain_reading(readings.get(key)),
+            "reading": _plain_reading(readings.get(key), observed, tables),
             "decisions": {field: latest[(key, field)] for field in fields if (key, field) in latest},
         })
     return {

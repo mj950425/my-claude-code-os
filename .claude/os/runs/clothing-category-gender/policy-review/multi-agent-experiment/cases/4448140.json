@@ -1,0 +1,153 @@
+{
+  "id": "4448140",
+  "data": {
+    "productKey": "MUSINSA:4448140",
+    "productName": "에센셜 웜업 팬츠 - 베이지",
+    "standardCategory": "의류>하의>팬츠>스웨트/트레이닝 팬츠",
+    "platformBrandName": "리복",
+    "registeredOptionValues": [],
+    "imageReferences": [
+      {
+        "imageId": "TARGET_REFERENCE",
+        "kind": "representativeThumbnail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/current-thumbnails-clothing-20260921/38610d1b144fb8ee51e5a5e5f34c8d679c774611258e08eb62c94bb7da049a9a.jpg"
+      },
+      {
+        "imageId": "4448140-D01T01",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/f1237aa5419eaa2fbf3acce9c24a84b09a817b67b704f39f583dc073c2611415.jpg"
+      },
+      {
+        "imageId": "4448140-D02T01",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4255af070690eb8bf4bb4259114d58e0e46d0e1ca286e020c8390c25241fed19.jpg"
+      },
+      {
+        "imageId": "4448140-D02T02",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4a16929e40fa1f6df7233dfd55877d403822c133425a63a1bb11e9fd4d71a130.jpg"
+      },
+      {
+        "imageId": "4448140-D02T03",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/6bd4ad9e7dba75f8c6f0b11addca657df0022860f71fa1084b0e7f9004e7e503.jpg"
+      },
+      {
+        "imageId": "4448140-D03T01",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/b336cb084f9a11ea35f8680297735f2872dd6f5745039177420c2ddf66df0ea1.jpg"
+      },
+      {
+        "imageId": "4448140-D03T02",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/980c7816f6d56ddd95539806e823e31f7df14fc5d0a57ce7719183931a611a0d.jpg"
+      },
+      {
+        "imageId": "4448140-D03T03",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/090d123fc4fa9bd7ed0c878c65bdd6fb5386f5d87c784749105aa69e99982b14.jpg"
+      },
+      {
+        "imageId": "4448140-D03T04",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/f6c1c18748df00da60b9644ec6e545df4ebd78a5a3578747b0cec625aa91a699.jpg"
+      },
+      {
+        "imageId": "4448140-D03T05",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/be6ac2cf469e96d03d838dd279f34b170e83b46f31555b8367fdd0ec60acfdbd.jpg"
+      },
+      {
+        "imageId": "4448140-D03T06",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/fa4295f0d591c42c2f1c36629e2fbbe183535230cc9a2bf744b7113764001b20.jpg"
+      },
+      {
+        "imageId": "4448140-D03T07",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/2e2374843d152025bb6852af92c5df8e3ded14941076cc41a0f8ffa16d5ed047.jpg"
+      },
+      {
+        "imageId": "4448140-D04T01",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/2eca490095d962368248ee1f70d12f353fc7270b6ba0cbe3bdba4497a65c4cff.jpg"
+      },
+      {
+        "imageId": "4448140-D04T02",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/6a7bb48dda5ceb75ecf5a734d6b204f756420cf23ea2c845e06009b3e141f27e.jpg"
+      },
+      {
+        "imageId": "4448140-D04T03",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/af9cd9899c5978139708158a8861aad71032d63d90e48551ec90e3c664a3e9cc.jpg"
+      },
+      {
+        "imageId": "4448140-D04T04",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/7f64291f87b46c6fa3edf242e4b707d9bd3658b5ca7208cf32b8add53cb4fa32.jpg"
+      },
+      {
+        "imageId": "4448140-D04T05",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/dcef3083312c1375a16ba3eb97e22c676b5bb1103915562304c8fac8e1aa380a.jpg"
+      },
+      {
+        "imageId": "4448140-D04T06",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4c2dea636444d305f8604c6e009075ad0427f384b0e7bbc32e2ede90af81ce06.jpg"
+      },
+      {
+        "imageId": "4448140-D05T01",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/a5b47a7e22d51293b61dac23adb596c24c48069b5235a8fb7d146265554f177a.jpg"
+      },
+      {
+        "imageId": "4448140-D05T02",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/16e2d17cb983de511938bc61271772a725c01ca977106fd7f5d302527df736b2.jpg"
+      },
+      {
+        "imageId": "4448140-D05T03",
+        "kind": "detail",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/00640da7fa9d7daf5f5365320ebb320f97ce2041eb88665a7f3893e266e614d5.jpg"
+      }
+    ]
+  },
+  "images": [
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/current-thumbnails-clothing-20260921/38610d1b144fb8ee51e5a5e5f34c8d679c774611258e08eb62c94bb7da049a9a.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/f1237aa5419eaa2fbf3acce9c24a84b09a817b67b704f39f583dc073c2611415.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4255af070690eb8bf4bb4259114d58e0e46d0e1ca286e020c8390c25241fed19.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4a16929e40fa1f6df7233dfd55877d403822c133425a63a1bb11e9fd4d71a130.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/6bd4ad9e7dba75f8c6f0b11addca657df0022860f71fa1084b0e7f9004e7e503.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/b336cb084f9a11ea35f8680297735f2872dd6f5745039177420c2ddf66df0ea1.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/980c7816f6d56ddd95539806e823e31f7df14fc5d0a57ce7719183931a611a0d.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/090d123fc4fa9bd7ed0c878c65bdd6fb5386f5d87c784749105aa69e99982b14.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/f6c1c18748df00da60b9644ec6e545df4ebd78a5a3578747b0cec625aa91a699.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/be6ac2cf469e96d03d838dd279f34b170e83b46f31555b8367fdd0ec60acfdbd.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/fa4295f0d591c42c2f1c36629e2fbbe183535230cc9a2bf744b7113764001b20.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/2e2374843d152025bb6852af92c5df8e3ded14941076cc41a0f8ffa16d5ed047.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/2eca490095d962368248ee1f70d12f353fc7270b6ba0cbe3bdba4497a65c4cff.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/6a7bb48dda5ceb75ecf5a734d6b204f756420cf23ea2c845e06009b3e141f27e.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/af9cd9899c5978139708158a8861aad71032d63d90e48551ec90e3c664a3e9cc.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/7f64291f87b46c6fa3edf242e4b707d9bd3658b5ca7208cf32b8add53cb4fa32.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/dcef3083312c1375a16ba3eb97e22c676b5bb1103915562304c8fac8e1aa380a.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/4c2dea636444d305f8604c6e009075ad0427f384b0e7bbc32e2ede90af81ce06.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/a5b47a7e22d51293b61dac23adb596c24c48069b5235a8fb7d146265554f177a.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/16e2d17cb983de511938bc61271772a725c01ca977106fd7f5d302527df736b2.jpg",
+    "/Users/mj/musinsa/dev/core-catalog-platfom/.claude/worktrees/musinsadb-ccp-partner-compare-05ce02/tool/image-gender/gt-harness/work/detail-images-clothing-20260921/00640da7fa9d7daf5f5365320ebb320f97ce2041eb88665a7f3893e266e614d5.jpg"
+  ],
+  "expected": "FEMALE",
+  "expectedSource": {
+    "kind": "historical_human_review_reference",
+    "labelSource": "ORIGINAL_H_FALLBACK",
+    "path": "/Users/mj/musinsa/dev/core-catalog-platfom/tool/image-gender/gt-harness/data/clothing-product-gt-20260903.jsonl",
+    "line": 107,
+    "sheet": "9/1 의류/잡화/가방/스포츠",
+    "sheetRow": 1109,
+    "sourceCell": null,
+    "reviewer": null,
+    "reviewStatus": "REVIEWED",
+    "caveat": "9/3 과거 검수 라벨이다. 이번 이미지 입력은 9/21 저장본이며 당시 입력과 바이트 동일성을 증명하지 않았으므로 현재 확정 정답 대신 역사적 비교 기준으로 사용한다."
+  }
+}

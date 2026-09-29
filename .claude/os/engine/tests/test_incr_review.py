@@ -395,6 +395,23 @@ class ServerTest(Base):
 
 
 class ScreenTest(unittest.TestCase):
+    def test_task_sidebar_links_follow_capabilities_and_current_incremental_task(self) -> None:
+        """검수 화면은 라우터가 준비 상태를 처리하고, 정책 전용 화면은 없는 문을 미지원으로 보인다."""
+        from gt_review_render import SIDEBAR_SCRIPT, sidebar_html
+
+        unprepared = sidebar_html("policy", "clothing-category-gender", has_gt=True)
+        self.assertIn('href="/gt/clothing-category-gender"', unprepared)
+        self.assertNotIn('href="review.html"', unprepared)
+
+        policy_only = sidebar_html("policy", "clothing-thumbnail-model-gender", has_gt=False)
+        self.assertIn('aria-disabled="true"', policy_only)
+        self.assertIn("이 작업은 제공하지 않음", policy_only)
+        self.assertNotIn('href="golden.html"', policy_only)
+        self.assertNotIn('href="review.html"', policy_only)
+
+        self.assertIn("const currentTask = me || incrMe", SIDEBAR_SCRIPT)
+        self.assertIn("on: task.task === currentTask", SIDEBAR_SCRIPT)
+
     def test_every_menu_opens_the_same_task_list_for_incremental_review(self) -> None:
         """증분 검수도 골든셋 검수처럼 서브 메뉴(과제 고르기)가 있다 — 렌더된 화면·첫 화면·증분 화면 모두."""
         from gt_review_render import SIDEBAR_SCRIPT, sidebar_html

@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-29",
+  "policy": "clothing-thumbnail-model-gender",
+  "summary": "Policy now gives direct natural-language classification criteria. Legacy response projection remains technical profile metadata and is excluded from reader guidance.",
+  "files": {
+    "definitions.md": {
+      "snapshotSha256": "c6989900b0fde300a8ff4df10a3094a42749a1f68016cbfc6297e1aebf949000",
+      "currentSha256": "d7f0257791bebd03fb3bdcf69ce99f85d86090f304a6af9ca32ade052b5c8d93"
+    },
+    "profile.json": {
+      "snapshotSha256": "567ca4106f409b26cd9bc36a7841199402a9ceccd6e985cb999722d99c5827f0",
+      "currentSha256": "f7f3c069f0742649df19e350780e458e7c2c79fc3a8014f7c166f467b52c47fe"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('11290651','10940286','11446710','10376795','10387991','10379586','10367985','10366574','10376978','9672577') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10376776','10368975','10367569','10379565','10378561','10387960','9569557','9569556','10376752','10366949') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10581795','10993730','10366546','10389711','9567744','11168670','9394742','11020155','10542251','10365939') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10491842','9567738','11020148','11020146','10389250','10368931','11020143','10218130','11407215','10368328') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('11020135','10218128','11407210','10367527','10389801','10378324','11020134','10369123','10851463','11168870') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('9719120','9447714','10388673','10366515','11020129','9446714','10491937','9584713','11168749','10369109') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10389224','9446710','10457762','10376708','10992225','10378509','11407182','10025708','11407180','9614303') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('9836703','11168840','10369100','10489780','10389315','10387899','10389755','10368899','11168711','9584896') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10388631','9584694','10771330','9614294','9584491','10389851','10376687','10994200','9584888','10581819') LIMIT 20
+
+SELECT d.seller_product_id AS sellerProductId, d.description FROM cuve_mss_product_description d JOIN cuve_object o ON o.object_id=d.object_id AND o.data_status='REGISTERED' AND o.service_status='REGISTERED' AND o.dt IS NULL WHERE d.seller_product_id IN ('10377687','10994202','10377484','10882985','10367484','10581816','9584667','9584666','10388722','10369065') LIMIT 20

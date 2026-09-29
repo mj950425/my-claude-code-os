@@ -126,6 +126,64 @@ def read_owned(path: Path, profile_id: str, violations: list[dict[str, Any]]) ->
             violation("POLICY_FILE_MISSING", "BLOCKING", f"소유 정책이 없습니다: {path}")
         )
         return {}
+    from policy_document import load_document
+
+    try:
+        document = load_document(path)
+    except (OSError, ValueError) as error:
+        violations.append(
+            violation("POLICY_DOCUMENT_INVALID", "BLOCKING", f"표준 정책 문서를 읽지 못했습니다: {error}")
+        )
+        return {}
+    if document is not None:
+        fields = document.get("fields") or []
+        if not fields and isinstance(document.get("values"), list) and isinstance(document.get("rules"), list):
+            fields = [document]
+        rules = []
+        seen_rule_ids: set[str] = set()
+        labels = []
+        for field in fields:
+            labels.extend(value["code"] for value in field["values"])
+            for rule in field.get("fieldRules", field["rules"]):
+                rules.append({
+                    "id": rule["id"],
+                    "section": field["name"],
+                    "summary": rule["내용"],
+                    "title": rule["title"],
+                    "priority": rule["우선순위"],
+                })
+                seen_rule_ids.add(rule["id"])
+        for rule in document.get("commonRules", []):
+            if rule["id"] in seen_rule_ids:
+                continue
+            rules.append({
+                "id": rule["id"],
+                "section": "공통 규칙",
+                "summary": rule["내용"],
+                "title": rule["title"],
+                "priority": rule["우선순위"],
+            })
+            seen_rule_ids.add(rule["id"])
+        if not labels:
+            violations.append(
+                violation("POLICY_LABELS_EMPTY", "BLOCKING", "표준 정책에서 허용값을 읽지 못했습니다.")
+            )
+        if not rules:
+            violations.append(
+                violation("POLICY_RULES_EMPTY", "BLOCKING", "표준 정책에서 판정 규칙을 읽지 못했습니다.")
+            )
+        return {
+            "path": relative_or_absolute(path),
+            "sha256": sha256(path),
+            "version": None,
+            "documentFormat": "policy-document-v2",
+            "owner": None,
+            "updatedAt": None,
+            "labels": labels,
+            "rules": rules,
+            "sections": ["목적", *(field["name"] for field in fields)],
+        }
+
     meta, body = split_front_matter(path.read_text(encoding="utf-8"))
     found = sections(body)
     if meta.get("id") != profile_id:
@@ -380,10 +438,12 @@ def main() -> int:
         or "| - | - | - | - |"
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    revision = (f"v{owned['version']}" if owned.get("version") is not None
+                else f"정책 지문 {str(owned.get('sha256') or '')[:12]}")
     report_path.write_text(
         f"""# {profile['displayName']} 정책 레이어 상태
 
-- 소유 정책: [{owned.get('path', '없음')}]({link_from(report_path.parent, owned.get('path', '.'))}) (v{owned.get('version', '?')}, {owned.get('updatedAt', '?')})
+- 소유 정책: [{owned.get('path', '없음')}]({link_from(report_path.parent, owned.get('path', '.'))}) ({revision})
 - 허용값: {', '.join(f'`{label}`' for label in policy_labels) or '없음'}
 - 판례: {len(precedents)}건 (확정 {len(decided)}건 · 열림 {len(open_precedents)}건)
 - 정책 질문: {len(question_ids)}건 (판례 연결 {len(answered)}건 · 사람이 확정 {len(resolved)}건)

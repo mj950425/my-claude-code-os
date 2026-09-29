@@ -8,7 +8,11 @@
 |---|---|
 | 계약 | `contracts/customization-boundary.md` · `contracts/policy-layer.md` · `contracts/gt-layer.md`(사이클 GT 계보·판정 원장) · `contracts/gt-task.md`(GT 개선 과제) · `contracts/incremental-review.md`(증분 검수) · `contracts/declared-leaks.json` |
 | 목표 | `goal.md` — 프로세스 전체가 무엇을 성공으로 보는가 |
-| 오케스트레이터 | `scripts/run_catalog_cycle.py` |
+| 감사 사이클 실행 | `scripts/run_catalog_cycle.py` |
+| 정책 SDK 실행 | `scripts/policy_multi_agent_eval.py` — 오케스트레이터·판독·검수·판례 위임, 스키마 검사·정답 비교·조건부 재판독 |
+| SDK 공통 실행 | `scripts/policy_sdk_runtime.py` — SDK 설정·입력·출력 공통 계약. `policy_sdk_eval.py`는 단일 판독 비교용 진입점 |
+| 표준 정책 문서 | `scripts/policy_document.py` — 목적·허용값·자연어 규칙 로더. `contracts/policy-document.md` |
+| 판례 조회 | `scripts/policy_precedents.py` — 같은 과제의 확정 사례 후보와 선택 검증 |
 | 프로필 해석 | `scripts/catalog_profile.py` |
 | 심판 | `scripts/arbitrate.py` |
 | 정책 인덱스 | `scripts/build_policy_index.py` |
@@ -17,7 +21,7 @@
 | GT 계보 합치기 | `scripts/build_gt.py` — 계보 여럿을 순위로 합쳐 `.claude/gt/<id>/gt.jsonl` 하나로, 진 라벨은 이력으로 |
 | 원장 파생 | `scripts/build_gt_decisions.py` — 판정 원장에서 정정·확인·판례 대기·판례별 사례집을 다시 만든다 |
 | 규칙 브리프 | `scripts/build_precedent_brief.py` — 정책 규칙마다 원문 통째 + 확정 근거 판례 + 적용 사례 한 장 |
-| 로컬 서버 | `scripts/serve_reports.py` — 화면을 그리지 않고 리다이렉트만. 쓰는 곳은 두 판정 원장(`/decide`·`/gt-decide`)뿐 |
+| 로컬 서버 | `scripts/serve_reports.py` — 화면을 그리지 않고 리다이렉트만. 요청별 쓰기는 판정·정책 편집 모듈로 위임한다 |
 | 페이지 머리 | `scripts/page_style.py` — 보고서와 GT 개선 화면이 함께 쓰는 글꼴·색. 하네스가 감사 보고서 모듈을 import하지 않게 떼어 냈다 |
 | 리포트 | `scripts/render_catalog_report.py` |
 | 개선 포인트 작업 목록 | `scripts/build_improvement_worklist.py` — 귀책으로 갈라 건·군집을 고르고 **센다** |
@@ -33,8 +37,14 @@
 | GT 개선 하네스 | `scripts/gt_review.py`(진입점) · `gt_task.py`(고르기) · `gt_images.py`(사진) · `gt_review_render.py`(화면) · `gt_decisions.py`(원장) · `gt_publish.py`(GitHub에 브랜치+PR) · `gt_next.py`(«다음 후보 받기» 러너 — 준비·판독·화면을 한 번에 하나만) · `gt_agent.py`(러너의 자식 — 워크플로우를 Claude Agent SDK로 부른다, 구독 OAuth만) — 계약 `contracts/gt-task.md` |
 | 증분 검수 | `scripts/incr_review.py` · `scripts/incr_collect.py`(운영에서 새 상품을 모아 입력 두 장으로 — 조회문을 만들고, 받은 결과로 대표 사진·상세 조각을 준비한다. 조회 자체는 읽기 전용 `mysql-query` 스킬) · `scripts/incr_render.py`(화면 `templates/incr.html`을 골든셋 검수와 같은 스타일 상수로 생성) — 새로 들어온 데이터(라벨 없음)를 골든셋 검수와 같은 과제 선언·판독자·잠금으로 AI가 먼저 읽고(워크플로우 `read` 단계만), 사람은 `/incr` 화면에서 클릭으로 확정한다. 원장은 `.claude/incr/<과제>/decisions.jsonl` — 계약 `contracts/incremental-review.md` |
 | GT 개선 워크플로우 | `workflows/gt-review.js` — 과제를 모른다. 판독자·반론자 유형도 인자로 받는다 |
+| 기존 형식 정책 화면 편집 | `scripts/gt_policy_edit.py` — 허용값·관찰 항목·값 규칙을 고치는 한 함수(`edit_policy`). 정책 화면의 «이 칸 고치기»(`POST /gt-policy`)와 CLI(`value`·`observe`·`rule --when`)가 같이 지난다. 문장 규칙은 받지 않는다(문지기 에이전트를 거쳐야 한다) — 계약 `contracts/gt-task.md` «정책 화면에서 고치기» |
+| 기존 형식 관찰 칸 | `scripts/gt_derive.py` — 값 규칙 표(식 문법·계산·가림 검사). 정의 문서의 `### 관찰`·`### 값 규칙`을 로더가 이것으로 읽고, 워크플로우는 이것이 만든 식 트리를 계산만 한다 — 계약 `contracts/gt-task.md` «관찰 칸» |
 | 정책 관리 | `scripts/gt_policy.py` — 규칙·사례의 표준(범위 어휘·물음 모양), 중복·충돌 후보 쌍, 규칙을 넣기 전 문지기, 정리 결과를 제안으로. 명령은 `gt_review.py rule`·`qa`·`policy` · 워크플로우 `workflows/policy-review.js`(칸마다 사례 다듬기 → 중복·충돌) — 계약 `contracts/gt-task.md` «정책 관리» |
+| 자연어 프롬프트 규칙 | `scripts/policy_prompt.py` — 정의 문서의 허용값과 우선순위 규칙을 렌더링하고, 선언한 프롬프트 표식·어댑터 해시/버전을 동기화한다. GT 유무에 관계없이 같은 `policyTask-v1`을 읽고, GT 과제는 `gtTask`와 정책 필드·문서의 일치도 검사한다 |
+| 정책 준비도 검수 | `workflows/policy-readiness-review.js` · `agents/policy-contract-reviewer.md` · `agents/policy-counterexample-reviewer.md` · `agents/policy-prompt-reviewer.md` — 다섯 공통 축마다 세 검수 점수가 모두 90 이상일 때만 통과. 호출 절차는 `skills/policy-readiness/SKILL.md` |
+| 표준 정책 배치 검수 | `scripts/policy_batch_review.py` — 고정 케이스 매니페스트의 해시 재개·제한 병렬 평가·HTML 비교 보고서 |
 | 에이전트 | `agents/policy-auditor.md` — 규칙·사례의 후보 쌍이 중복·충돌·좁힘·무관 중 무엇인가. 정리할 때 합칠·올릴·뺄 것을 제안한다 |
+| 에이전트 | `agents/policy-precedent-retriever.md` — 후보 사례에서 같은 정책 규칙이 적용되는지 조회한다 |
 | 에이전트 | `agents/case-normalizer.md` — 표준이 아닌 사례 물음을 경계 물음 하나로 다듬은 초안 |
 | 에이전트 | `agents/gt-blind-reader.md` — GT를 모른 채 사진과 정의만으로 칸을 읽는다 |
 | 에이전트 | `agents/gt-defender.md` — 판독이 GT와 갈린 칸에서 GT를 지킬 근거를 찾는다 |
@@ -111,3 +121,17 @@ gt_review.py prepare → (워크플로우 gt-review: 사진 판독 · GT 편 반
 ```bash
 python3 -m pytest .claude/os/engine/tests -q
 ```
+
+## 자연어 정책 SDK 경로
+
+`policy_multi_agent_eval.py`는 정책을 실행할 때 읽어 네 역할에 전달한다.
+판독 결과는 스크립트가 검사하고 기존 정답과 비교한다. 불일치하면 새 검수 세션을 열고,
+추출 오류일 때만 한 번 재판독한다. 기존 정답 의심·정책 공백은 결과에 남겨 사람이 검토한다.
+판례 후보는 동일 과제의 확정 답변에서 가져오며 현재 상품은 제외한다.
+
+이 경로는 아직 `gt_next.py`의 ‘다음 후보 받기’와 연결되지 않았다.
+기존 `gt-review.js`와 관찰표 계산은 다른 과제에서 사용 중이므로 호환 경로로 유지한다.
+새 표준 정책은 목적·허용값·규칙을 문서에 두고 내부 코드 매핑만 프로필에 둔다.
+정책 페이지와 SDK는 같은 정책 렌더러를 사용한다.
+
+표준 v2로 옮긴 썸네일 관찰 과제도 자연어 규칙을 읽어 허용값을 직접 추출한다. 기존 관찰표 계산기는 이전 형식의 호환 코드이며, 속성 간 제약은 프로필과 문서 공통 규칙에 함께 명시한다.

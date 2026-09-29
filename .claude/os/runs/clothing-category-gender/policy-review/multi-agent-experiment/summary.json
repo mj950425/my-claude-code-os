@@ -1,0 +1,69 @@
+{
+  "cases": [
+    {
+      "product": "4384414",
+      "reference": "UNISEX",
+      "referenceSource": {
+        "kind": "historical_human_review_reference",
+        "labelSource": "ORIGINAL_H_FALLBACK",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/tool/image-gender/gt-harness/data/clothing-product-gt-20260903.jsonl",
+        "line": 101,
+        "sheet": "9/1 의류/잡화/가방/스포츠",
+        "sheetRow": 1103,
+        "sourceCell": null,
+        "reviewer": null,
+        "reviewStatus": "REVIEWED",
+        "caveat": "9/3 과거 검수 라벨이다. 이번 이미지 입력은 9/21 저장본이며 당시 입력과 바이트 동일성을 증명하지 않았으므로 현재 확정 정답 대신 역사적 비교 기준으로 사용한다."
+      },
+      "predicted": "UNDETERMINED",
+      "status": "GT_SUSPECT",
+      "stages": [
+        "READ",
+        "REVIEW"
+      ]
+    },
+    {
+      "product": "4448140",
+      "reference": "FEMALE",
+      "referenceSource": {
+        "kind": "historical_human_review_reference",
+        "labelSource": "ORIGINAL_H_FALLBACK",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/tool/image-gender/gt-harness/data/clothing-product-gt-20260903.jsonl",
+        "line": 107,
+        "sheet": "9/1 의류/잡화/가방/스포츠",
+        "sheetRow": 1109,
+        "sourceCell": null,
+        "reviewer": null,
+        "reviewStatus": "REVIEWED",
+        "caveat": "9/3 과거 검수 라벨이다. 이번 이미지 입력은 9/21 저장본이며 당시 입력과 바이트 동일성을 증명하지 않았으므로 현재 확정 정답 대신 역사적 비교 기준으로 사용한다."
+      },
+      "predicted": "FEMALE",
+      "status": "MATCH",
+      "stages": [
+        "READ"
+      ]
+    },
+    {
+      "product": "5512199",
+      "reference": "UNISEX",
+      "referenceSource": {
+        "kind": "historical_human_review_reference",
+        "labelSource": "FINAL_AQ_20260903",
+        "path": "/Users/mj/musinsa/dev/core-catalog-platfom/tool/image-gender/gt-harness/data/clothing-product-gt-20260903.jsonl",
+        "line": 188,
+        "sheet": "9/1 의류/잡화/가방/스포츠",
+        "sheetRow": 1190,
+        "sourceCell": "최종 검수 GT!1190",
+        "reviewer": null,
+        "reviewStatus": "REVIEWED",
+        "caveat": "9/3 과거 검수 라벨이다. 이번 이미지 입력은 9/21 저장본이며 당시 입력과 바이트 동일성을 증명하지 않았으므로 현재 확정 정답 대신 역사적 비교 기준으로 사용한다."
+      },
+      "predicted": "UNISEX",
+      "status": "MATCH",
+      "stages": [
+        "READ"
+      ]
+    }
+  ],
+  "note": "Historical GT agreement only. GT snapshot 2026-09-03, image snapshot 2026-09-21. No GT or policy changes."
+}

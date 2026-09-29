@@ -265,6 +265,46 @@ class Handler(BaseHTTPRequestHandler):
             raise DecisionRejected("본문은 객체여야 합니다.")
         return body
 
+    def edit_policy_route(self) -> None:
+        """정책 화면의 «이 칸 고치기» — 허용값·관찰 항목·값 규칙. CLI(`value`·`observe`·`rule --when`)와 같은 함수
+        (`gt_policy_edit.edit_policy`)를 지난다. 미리 보기(`confirm: false`)는 아무것도 쓰지 않는다. 넣기(`confirm: true`)는 화면이 본
+        정책 버전과 지금 버전이 같을 때만 쓰고, 쓴 뒤 정책·골든셋(과 배치가 있으면 검수 화면)을 다시 그린다.
+        문장 규칙은 받지 않는다 — 겹침·충돌을 에이전트가 가르는 일이라 Claude를 거친다."""
+        from gt_policy_edit import PolicyEditRejected, edit_policy, refresh_pages
+
+        try:
+            body = self.read_submission()
+            wanted = str(body.get("task") or "")
+            attribute = next((item for item in scan() if item.id == wanted and item.profile.get("gtTask")), None)
+            if attribute is None:
+                raise PolicyEditRejected(f"GT 개선 과제를 찾지 못했습니다: {wanted}")
+            params = body.get("params") if isinstance(body.get("params"), dict) else {}
+            params = {key: value for key, value in params.items()
+                      if key in ("code", "name", "desc", "id", "when", "value", "reason", "before") and isinstance(value, str)}
+            confirm = body.get("confirm") is True
+            expected = body.get("expectedStamp")
+            # 넣기는 화면이 본 정책의 지문과 함께만 받는다 — 옛 탭이 그사이 바뀐 정책을 덮지 않게(미리 보기는 쓰지 않으니 없어도 된다).
+            if confirm and not isinstance(expected, str):
+                raise PolicyEditRejected("화면이 본 정책의 지문이 요청에 없습니다 — 새로고침한 뒤 다시 해 주세요.")
+            plan = edit_policy(attribute.profile, str(body.get("op") or ""), str(body.get("field") or ""),
+                               str(body.get("reviewer") or ""), confirm, expected_stamp=expected if confirm else None, **params)
+        except (PolicyEditRejected, DecisionRejected) as rejected:
+            return self.send_json({"ok": False, "error": str(rejected)}, HTTPStatus.BAD_REQUEST)
+        except (TaskError, OSError, ValueError, KeyError, RecursionError) as error:
+            self.log_message("gt-policy 문제: %s", error)
+            return self.send_json({"ok": False, "error": "정책을 고치지 못했습니다 — Claude에게 알려 주세요."},
+                                  HTTPStatus.INTERNAL_SERVER_ERROR)
+        if plan.get("applied"):
+            # 정책은 이미 들어갔다 — 화면을 다시 그리다 실패해도 «못 고쳤다»고 하지 않는다(다시 누르면 지문이 달라 막힌다).
+            try:
+                refresh_pages(attribute.profile)
+            except Exception as error:  # noqa: BLE001 — 어떤 실패든 정책은 들어갔다
+                self.log_message("gt-policy 화면 다시 그리기 실패: %s", error)
+                plan["pagesError"] = "정책은 들어갔지만 화면을 다시 그리지 못했습니다 — Claude에게 «정책 화면 다시 그려줘»라고 말해 주세요."
+        plan.pop("pages", None)
+        plan["definitions"] = Path(str(plan.get("definitions") or "")).name  # 화면에는 파일 이름만 — 이 컴퓨터의 경로를 보이지 않는다
+        return self.send_json({"ok": True, "plan": plan})
+
     def export_field_list(self) -> None:
         """화면의 «반영하기» — 원장에서 정정 목록을 만들고(CLI `export`) 곧바로 원본 GT에 넣는다(CLI `apply --yes`). 같은 두 함수다.
         누르는 것이 곧 «넣어줘»다 — 목록을 따로 보고 한 번 더 말하던 단계를 없앴다. 넣기 전 원본은 옆에 사본으로 남고(`apply`),
@@ -411,6 +451,12 @@ class Handler(BaseHTTPRequestHandler):
             if not body.get("batch"):
                 raise incr_review.IncrRejected("어느 묶음에서 누른 것인지 알 수 없습니다 — 화면을 새로고침해 주세요.")
             batch = incr_review.pick_batch(attribute.profile, str(body["batch"]))
+            if route == "/incr-precedent":
+                entry = incr_review.register_precedent(
+                    attribute.profile, batch, str(body.get("key") or ""), str(body.get("field") or ""),
+                    str(body.get("reviewer") or ""), str(body.get("reason") or ""),
+                    body.get("expectedLatest"), body.get("ruleIds"))
+                return self.send_json({"ok": True, "precedent": entry})
             if route == "/incr-decide":
                 if "expectedAi" not in body or "expectedLatest" not in body:
                     raise incr_review.IncrRejected("화면이 보여 준 AI 제안·지난 판정이 요청에 없습니다 — 화면을 새로고침해 주세요.")
@@ -474,7 +520,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.export_field_list()
         if (parsed.path.rstrip("/") or "/") == "/gt-next":
             return self.start_next()
-        if (parsed.path.rstrip("/") or "/") in ("/incr-decide", "/incr-run", "/incr-export"):
+        if (parsed.path.rstrip("/") or "/") == "/gt-policy":
+            return self.edit_policy_route()
+        if (parsed.path.rstrip("/") or "/") in ("/incr-decide", "/incr-run", "/incr-export", "/incr-precedent"):
             return self.incr_post(parsed.path.rstrip("/"))
         if (parsed.path.rstrip("/") or "/") != "/decide":
             return self.fail(HTTPStatus.NOT_FOUND, "그런 자리는 없습니다.")

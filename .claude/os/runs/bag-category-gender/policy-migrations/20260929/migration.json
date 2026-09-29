@@ -1,0 +1,29 @@
+{
+  "date": "2026-09-29",
+  "policy": "bag-category-gender",
+  "summary": "Legacy signal scoring was rewritten as ordered natural-language decisions with the same gender values, signal groups, wearer cases, functional-unisex fallback, and abstention rule. The former policy/policy.md was archived and replaced with a pointer; definitions.md is now the single owned policy. OPEN BG-0001/2/3 remain unresolved review and storage questions, not confirmed policy precedents.",
+  "files": {
+    "definitions.md": {
+      "snapshotSha256": "a4007c9397fc9021e3d8889d5ab8a02631cf4eb5c496b818fa114410ecd62785",
+      "currentSha256": "1325d8f0942a806be3ec77a3c9c6108984a84237882893177a39d06ff6303c6c"
+    },
+    "profile.json": {
+      "snapshotSha256": "9dc8062b99f35482ceb59a52f048a5a411b69af3ecc29a6c6e6aa88dd6a64269",
+      "currentSha256": "902526112f52f3705141d8e196b20c40446360895ecf3d0c2afae3236583724d"
+    }
+  },
+  "legacyOwnedPolicySnapshot": {
+    "path": ".claude/os/runs/bag-category-gender/policy-migrations/20260929/legacy-policy.md",
+    "sha256": "fdd40978a1d92f7b010efcc5a5e08f2ded4b49ee7bad4a92f08c642c437a87b5"
+  },
+  "precedentReferenceMigrations": [
+    {
+      "id": "BG-0002",
+      "archivedPath": ".claude/os/runs/bag-category-gender/policy-migrations/20260929/legacy-BG-0002.md",
+      "archivedSha256": "43bef0067e7d654a62e8194816eee495e7e053a311d5f6448cf35aea9a7bc001",
+      "currentRuleReference": "P0_NO_EVIDENCE, P0_FUNCTION_UNISEX",
+      "replacedRuleReference": "P0_NO_EVIDENCE, P0_CATEGORY_NOT_UNISEX",
+      "reason": "P0_CATEGORY_NOT_UNISEX condition is now included in P0_FUNCTION_UNISEX; BG-0002 question, OPEN status, and decision fields are unchanged."
+    }
+  ]
+}

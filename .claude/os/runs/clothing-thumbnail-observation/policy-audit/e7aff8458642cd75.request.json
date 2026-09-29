@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "gt-policy-audit-v1",
+  "hash": "e7aff8458642cd75",
+  "fieldName": "상품이 통째로 보이나",
+  "labelNames": {
+    "WHOLE": "통째로 보임",
+    "CROPPED_OR_OCCLUDED": "잘림·가림"
+  },
+  "task": "clothing-thumbnail-observation",
+  "field": "productVisibility",
+  "subject": {
+    "kind": "rule",
+    "id": "R2",
+    "text": "모델의 손이나 팔이 파는 상품 일부를 덮으면 가린 것으로 보지 않고 통째로 보임으로 본다",
+    "condition": "모델의 손이나 팔이 파는 상품 일부를 덮으면",
+    "value": "WHOLE",
+    "valueName": "통째로 보임",
+    "scope": []
+  },
+  "pairs": [
+    {
+      "a": {
+        "kind": "rule",
+        "id": "R2",
+        "text": "모델의 손이나 팔이 파는 상품 일부를 덮으면 가린 것으로 보지 않고 통째로 보임으로 본다",
+        "condition": "모델의 손이나 팔이 파는 상품 일부를 덮으면",
+        "value": "WHOLE",
+        "valueName": "통째로 보임",
+        "scope": []
+      },
+      "b": {
+        "kind": "rule",
+        "id": "R1",
+        "text": "함께 입은 상의의 밑단이 파는 하의의 허리밴드를 덮으면 가린 것으로 보지 않고 통째로 보임으로 본다",
+        "condition": "함께 입은 상의의 밑단이 파는 하의의 허리밴드를 덮으면",
+        "value": "WHOLE",
+        "valueName": "통째로 보임",
+        "scope": []
+      },
+      "pair": "A01"
+    }
+  ]
+}

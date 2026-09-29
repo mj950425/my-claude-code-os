@@ -103,6 +103,8 @@ class CollectTest(unittest.TestCase):
         tiles = [p for p in pics if p["kind"] == "DETAIL_TILE"]
         self.assertGreaterEqual(len(tiles), 2, "긴 상세 사진은 운영 규칙으로 여러 조각이 된다")
         self.assertEqual(tiles[0]["pid"], "D01T01")
+        # 새 상품의 조각은 운영의 지금 규칙으로 — 골든셋 색인의 선언(harness-pillow)을 따르지 않는다
+        self.assertEqual(result["tileRule"], {"version": "v2-band-then-seam", "decoder": "java-imageio"})
         self.assertTrue(Path(tiles[0]["f"]).is_file())
         # 넣으면 증분 검수가 그대로 받는다 — 사진이 이어진다
         pushed = incr_review.push(self.profile, out / "input.jsonl", out / "images.jsonl", name="collect")
@@ -110,6 +112,71 @@ class CollectTest(unittest.TestCase):
         # 두 번째로 모으면 이미 넣은 건은 빠진다
         again = incr_collect.pick(self.rows(), self.profile["incremental"], incr_collect.known_keys(self.profile, incr_review.load_task(self.profile)), 10)
         self.assertEqual([r["key"] for r in again], ["MUSINSA:903"])
+
+    def test_items_with_detail_photos_are_picked_first(self) -> None:
+        rows = [{**row, "spid": 20 + n} for n, row in enumerate(self.rows()[:2])]
+        details = {"20": "상세정보 참고", "21": f'<img src="file://{self.root}/cdn/detail.png">'}  # 앞 건은 설명이 글뿐
+        result = incr_collect.build(self.profile, rows, self.root / "inbox2", limit=1, details=details)
+        inputs = [json.loads(line) for line in (self.root / "inbox2" / "input.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r["sku"] for r in inputs], ["EGOOCM:902"], "상세 사진이 있는 건이 먼저 — 글뿐인 건은 모자랄 때만")
+        self.assertGreaterEqual(result["detailTiles"], 1)
+
+    def test_detail_photos_follow_the_production_inventory(self) -> None:
+        # 운영(`MongoGenderImageInventoryAdapter` + `GenderDetailInputPolicy.effectiveDetailUrls`)과 같은 목록
+        doc = {"seller_product_id": 7, "platform_code": "EGOOCM", "images": [
+            {"type": "THUMBNAIL", "image_url": "/item/1/a.jpg", "position": 0},
+            {"type": "DETAIL", "image_url": "/item/1/c.jpg", "position": 2},
+            {"type": "DETAIL", "image_url": "/item/1/b.jpg", "position": 1},
+            {"type": "DETAIL", "image_url": "/item/1/a.jpg", "position": 0},   # 대표 썸네일과 같은 사진 — 뺀다
+            {"type": "DETAIL", "image_url": "/item/1/gone.jpg", "position": 3, "dt": "2026-09-01"},  # 지운 사진 — 뺀다
+            {"type": "DETAIL", "image_url": "/item/1/b.jpg", "position": 4},   # 겹친 주소 — 한 번만
+            {"type": "DETAIL", "image_url": " ", "position": 5}]}
+        self.assertEqual(incr_collect.effective_detail_urls(doc, "https://img.example"),
+                         ["https://img.example/item/1/b.jpg", "https://img.example/item/1/c.jpg"])
+        profile = {**self.profile, "incremental": {**self.profile["incremental"], "ledgerFallbackPlatforms": ["EGOOCM"]}}
+        pipeline = incr_collect.mongo_pipeline(profile, self.rows(), limit=1, spare=3)
+        self.assertIn('"seller_product_id": {"$in": [12]}', pipeline, "보완 원장은 보완 플랫폼만 읽는다")
+
+    def test_detail_source_is_the_description_first_then_the_ledger(self) -> None:
+        # 운영(`SellerProductDetailImageSourceAdapter`)과 같은 순서 — 설명의 사진이 먼저, 없으면 보완 플랫폼만 Mongo DETAIL
+        self.fx.profile["incremental"]["ledgerFallbackPlatforms"] = ["EGOOCM"]
+        self.fx.save()
+        profile = self.fx.saved_profile()
+        rows = [{**row, "spid": 30 + n} for n, row in enumerate(self.rows()[:2])]  # 901(MUSINSA)·902(EGOOCM)
+        details = {"30": "상세정보 참고", "31": "상세정보 참고"}
+        ledger = {"30": [f"file://{self.root}/cdn/detail.png"], "31": [f"file://{self.root}/cdn/detail.png"]}
+        result = incr_collect.build(profile, rows, self.root / "inbox3", limit=2, details=details, detail_lists=ledger)
+        self.assertEqual((result["itemsWithDetail"], result["detailSource"]), (1, "cuve-then-ledger"),
+                         "설명에 사진이 없으면 보완 플랫폼(EGOOCM)만 원장으로 채운다 — MUSINSA 원장은 상세가 아니다")
+
+    def test_thumbnails_follow_the_production_ledger(self) -> None:
+        # 운영 `allThumbnails` + `UrlGeneratorUtil.getThumbnailImageUrl` — THUMBNAIL 전부, 지운 것 빼고, position 순, 첫 장이 대표
+        doc = {"images": [
+            {"type": "THUMBNAIL", "image_url": "/b.jpg", "position": 1},
+            {"type": "THUMBNAIL", "image_url": "a.jpg", "position": 0},
+            {"type": "THUMBNAIL", "image_url": "/gone.jpg", "position": 2, "dt": "2026-09-01"},
+            {"type": "DETAIL", "image_url": "/d.jpg", "position": 0},
+            {"type": "THUMBNAIL", "image_url": "//cdn.example/c.jpg", "position": 3}]}
+        self.assertEqual(incr_collect.ledger_thumbnails(doc, "https://img.example/thumbnails"),
+                         ["https://img.example/thumbnails/a.jpg", "https://img.example/thumbnails/b.jpg", "https://cdn.example/c.jpg"])
+        self.assertIn("AND sp.platform_product_status IN ('ONSALE')",
+                      incr_collect.sql({**self.profile, "incremental": {**self.profile["incremental"], "productStatuses": ["ONSALE"]}}))
+
+    def test_every_ledger_thumbnail_is_collected_with_the_representative_first(self) -> None:
+        self.fx.profile["gtTask"]["images"]["roles"] = ["THUMB", "THUMB_EXTRA", "DETAIL_TILE"]
+        self.fx.profile["incremental"].update({"thumbnailSource": "ledger", "extraThumbnailRole": "THUMB_EXTRA"})
+        self.fx.save()
+        profile = self.fx.saved_profile()
+        cdn = f"file://{self.root}/cdn"
+        rows = [{**self.rows()[1], "spid": 40}]  # EGOOCM:902 — 설명 없음
+        ledger = {"40": {"seller_product_id": 40, "platform_code": "EGOOCM", "images": [
+            {"type": "THUMBNAIL", "image_url": f"{cdn}/thumb.jpg", "position": 0},
+            {"type": "THUMBNAIL", "image_url": f"{cdn}/detail.png", "position": 1}]}}
+        incr_collect.build(profile, rows, self.root / "inbox4", limit=1, details={"40": ""}, ledger=ledger)
+        index = [json.loads(line) for line in (self.root / "inbox4" / "images.jsonl").read_text(encoding="utf-8").splitlines()]
+        pics = index[0]["pics"]
+        self.assertEqual([(p["pid"], p["kind"]) for p in pics[:2]], [("T01", "THUMB"), ("T02", "THUMB_EXTRA")],
+                         "대표가 첫 장, 나머지 썸네일은 추가 썸네일로")
 
     def test_a_task_without_the_block_says_so(self) -> None:
         profile = {**self.profile}

@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>의류 썸네일 모델 성별 정책</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Gothic+A1:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  /* 순흑백에 액센트 하나. 그 하나는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다 —
+     화면에서 빨간 것이 보이면 그 자리가 곧 조치할 자리라는 뜻이 되어야 한다.
+     --faint와 --muted는 캔버스 시안(#A3A3A3·#B8B8B8)보다 어둡다. 시안 값은 흰 배경에서
+     2.5:1·2.0:1이라 본문으로 읽히지 않는다. 톤은 지키되 읽히는 선까지 내렸다. */
+  --paper:#FFFFFF; --inset:#F7F7F7; --ink:#000000; --muted:#5C5C5C; --faint:#767676;
+  --rule:#E4E4E4; --rule-soft:#F0F0F0; --ghost:#8A8A8A;
+  --accent:#D62300; --accent-soft:#FDEDEA;
+  --display:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
+  --sans:"Archivo","Gothic A1","Apple SD Gothic Neo",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-weight:400;font-size:14.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule);transition:border-color .18s}
+a:hover{border-color:var(--accent)}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{width:min(1360px,calc(100% - 56px));margin:0 auto}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.kicker{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500;letter-spacing:-.02em}
+
+/* 귀책을 색이 아니라 형태로 구분한다. 인쇄해도 남는다. */
+.mark{display:inline-block;width:9px;height:9px;border:1.25px solid var(--ink);flex:0 0 auto;translate:0 -1px}
+.mark.GT{background:var(--ink)}
+.mark.POLICY{background:transparent}
+.mark.RUNTIME{border-radius:50%;background:transparent}
+.mark.OPEN{background:linear-gradient(135deg,var(--ink) 0 50%,transparent 50% 100%)}
+.mark.NONE{border-style:dotted}
+
+/* masthead */
+.masthead{padding:36px 0 0}
+.masthead-top{display:flex;justify-content:space-between;align-items:baseline;gap:24px;padding-bottom:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.masthead-top .dirty{color:var(--accent)}
+.masthead-top nav a{margin-left:14px;border-bottom-color:var(--faint);color:var(--muted)}
+.masthead h1{font-family:var(--display);font-weight:800;letter-spacing:-.045em;line-height:.98;font-size:clamp(2.4rem,5.4vw,4.6rem);padding:20px 0 10px;border-top:2px solid var(--ink)}
+.masthead h1 small{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.runbar{display:flex;flex-wrap:wrap;margin-top:18px;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.runbar div{flex:1 1 130px;padding:9px 14px 10px;border-left:1px solid var(--rule)}
+.runbar div:first-child{border-left:0;padding-left:0}
+.runbar dt{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.runbar dd{margin:2px 0 0;font-family:var(--mono);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
+
+/* 표지: 두 목록 */
+.lanes{display:grid;grid-template-columns:1fr 1fr;margin-top:44px}
+.lane{padding:0 34px 22px 0}
+.lane + .lane{border-left:1px solid var(--rule);padding:0 0 22px 34px}
+.lane-head{display:flex;align-items:baseline;gap:10px}
+.lane-head h2{font-family:var(--display);font-weight:700;font-size:1.5rem;letter-spacing:-.035em}
+.lane-head small{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.lane-count{margin:6px 0 4px;display:flex;align-items:baseline;gap:10px}
+.lane-count .num{font-size:3.2rem;font-weight:300;line-height:1}
+.lane-count span{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+.sig{display:grid;grid-template-columns:1fr auto;gap:2px 16px;padding:10px 0;border-top:1px solid var(--rule)}
+.sig strong{font-weight:500;font-size:13px}
+.sig strong i{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--accent);margin-right:8px}
+.sig .num{font-size:14px}
+.lane-open{display:inline-block;margin-top:16px;padding:9px 14px;border:1px solid var(--ink);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+.lane-open:hover{background:var(--ink);color:var(--paper)}
+.aside-strip{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.aside-strip div{display:grid;grid-template-columns:auto 1fr;gap:0 14px;align-items:center;padding:14px 18px;border-left:1px solid var(--rule)}
+.aside-strip div:first-child{border-left:0;padding-left:0}
+.aside-strip .num{font-size:1.9rem;font-weight:300;line-height:1}
+.aside-strip p{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500}
+
+.sec{margin-top:60px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding-bottom:10px;border-bottom:1.5px solid var(--ink)}
+.sec-head h2{font-family:var(--display);font-weight:700;font-size:1.55rem;letter-spacing:-.035em}
+.sec-head h2 small{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+.map{width:100%;border-collapse:collapse;margin-top:6px}
+.map th,.map td{text-align:left;padding:9px 16px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top;font-size:13px}
+.map th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:500;padding-top:0}
+.map td.id{font-family:var(--mono);font-size:10.5px;color:var(--muted);word-break:break-all}
+.map td.desc{color:var(--muted)}
+.map td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.map td.where,.map td.mono{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.map td.lbl{font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap}
+
+/* 사례 보고서: 툴바 */
+.toolbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;margin-top:28px;background:var(--paper);border-top:1.5px solid var(--ink);border-bottom:1px solid var(--rule)}
+.toolbar button{appearance:none;background:none;border:0;border-right:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:color .16s,background .16s}
+.toolbar button:hover{background:var(--inset);color:var(--ink)}
+.toolbar button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.toolbar button[aria-pressed=true] .mark{border-color:var(--paper)}
+.toolbar button[aria-pressed=true] .mark.GT{background:var(--paper)}
+.toolbar button[aria-pressed=true] .mark.OPEN{background:linear-gradient(135deg,var(--paper) 0 50%,transparent 50% 100%)}
+.toolbar .search{margin-left:auto;display:flex;align-items:center;gap:10px}
+.toolbar input{border:0;border-left:1px solid var(--rule);background:transparent;padding:10px 12px;font-family:var(--mono);font-size:11.5px;min-width:280px}
+.toolbar input::placeholder{color:var(--faint)}
+.toolbar .shown{font-family:var(--mono);font-size:11px;color:var(--faint);padding-right:4px}
+
+/* 군집 머리 */
+.cluster{margin-top:44px}
+.cluster-head{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:16px 0 18px;border-top:1.5px solid var(--ink)}
+.cluster-rail .cid{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.04em}
+.cluster-rail .cid.plain{color:var(--ink)}
+.cluster-rail .ccount{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.cluster-rail .ccount .num{font-size:1.6rem;font-weight:300;display:block;line-height:1;color:var(--ink);margin-bottom:2px}
+.cluster-rail .status{display:inline-block;margin-top:8px;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em}
+.cluster-rail .status.DECIDED{border-color:var(--ink);color:var(--ink)}
+.cluster-body h2{font-family:var(--display);font-weight:700;font-size:1.24rem;line-height:1.42;letter-spacing:-.025em;max-width:64ch}
+.cluster-body .sub{margin-top:4px;font-size:12.5px;color:var(--muted)}
+.q-impact{display:flex;flex-wrap:wrap;margin-top:12px;border:1px solid var(--rule);width:fit-content;max-width:100%}
+.q-impact div{padding:5px 13px 6px;border-left:1px solid var(--rule)}
+.q-impact div:first-child{border-left:0}
+.q-impact dt{font-family:var(--mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint)}
+.q-impact dd{font-family:var(--mono);font-size:13px;font-weight:600}
+.q-rec{margin-top:10px;font-size:13px;max-width:72ch}
+.q-rec b{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);display:block;margin-bottom:2px}
+.q-rec b i{font-style:normal;color:var(--accent)}
+.p-more h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--accent)}
+
+/* 정정 후보: 한 제안이 한 장이다. 제목 다음이 바로 필터이고, 그 다음이 제안이다 —
+   머리에 리포트 자신을 설명하는 말도, 리포트 자신을 세는 숫자도 두지 않는다.
+   이 화면이 묻는 것은 "이 GT가 틀렸나" 하나뿐이고, 나머지는 그 답에 기여하지 않는다. */
+.fx{display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 32px;padding:60px 0 68px;
+    border-top:1px solid var(--ink);animation:fx-rise .45s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fx-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.fx{animation:none}}
+
+/* 왼쪽 — 일련번호. 카드를 세는 유일한 자리다 */
+.fx-rail{position:sticky;top:64px;align-self:start}
+.fx-rail .ord{display:block;font-family:var(--mono);font-size:40px;font-weight:600;letter-spacing:-.03em;
+              line-height:.85;color:var(--rule);font-variant-numeric:tabular-nums}
+.fx-rail .chips{margin-top:20px}
+.stamp{display:inline-block;margin-top:18px;padding:5px 10px 4px;font-family:var(--mono);font-size:10px;
+       font-weight:700;letter-spacing:.14em;border:1px solid var(--rule);color:var(--muted)}
+.stamp.SURE{border-color:var(--accent);color:var(--accent)}
+.stamp.POLICY{border-color:var(--ink);color:var(--ink)}
+.stamp.ASK,.stamp.OPEN{border-style:dashed}
+
+.fx-body{min-width:0}
+.fx-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:14px;
+         font-family:var(--mono);font-size:11px;letter-spacing:.07em;color:var(--ghost)}
+.fx-meta a{font-weight:600;letter-spacing:.1em;color:var(--ink);border:0}
+.fx-meta a:hover{color:var(--accent)}
+.fx h3{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.3;letter-spacing:-.02em;
+       max-width:34ch;overflow-wrap:anywhere}
+
+/* 주문 — 현재 GT는 그어지고, 제안만 색을 갖는다 */
+.ruling{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 44px;margin-top:32px;padding:26px 0;
+        border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
+.ruling>div{min-width:0}
+.ruling dt{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.15em;color:var(--ghost);margin-bottom:10px}
+.ruling dd{font-family:var(--display);font-size:42px;font-weight:800;letter-spacing:-.03em;line-height:.95;
+           font-variant-numeric:tabular-nums}
+.ruling .was dd{color:#8A8A8A;text-decoration:line-through;text-decoration-thickness:2px}
+.ruling .now dd{color:var(--accent)}
+.ruling .keep dd{color:var(--ink);font-size:32px}
+.ruling small{display:block;margin-top:12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+              line-height:1.55;color:var(--muted);overflow-wrap:anywhere}
+.ruling .to{align-self:center;margin-bottom:24px;color:var(--rule);line-height:0}
+.ruling .to svg{display:block}
+
+/* 판독기와 리뷰어를 섞지 않는다 */
+.fx-say{display:grid;grid-template-columns:104px minmax(0,1fr);gap:20px;padding:19px 0;
+        border-bottom:1px solid var(--rule-soft)}
+.fx-say:last-of-type{border-bottom:0}
+.fx-say b{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost);padding-top:3px}
+.fx-say p{font-size:15px;line-height:1.75;color:var(--ink);max-width:76ch;overflow-wrap:anywhere}
+.fx-say.mut p{color:var(--muted)}
+.fx-say .src{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ghost)}
+
+/* 판정 — 읽는 자리에서 그대로 답한다.
+   액센트는 «조치할 자리»에만 쓴다는 이 화면의 규칙 그대로, 승인 버튼 하나가 그 자리다. */
+.act{margin-top:36px;padding-top:22px;border-top:1px solid var(--ink)}
+.act-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:16px;
+          font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.act-form{display:grid;gap:12px;max-width:760px}
+.act-bind{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;align-items:center}
+.act-bind>span{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.13em;color:var(--ghost)}
+.act select,.act input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--rule);background:var(--paper);
+  color:var(--ink);font-family:var(--sans);font-size:14px;border-radius:0}
+.act select:focus,.act input[type=text]:focus{outline:0;border-color:var(--ink)}
+.act select[disabled]{background:var(--inset);color:var(--muted)}
+/* 규칙 칸은 판례를 고르면 잠긴다. 왜 잠겼는지가 옆에 적혀야 «고장」으로 안 읽힌다. */
+.act-rule{display:block;min-width:0}
+.act-rule small{display:block;margin-top:6px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.04em;color:var(--faint)}
+.act-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:2px}
+.act button{padding:12px 18px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.act button:hover{background:var(--ink);color:var(--paper)}
+.act button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.go:hover{background:#B01D00;border-color:#B01D00}
+.act button[disabled]{opacity:.45;cursor:default}
+.act button[disabled]:hover{background:var(--paper);color:var(--ink)}
+.act .out{font-family:var(--mono);font-size:11.5px;line-height:1.6;letter-spacing:.02em;color:var(--muted);
+  padding:12px 14px;background:var(--inset);overflow-wrap:anywhere}
+.act .out.bad{background:var(--accent-soft);color:#8C1800}
+/* 이미 답한 건. 폼을 지우고 무엇을 언제 답했는지만 남긴다 — 두 번 누를 자리를 없앤다. */
+.act.settled{border-top-color:var(--rule)}
+.act .stamp-done{display:grid;gap:6px;padding:14px 16px;background:var(--inset);
+  font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--ink);overflow-wrap:anywhere}
+.act .stamp-done b{font-size:12px;letter-spacing:.06em}
+.act .stamp-done .held{color:var(--accent)}
+/* 서버 없이 파일로 열었을 때. 버튼을 그려 놓고 안 눌리는 것보다 왜 안 되는지 적는 편이 낫다. */
+.act .offline{font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--faint);
+  padding:12px 14px;border:1px dashed var(--rule)}
+
+/* 증거판 — 인용된 장면이 먼저 온다 */
+.plate{margin-top:34px}
+.plate-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px;
+            font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ghost)}
+.plate .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:20px;overflow:visible;padding:0}
+.plate .shots figure{margin:0;min-width:0}
+.plate .frame{display:block;width:100%;padding:0;border:1px solid var(--rule);background:#fff;
+              cursor:zoom-in;position:relative;transition:border-color .16s,transform .16s}
+.plate .frame:hover{border-color:var(--ink);transform:translateY(-2px)}
+/* 높이를 고정하면 세로로 긴 상세컷이 가운데 실오라기 한 줄로 줄어든다 — 증거를 못 읽는다.
+   폭을 채우고 높이는 사진이 정한다. 격자가 들쭉날쭉해지지만, 보이는 편이 낫다. */
+/* 긴 상세 원본에서 이 장면이 실제로 차지한 자리만 보여준다. 고정 절단 판(v0-fixed)에서는 타일 높이가 폭×1.5라,
+   액자를 2:3으로 잡으면 액자 높이가 곧 타일 한 칸이다. 다른 판은 렌더러가 `tile`을 0으로 보내 자르지 않는다.
+   그러면 `top`의 100%가 정확히 한 타일이라 원본 높이를 몰라도 잘라 낼 수 있다.
+   **근사다** — 운영은 타일 높이를 half_up(폭×1.5)로 반올림하므로, 폭이 홀수면 k번째 타일이 원본 기준 최대 k×0.5px
+   어긋난다. 보는 용도(어느 사진인가)에는 충분하고, 판독에 쓰는 조각은 이 CSS가 아니라 tile_rule로 잘라 낸다.
+   자르지 않으면 한 원본에서 나온 열 장이 전부 같은 그림으로 보이고,
+   「어느 사진이 근거인가」에 답할 수 없다. */
+.plate .frame.tiled{position:relative;aspect-ratio:2/3;overflow:hidden;border-width:0;
+  outline:1px solid var(--rule);outline-offset:-1px}
+.plate figure.cited .frame.tiled{border-width:0;outline:2px solid var(--accent);outline-offset:-2px}
+.plate .frame.tiled img{position:absolute;left:0;top:calc(var(--tile) * -100%);
+  width:100%;height:auto;min-height:0;max-height:none}
+.plate .frame img{display:block;width:100%;height:auto;min-height:200px;max-height:520px;
+                  object-fit:contain;background:#fff}
+.plate figure.cited .frame{border:2px solid var(--accent)}
+.plate figure.cited .frame::after{content:"근거";position:absolute;top:0;left:0;background:var(--accent);color:#fff;
+              font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;padding:5px 9px 4px}
+.plate figcaption{margin-top:9px;font-family:var(--mono);font-size:10px;letter-spacing:.09em;color:var(--ghost)}
+.plate figcaption .scene{display:block}
+/* 판독기가 이 장면에서 본 것. 주장과 사진을 잇는 한 줄이라 캡션에서 가장 크게 읽혀야 한다 */
+/* 판독 기록은 사진에 붙어야 한다. 캡션 한 줄로 떨어뜨리면 어느 사진의 말인지 흐려진다. */
+.plate .seen{position:absolute;left:0;right:0;bottom:0;padding:7px 9px;
+  font-family:var(--sans);font-size:12px;line-height:1.35;text-align:left;
+  background:rgba(255,255,255,.94);border-top:1px solid var(--rule)}
+.plate .seen b{font-weight:600}
+.plate .seen.male b{color:#1449b8}
+.plate .seen.female b{color:#c0134a}
+.plate .seen.none{color:var(--ghost);font-style:italic}
+/* 인용하지 않았는데 판독기가 무언가 적어 둔 장면. 근거로 채택된 것과 같은 무게로 보이면
+   안 되지만, 숨기면 반증이 사라진다 — 실행의 주장과 어긋나는 기록이 여기 있었다. */
+.plate .seen.aside{background:rgba(255,255,255,.9);border-top:1px dashed var(--rule)}
+.plate figure:not(.cited) .frame{outline:1px dashed var(--rule);outline-offset:-1px}
+.plate .frame.missing{position:relative;aspect-ratio:2/3;display:grid;place-items:center;
+  border:1px dashed var(--rule);background:var(--inset);padding:14px;text-align:center}
+.plate .frame.missing .seen{position:static;background:none;border:0;text-align:center}
+.plate figcaption .derived{display:block;margin-top:3px;font-family:var(--sans);font-size:11.5px;color:var(--muted)}
+.plate figure.cited figcaption .scene{color:var(--accent)}
+.plate figcaption .fail{display:none;margin-top:4px;color:var(--accent)}
+.plate figure.gone .frame{border-style:dashed;background:var(--inset);cursor:default}
+.plate figure.gone .frame img{height:44px;opacity:0}
+.plate figure.gone figcaption .fail{display:block}
+.plate details{margin-top:16px;border-top:1px solid var(--rule-soft);padding-top:14px}
+.plate summary{cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted)}
+.plate summary:hover{color:var(--accent)}
+.plate details .shots{margin-top:14px}
+.plate .noshot{padding:26px;border:1px dashed var(--rule);background:var(--inset);color:var(--ghost);
+               font-family:var(--mono);font-size:11px;text-align:center}
+.fx .chips{margin-top:8px}
+
+/* 확대 뷰어 */
+dialog.viewer{max-width:96vw;max-height:96vh;padding:0;border:1.5px solid var(--ink);background:var(--paper)}
+dialog.viewer::backdrop{background:rgba(23,21,15,.86)}
+dialog.viewer img{display:block;max-width:92vw;max-height:84vh;object-fit:contain;background:#fff}
+dialog.viewer .bar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:8px 12px;
+                   border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;color:var(--muted)}
+dialog.viewer button{appearance:none;background:none;border:1px solid var(--rule);font-family:var(--mono);
+                     font-size:11px;padding:4px 10px;cursor:pointer;color:var(--ink)}
+dialog.viewer button:hover{background:var(--ink);color:var(--paper)}
+
+/* 상품 카드: 하네스 리포트처럼 상품 단위로 이미지를 밀집한다 */
+.product{display:grid;grid-template-columns:184px 1fr;gap:0 34px;padding:22px 0 26px;border-top:1px solid var(--rule)}
+.p-rail{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
+.p-rail .idx{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:500;letter-spacing:.08em}
+.p-rail .key{margin-top:8px;color:var(--ink);font-size:11.5px;word-break:break-all}
+.p-rail .cat{font-size:10.5px;color:var(--faint);word-break:break-all}
+.p-rail .chips{margin-top:10px}
+.p-body{min-width:0}
+.p-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.p-head h3{font-family:var(--display);font-weight:700;font-size:1.18rem;line-height:1.34;letter-spacing:-.025em}
+.p-head .pdp{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;padding:5px 9px;border:1px solid var(--rule)}
+.p-head .pdp:hover{border-color:var(--ink)}
+.labels{display:flex;align-items:stretch;border:1px solid var(--rule);width:fit-content;max-width:100%;margin-top:12px;background:var(--paper)}
+.labels > div{padding:7px 14px 8px;border-left:1px solid var(--rule)}
+.labels > div:first-child{border-left:0}
+.labels dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.labels dd{margin-top:1px;font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:-.01em}
+.labels dd small{display:block;font-size:9px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+.labels .verdict{background:var(--ink);color:var(--paper)}
+.labels .verdict dt{color:rgba(250,249,245,.6)}
+.labels .verdict dd small{color:rgba(250,249,245,.7)}
+.labels .verdict.pending{background:var(--accent-soft);color:var(--accent)}
+.labels .verdict.pending dt,.labels .verdict.pending dd small{color:rgba(140,43,24,.7)}
+/* 판독기가 쓴 것과 리뷰어가 쓴 것을 한 칸에 섞지 않는다. 누가 쓴 문장인지가 판정을 가른다. */
+.p-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;margin-top:14px;border:1px solid var(--rule)}
+.voice{padding:11px 14px 13px;min-width:0}
+.voice + .voice{border-left:1px solid var(--rule)}
+.voice.review{background:var(--inset)}
+.voice > h4{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+.voice > h4 small{font-weight:400;letter-spacing:.06em;text-transform:none;color:var(--faint);font-size:9.5px}
+.voice p{font-size:13px;line-height:1.55}
+.voice p + p{margin-top:6px}
+.voice .said{font-weight:500}
+.voice .aside{color:var(--muted);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.voice .chips{margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 7px;border:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:.04em;background:var(--paper)}
+/* 액센트는 "고치자는 방향"과 "판독기가 인용한 사진"에만 쓴다. 미결 판례는 맥락이지
+   주장이 아니다 — 빨강을 여기에 쓰면 화면에서 빨간 것을 찾는 눈이 흐려진다.
+   대신 굵기로 가른다: 미결은 검은 테두리, 확정은 회색. */
+.chip.open,.chip.dual{border-color:var(--ink);color:var(--ink)}
+.chip a{border:0}
+.trail{display:flex;flex-wrap:wrap;border:1px solid var(--rule);width:fit-content;background:var(--paper);margin-bottom:8px}
+.trail div{padding:5px 12px 6px;border-left:1px solid var(--rule)}
+.trail div:first-child{border-left:0}
+.trail dt{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.trail dd{font-family:var(--mono);font-size:12px;font-weight:600}
+.trail div.final{background:var(--ink);color:var(--paper)}
+.trail div.final dt{color:rgba(250,249,245,.6)}
+.trail-src{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px}
+.quote{padding-left:12px;border-left:2px solid var(--ink);font-family:var(--serif);font-size:14.5px;font-weight:300;line-height:1.5}
+.quote span{display:block;margin-top:3px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.quote.absent{border-left-color:var(--rule);color:var(--muted);font-size:13px;font-family:var(--sans)}
+.shots-head{display:flex;align-items:baseline;gap:8px;margin:16px 0 6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.shots-head b{color:var(--ink);font-weight:500}
+.shots-head i{font-style:normal;color:var(--accent)}
+.shots{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-color:var(--rule) transparent}
+.shots.detail{background:var(--inset);padding:6px 6px 8px}
+.shot{flex:0 0 124px;width:124px;margin:0;border:1px solid var(--rule);background:#fff;position:relative}
+.shot a{display:block;border:0}
+.shot img{display:block;width:100%;height:140px;object-fit:contain;background:#fff}
+.shot figcaption{padding:4px 6px 5px;font-family:var(--mono);font-size:9px;line-height:1.4;color:var(--muted);border-top:1px solid var(--rule);min-height:30px;overflow-wrap:anywhere}
+.shot figcaption b{display:block;color:var(--ink);font-weight:600;font-size:9.5px}
+.shot.evidence{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.shot.evidence figcaption b{color:var(--accent)}
+.shot.evidence::after{content:"근거";position:absolute;top:4px;left:4px;padding:1px 5px;background:var(--accent);color:var(--paper);font-family:var(--mono);font-size:8.5px;letter-spacing:.1em}
+.shot.missing{display:grid;place-items:center;height:172px;color:var(--faint);font-family:var(--mono);font-size:10px;text-align:center;padding:8px;background:var(--inset)}
+.p-more{margin-top:12px;font-size:12.5px}
+.p-more summary{cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);list-style:none}
+.p-more summary::before{content:"+ ";color:var(--ink)}
+.p-more[open] summary::before{content:"− "}
+.p-more .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}
+.p-more h4{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin:10px 0 4px}
+.sigrow{padding:6px 0;border-top:1px dashed var(--rule)}
+.sigrow:first-of-type{border-top:0}
+.sigrow strong{display:block;font-weight:500;font-size:12.5px}
+.sigrow p{font-size:12px;color:var(--muted);line-height:1.5}
+.sentence{font-size:12.5px;line-height:1.5;padding:4px 0}
+.kv{font-family:var(--mono);font-size:10.5px;color:var(--muted);line-height:1.8}
+.kv b{color:var(--ink);font-weight:500}
+.recovery{margin-top:6px;padding:6px 9px;background:var(--accent-soft);color:#75401F;font-size:11.5px;line-height:1.5}
+.empty{padding:48px 22px;color:var(--muted);text-align:center;font-size:13px}
+
+footer{margin-top:64px;padding:22px 0 70px;border-top:1.5px solid var(--ink);color:var(--muted);font-size:12px;line-height:1.75}
+footer .mono{color:var(--ink)}
+footer nav a{margin-right:16px;border-bottom-color:var(--faint)}
+
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (max-width:900px){
+  .wrap{width:min(1360px,calc(100% - 28px))}
+  .lanes,.aside-strip{grid-template-columns:1fr}
+  .aside-strip div{border-left:0;border-top:1px solid var(--rule)}
+  .aside-strip div:first-child{border-top:0}
+  .aside-strip div{padding-left:0}
+  .lane{padding:0 0 22px}
+  .lane + .lane{border-left:0;border-top:1px solid var(--rule);padding:22px 0}
+  .sec-head{flex-direction:column;align-items:flex-start}
+  .sec-head p{text-align:left}
+  .cluster-head,.product{grid-template-columns:1fr;gap:10px}
+  .fx{grid-template-columns:1fr;gap:14px 0;padding:22px 0 28px}
+  .fx-rail{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+  .fx-rail .chips{margin-top:0}
+  .stamp{transform:none}
+  .plate .shots{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .plate .frame img{height:200px}
+  .p-rail{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center}
+  .p-rail .key,.p-rail .chips{margin-top:0}
+  .p-split{grid-template-columns:1fr}
+  .voice + .voice{border-left:0;border-top:1px solid var(--rule)}
+  .p-more .grid{grid-template-columns:1fr}
+  .toolbar{position:static}
+  .toolbar .search{margin-left:0;width:100%}
+  .toolbar input{min-width:0;flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{
+  body{font-size:10pt}
+  .toolbar,.p-head .pdp{display:none}
+  .product,.cluster-head,.fx{break-inside:avoid}
+  .plate figure{break-inside:avoid}
+  .shots{flex-wrap:wrap;overflow:visible}
+  a{border:0}
+}
+
+:root{--paper:#F8FAFC;--inset:#FFFFFF;--ink:#0F172A;--muted:#475569;--faint:#64748B;--rule:#E2E8F0;--rule-soft:#F1F5F9;
+  --accent:#2563EB;--accent-soft:#EFF6FF;--accent-ink:#1D4ED8;
+  --ok:#15803D;--ok-soft:#F0FDF4;--warn:#854D0E;--warn-soft:#FEFCE8;--bad:#B91C1C;--bad-soft:#FEF2F2;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -12px rgba(15,23,42,.10);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;--display:var(--sans)}
+html,body{background:var(--paper)}
+body{font-family:var(--sans);font-size:14.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+a{border-bottom:0;color:var(--accent)}a:hover{color:var(--accent-ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px}
+.kicker{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--faint)}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 머리 — 제목·안내·이름 입력·집계를 한 흰 카드 위에 */
+.masthead{padding:28px 0 4px}
+.masthead-top{font-family:var(--sans);font-size:12.5px;color:var(--faint)}
+.masthead-top .kicker a{color:var(--accent);font-weight:600}
+.masthead h1{font-family:var(--sans);font-weight:700;font-size:clamp(1.5rem,2.6vw,1.75rem);letter-spacing:-.02em;line-height:1.25;padding:10px 0 4px}
+.lead{font-size:14px;line-height:1.6;color:var(--faint);max-width:72ch}
+.bar{margin-top:20px;gap:12px 24px}
+.bar label{font-size:13.5px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:10px}
+.bar input#reviewer{font-size:14px;padding:0 14px;min-height:42px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9;min-width:200px}
+.bar input#reviewer:focus{background:#fff;outline:2px solid var(--accent)}
+.bar input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.statusline{margin-top:20px;padding:16px 20px;border:0;border-radius:14px;background:#fff;box-shadow:var(--shadow);color:var(--faint);font-size:13.5px;align-items:center}
+.tally b{color:var(--ink);font-weight:600}
+.tally b:first-child{color:var(--accent)}
+#progress-short{color:var(--accent);font-weight:600}
+.hidden-count{color:var(--faint)}
+#progress{font-size:13px;color:var(--faint);padding:8px 4px 0}
+.notice{margin-top:14px;padding:12px 16px;border:0;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-weight:500}
+
+/* 건 — 흰 카드. 선 없이 그림자로 띄운다 */
+.item{margin-top:24px;padding:24px 28px 28px;border:0;border-radius:16px;background:#fff;box-shadow:var(--shadow);animation:fade .45s ease both}
+.item:last-of-type{padding-bottom:28px}
+.item .kicker{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.item h3{font-family:var(--sans);font-weight:700;font-size:1.15rem;letter-spacing:-.01em;margin-top:8px}
+.item h3 small{font-size:13.5px;font-weight:400;color:var(--faint)}
+.item-body{gap:28px}
+.shots img{border-radius:12px}
+.shots figcaption{font-family:var(--sans);font-size:12px;color:var(--faint);margin-top:6px}
+.textbox,.why{font-size:13.5px;color:var(--muted)}
+
+/* 칸 — 칸 사이는 아주 옅은 줄 하나 */
+.cell{padding:22px 0 24px;border-top:1px solid var(--rule-soft)}
+.cell h4{font-family:var(--sans);font-weight:600;font-size:15.5px}
+.cell.done{opacity:.5}
+
+/* 지금 GT → 제안 — 제안은 파랑 뱃지, 갈린 칸은 노랑, 지금 값은 회색으로 긋는다 */
+.diff{gap:8px 20px;margin:12px 0 4px;align-items:center}
+.diff .tag{font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint);margin-bottom:6px}
+.diff .v{font-family:var(--sans);font-size:1.2rem;font-weight:600;line-height:1.3}
+.diff .arrow{font-family:var(--sans);color:#94A3B8;font-size:1.1rem;padding:0;align-self:center}
+.diff.proposed .now .v{color:#94A3B8;font-weight:500;text-decoration-color:#94A3B8;text-decoration-thickness:1.5px}
+.diff.proposed .to .v{border-bottom:0;padding:4px 12px;border-radius:10px;background:var(--accent-soft);color:var(--accent-ink)}
+.diff.proposed .to .tag{color:var(--accent)}
+.diff.contested .to .v{border-bottom:0;padding:4px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn)}
+.diff.contested .to .tag{color:var(--warn)}
+.diff.weak .to .v,.diff.none .to .v,.diff.same .to .v{color:var(--muted);font-weight:500}
+
+/* 판단 근거 — 회색 판 */
+.grounds{margin-top:18px;padding:16px 18px;border:0;border-radius:12px;background:var(--paper)}
+.grounds-kicker{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:0;color:var(--faint)}
+.grounds dl{font-size:13.5px;color:var(--muted)}
+.grounds dt{color:var(--ink);font-weight:600}
+
+/* 판정 — 주 버튼은 파랑 채움, 나머지는 흰 바탕에 옅은 테두리 */
+.act{gap:8px;margin-top:14px;border:0}
+.act button{font:inherit;font-size:13.5px;font-weight:600;min-height:40px;padding:0 16px;border:1px solid var(--rule);border-radius:10px;
+  background:#fff;color:var(--ink);transition:background .15s,border-color .15s}
+.act button:hover{background:#F8FAFC;border-color:#CBD5E1}
+.act button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.act select{font-size:13.5px;min-height:40px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff}
+.act.notes input.reason{font-size:13.5px;padding:0 14px;min-height:40px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9}
+.act.notes input.reason:focus{background:#fff;outline:2px solid var(--accent)}
+.act.notes label{font-size:13px;color:var(--muted)}
+.result{font-size:13px;color:var(--ok)}
+details.def,details.meta{font-size:12.5px;color:var(--faint)}
+details.def .deftext{border-left:0;padding:12px 14px;border-radius:10px;background:var(--paper);font-size:13px}
+#progress-bottom{bottom:12px;margin:16px auto 0;width:fit-content;max-width:100%;box-sizing:border-box;padding:10px 18px;border:0;border-radius:999px;
+  background:#fff;color:var(--ink);font-size:13.5px;font-weight:500;box-shadow:0 8px 24px -8px rgba(15,23,42,.25)}
+#offline{background:var(--bad-soft);color:var(--bad);border-radius:0 0 12px 12px}
+footer{font-size:13.5px}
+#viewer{background:rgba(15,23,42,.88)}
+#viewer img{border-radius:12px}
+
+@media (max-width:640px){
+  .item{padding:18px 16px 20px;border-radius:14px}
+  .statusline{border-radius:14px}
+  .diff .v{font-size:1.05rem}
+  .act button{min-height:44px}
+}
+
+/* 개편 — 시안(검수 화면 개편안)의 구조 */
+.masthead{padding:24px 0 4px}
+.crumbs a{color:var(--faint);font-weight:500}
+.title-row{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px 24px;margin-top:6px}
+.title-row h1{padding:0}
+.who{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.who input{font:inherit;font-size:14px;padding:0 14px;min-height:42px;box-sizing:border-box;border:0;border-radius:10px;background:#F1F5F9;color:var(--ink);width:200px}
+.who input:focus{background:#fff;outline:2px solid var(--accent)}
+.statusline{display:flex;flex-wrap:wrap;gap:14px 24px;justify-content:space-between;align-items:center}
+.progress-block{flex:1 1 380px;display:flex;flex-direction:column;gap:8px;min-width:0}
+#progress-short{font-size:16px;font-weight:700;color:var(--ink)}
+.pbar{height:8px;border-radius:999px;background:#F1F5F9;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .3s}
+.statusline .tally{font-size:12.5px}
+.views{display:flex;gap:2px;padding:4px;border-radius:12px;background:#F1F5F9}
+.views button{font:inherit;font-size:13.5px;font-weight:600;min-height:38px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:var(--faint);cursor:pointer;display:flex;align-items:center;gap:8px}
+.views button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+.views .count{font-size:12px;padding:1px 7px;border-radius:999px;background:#E2E8F0;color:var(--muted)}
+.views button[aria-pressed="true"] .count{background:var(--accent-soft);color:var(--accent-ink)}
+.views .count:empty{display:none}
+.masthead .bar{margin-top:10px}
+#progress{font-size:12.5px;color:var(--faint);padding:8px 2px 0;margin:0}
+body.only-ask .cell.GT_HOLDS{display:none}
+body.only-ask .item.finished{display:none}
+
+/* 칸 머리 — 이름과 상태 뱃지 */
+.c-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.badge{flex-shrink:0;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#F1F5F9;color:var(--muted)}
+.badge.s-FIX_PROPOSED,.badge.s-FILL_PROPOSED{background:var(--accent-soft);color:var(--accent-ink)}
+.badge.s-CONTESTED,.badge.s-NEEDS_HUMAN_LOOK,.badge.s-NO_EVIDENCE{background:var(--warn-soft);color:var(--warn)}
+.badge.s-NOT_READ{background:var(--bad-soft);color:var(--bad)}
+.cell.done .badge{background:var(--ok-soft);color:var(--ok)}
+.cell.done .badge{font-size:0}.cell.done .badge::before{content:"답함";font-size:12px}
+.cell.held .badge{font-size:0;background:#F1F5F9;color:var(--muted)}.cell.held .badge::before{content:"보류";font-size:12px}
+/* 값 버튼 — 값마다 하나. AI가 낸 값에 표시, 칠할 수 있는 제안만 칠한다 */
+.act.chips{margin-top:12px}
+.act button.chip{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 16px;border:1.5px solid var(--rule);border-radius:10px;background:#fff;font-size:14px;font-weight:600}
+.act button.chip:hover{border-color:#94A3B8;background:#fff}
+.act button.chip .tag{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--warn-soft);color:var(--warn)}
+.act button.chip.is-now .tag{background:#F1F5F9;color:var(--muted)}
+.act button.chip.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.act button.chip.primary .tag{background:rgba(255,255,255,.2);color:#fff}
+.act button.chip.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+.act:not(.chips):not(.notes){margin-top:8px}
+/* 접는 구역 — 이유·정책 밖 표시, 판단 근거 */
+details.memo-add{margin-top:10px}
+details.memo-add > summary,details.grounds > summary{display:inline-flex;align-items:center;min-height:36px;cursor:pointer;font-size:13.5px;font-weight:600;list-style:none}
+details.memo-add > summary{color:var(--muted)}
+details.memo-add > summary::-webkit-details-marker,details.grounds > summary::-webkit-details-marker{display:none}
+details.memo-add > summary::before,details.grounds > summary::before{content:"+";display:inline-block;width:16px;color:var(--faint)}
+details.memo-add[open] > summary::before,details.grounds[open] > summary::before{content:"–"}
+details.grounds{margin-top:12px;padding:6px 16px 14px}
+details.grounds > summary{color:var(--accent);letter-spacing:0;margin-bottom:0}
+details.grounds[open] > summary{margin-bottom:8px}
+/* 건 메모 — 노란 줄 하나, 누르면 펼친다 */
+.memo{margin-bottom:14px;border-radius:12px;background:var(--paper);padding:10px 14px;border:0}
+.memo.caution{background:var(--warn-soft)}
+.memo details > summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink);list-style:none;padding:4px 0}
+.memo.caution details > summary{color:var(--warn)}
+.memo details > summary::-webkit-details-marker{display:none}
+.memo details > summary::after{content:" 읽기";font-weight:500;color:var(--faint)}
+.memo details[open] > summary::after{content:" 접기"}
+.memo p{font-size:13.5px;line-height:1.6;color:var(--muted);margin:6px 0 2px}
+/* 유지 확인 — 값 칩 한 줄과 버튼 하나 */
+.item-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0}
+.item-state{font-size:12.5px;font-weight:600;color:var(--accent)}
+
+/* 시안 맞춤 — 한 줄 diff, 한 줄 버튼, 접기 둘은 나란히 */
+.diff{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:12px 0 2px}
+.diff > div{display:flex;align-items:center;gap:10px}
+.diff .tag{display:inline;margin:0;font-size:13px;font-weight:500;color:var(--faint)}
+.diff .v{font-size:1.05rem}
+.diff .now .v{color:#94A3B8;font-style:italic;font-weight:500}
+.diff.proposed .to .v,.diff.contested .to .v,.diff.weak .to .v{padding:3px 12px;border-radius:9px}
+.diff.weak .to .v{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.diff .arrow{font-size:1rem}
+.act.chips + .act{margin-top:10px}
+.more{display:flex;flex-wrap:wrap;align-items:flex-start;gap:0 18px;margin-top:6px}
+.more > details{margin-top:0}
+.more > details[open]{flex-basis:100%}
+.more > details.grounds{padding:0;background:transparent}
+.more > details.grounds[open]{padding:6px 16px 14px;background:var(--paper);border-radius:12px;margin-top:6px}
+.grounds .value-notes{list-style:none;padding:0;margin:0 0 10px;font-size:13px;color:var(--muted)}
+.cell{padding:20px 0 22px}
+/* 사진 — 틀 없이, 캡션은 작게 */
+.shots figure,.rail figure{border:0!important;padding:0!important;background:transparent!important}
+.shots figcaption{border:0!important;padding:4px 2px 0!important;background:transparent!important}
+.zoom-hint{font-size:12px;color:var(--faint)}
+.rail .memo{margin-top:12px}
+.rail .why{font-size:13px;line-height:1.55;color:var(--muted)}
+/* 유지 확인 — 제목과 버튼 한 줄, 값은 칩 */
+.ask{margin:0 0 12px;padding:12px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;line-height:1.55}
+.ask b{margin-right:6px}
+.gist{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:var(--muted)}
+.gist b{color:var(--ink);font-weight:600;margin-right:6px}
+figcaption em.rep{background:#F1F5F9;color:var(--muted)}
+/* 버튼 줄 — 시안: 값 버튼 아래 한 줄에 «빈칸이 맞다 · 보류 … 근거 보기 · 메모 추가» */
+.act:not(.chips):not(.notes){display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.act:not(.chips):not(.notes) button:not(.chip):not(.toggle):not(.primary){min-height:38px;padding:0 14px;font-weight:500;color:#334155;border:1px solid var(--rule);background:#fff}
+.act .grow{flex:1 1 auto}
+.act button.toggle{min-height:38px;padding:0 12px;border:0;background:transparent;font-weight:600;color:var(--accent)}
+.act button.toggle.t-memo{color:var(--muted)}
+.act button.toggle:hover{background:#F1F5F9}
+.more > details > summary{display:none}
+.more{gap:0;margin-top:0}
+.more > details[open]{margin-top:10px}
+.more > details.grounds[open]{padding:14px 16px}
+/* 답한 칸 — 초록 «기록됨» 줄 */
+.cell.done .result{margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--ok-soft);color:var(--ok);font-size:13.5px}
+.cell.done .result b{color:var(--ok)}
+.cell.done .change{margin-top:6px;border:0;background:transparent;color:var(--ok);font-weight:600;font-size:13px;padding:4px 2px;cursor:pointer}
+.once{margin:8px 0 0;padding:10px 14px;border-radius:10px;background:#fff;box-shadow:var(--shadow);font-size:13.5px;color:var(--muted)}
+/* 칸 안의 간격 — 시안처럼 한 규칙: 요소 사이 12px, 값 버튼 줄과 그 아래 줄 사이 10px. 여러 겹의 margin을 쓰지 않는다 */
+.decide .cell{display:flex;flex-direction:column;gap:12px;padding:22px 0 24px}
+/* 간격 규칙이 «같게 본 칸은 묶음에만» 규칙을 덮지 않게 — 켜 둔 때(칸마다 펼치기)와 대체 정답 칸만 따로 보인다 */
+.decide .cell.GT_HOLDS{display:flex}
+body.only-ask .decide .cell.GT_HOLDS{display:none}
+.decide .cell > *{margin:0!important}
+.decide .cell > :empty{display:none}
+.decide .cell > .act.chips + .act{margin-top:-2px!important}
+.decide .cell .act{gap:8px;padding:0!important;border:0!important}
+.decide .cell .diff{gap:6px 12px}
+.decide .cell .c-head h4{margin:0}
+.decide .cell .why,.decide .cell .gist{margin:0}
+.decide .cell .more:not(:has(details[open])){display:none}
+.decide .cell .change{align-self:flex-start}
+.decide .gt-cell-grid > .cell:first-child{padding-top:4px}
+.actions{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+.actions .once{margin:0}
+.action-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+/* 제목 줄 오른쪽 — 페이지 넘김과 판정하는 사람. 반영 버튼은 진행률 카드 오른쪽(.status-side). 버튼 하나만 있는 줄을 두지 않는다. */
+.title-side{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+.status-side{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.actions:has(#export-out[hidden]){display:none}
+#do-export{font:inherit;font-size:14px;font-weight:600;min-height:40px;padding:0 16px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+#do-export:hover{background:var(--accent-ink)}#do-export:disabled{opacity:.6}
+.pager{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.pager button,#progress-bottom .page-next{font:inherit;font-size:13.5px;font-weight:600;min-height:36px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:default}
+#export-out{padding:14px 16px;border-radius:12px;background:#fff;box-shadow:var(--shadow);font-size:13.5px;color:var(--muted)}
+#export-out p{margin:0 0 8px}#export-out b{color:var(--ink)}
+#export-out table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+#export-out th{text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:6px 10px;background:var(--paper)}
+#export-out td{padding:6px 10px;box-shadow:inset 0 1px 0 #F1F5F9}
+.item[hidden]{display:none!important}
+/* 기본값 — AI도 지금 GT와 같은 칸. 지금 값 버튼이 눌린 모양으로 시작한다 */
+.act button.chip.chosen{background:var(--ok-soft);border-color:#86EFAC;color:var(--ok)}
+.act button.chip.chosen .tick{font-weight:700}
+.act button.chip.chosen .tag{background:#fff;color:var(--ok)}
+.badge.s-GT_HOLDS{background:var(--ok-soft);color:var(--ok)}
+.cell.GT_HOLDS .diff{display:none}
+/* 사진 — 칸(상자) 크기 안에 통째로. 세로로 긴 사진이 화면을 넘지 않게 */
+.rail .shots img,.evidence .shots img{width:100%;height:auto;max-height:560px;object-fit:contain;background:#F1F5F9;border-radius:12px}
+/* 고른 값 — 기록된 값의 버튼은 눌린 모양, 누르는 동안은 테두리로 반응 */
+.act button.chip.picked{background:var(--ok-soft);border-color:#22C55E;color:var(--ok);box-shadow:inset 0 0 0 1px #22C55E}
+.act button.chip.picked::before{content:"✓";font-weight:700;margin-right:2px}
+.act button.chip.picked .tag{background:#fff;color:var(--ok)}
+.act button.chip.pending{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.act button.chip:active{transform:scale(.97)}
+.act button[data-decision="HOLD"].picked{background:#F1F5F9;border-color:#94A3B8}
+.act button.chip{transition:background .15s,border-color .15s,box-shadow .15s,transform .08s}
+/* ===== 칸 개편안 — 선택기 하나 · 점 두 개 · 글자 링크 한 줄 · 답한 칸 한 줄 ===== */
+.decide .cell .c-head .badge{display:none}
+.decide .cell:has(.act.chips) .diff{display:none}
+.decide .cell.CONTESTED .c-head h4::after,.decide .cell.NEEDS_HUMAN_LOOK .c-head h4::after,.decide .cell.NO_EVIDENCE .c-head h4::after,.decide .cell.asking .c-head h4::after{content:"직접 봐 주세요";
+  margin-left:8px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:#FEF3C7;color:#92400E;vertical-align:middle}
+.decide .cell.done:not(.open) .c-head h4::after{display:none}
+.ask{margin:0 0 10px;padding:10px 12px;border-radius:10px;background:#FEF3C7;color:#92400E;font-style:normal;font-size:13.5px;line-height:1.55}
+.decide .cell .ask{margin:10px 0 0}
+.ask .ask-here,.ask .ask-options{display:inline-block;margin-top:4px;font-size:13px}
+.ask .ask-options b{font-weight:700}
+.decide .cell.done:not(.open) .ask{display:none}
+.decide .cell.done.open .change{display:inline-block;justify-self:end;margin-top:8px!important}
+/* 선택기 — 이어 붙은 칸들 */
+.decide .cell .act.chips{display:flex;gap:0;border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:#fff;flex-wrap:nowrap}
+.decide .cell .act.chips button.chip{flex:1 1 0;min-height:46px;margin:0;border:0;border-left:1px solid var(--rule);border-radius:0;background:#fff;color:var(--ink);
+  font-size:14px;font-weight:500;justify-content:center;gap:8px;box-shadow:none;transform:none}
+.decide .cell .act.chips button.chip:first-child{border-left:0}
+/* 값 이름은 낱말 가운데서 끊지 않는다(«전
+신»). 좁으면 «AI 제안» 표시가 아래 줄로 내려간다. */
+.decide .cell .act.chips button.chip{word-break:keep-all;flex-wrap:wrap;column-gap:6px;row-gap:0}
+.decide .cell .act.chips button.chip:hover{background:#F8FAFC}
+.decide .cell .act.chips button.chip.primary{background:#fff;color:var(--ink);font-weight:500}  /* 추천은 파란 점만 — 파란 채움은 사람이 고른 값 하나에만 */
+.decide .cell .act.chips button.chip.picked,.decide .cell .act.chips button.chip.chosen{background:var(--accent);color:#fff;font-weight:600;box-shadow:none}
+.decide .cell .act.chips button.chip.picked::before,.decide .cell .act.chips button.chip.chosen::before{content:"✓";margin-right:2px}
+.decide .cell .act.chips button.chip.pending{box-shadow:inset 0 0 0 2px var(--accent)}
+.decide .cell .act.chips .tick{display:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.ai{background:var(--accent)}
+.dot.now{box-shadow:inset 0 0 0 1.5px #94A3B8}
+.chip.picked .dot.ai,.chip.chosen .dot.ai{background:#FFFFFF}
+.chip.picked .dot.now,.chip.chosen .dot.now{box-shadow:inset 0 0 0 1.5px #DBEAFE}
+/* 아래 한 줄 — 범례 왼쪽, 글자 링크 오른쪽 */
+.decide .cell .act.chips + .act{margin-top:0!important;gap:4px 14px;font-size:12.5px}
+.decide .cell .act:not(.chips):not(.notes) button:not(.toggle){min-height:32px;padding:0;border:0;background:transparent;color:var(--faint);font-size:13px;font-weight:500}
+.decide .cell .act:not(.chips):not(.notes) button:not(.toggle):hover{color:var(--ink);background:transparent}
+.decide .cell .act:not(.chips):not(.notes) button.picked{color:var(--ink);font-weight:600;text-decoration:underline}
+.decide .cell .act button.toggle{min-height:32px;padding:0;font-size:13px}
+.legend{display:inline-flex;gap:14px;color:var(--faint);font-size:12.5px;margin-right:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .dot{margin:0}
+.decide .cell .gist{color:var(--faint);font-size:13px}
+.decide .cell .gist b{color:var(--muted);font-weight:500}
+/* 답한 칸 — 한 줄: 항목 이름 · 옆 → 앞 · 이민준 · 바꾸기 */
+.decide .cell.done:not(.open){display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 14px;padding:14px 0!important}
+.decide .cell.done:not(.open) > :not(.c-head):not(.result):not(.change){display:none!important}
+.decide .cell.done .result{text-align:right;margin:0!important;padding:0!important;background:transparent!important;color:var(--muted)!important;font-size:13.5px}
+.decide .cell.done .result b{color:var(--ink)!important}
+.decide .cell.done .change{margin:0!important;padding:0!important;color:var(--accent)!important;font-size:13px}
+.decide .cell.done.open .result{display:none}
+/* 값 옆 글자 표시 — «AI 제안»·«지금 GT»를 그 값 바로 옆에 */
+.vmark{font-size:11.5px;font-weight:600;white-space:nowrap}
+.vmark.ai{color:var(--accent)}
+.vmark.now{color:var(--faint);font-weight:500}
+.chip.picked .vmark,.chip.chosen .vmark{color:#DBEAFE}
+/* 접힌 상품 — 왼쪽에 대표 사진 작게, 오른쪽에 번호·키·다시 펼치기 */
+.fold-thumb{display:none}
+.item.folded{display:grid;grid-template-columns:72px minmax(0,1fr);column-gap:16px;align-items:start}
+.item.folded > :not(.fold-thumb){grid-column:2}
+.item.folded .reopen{justify-self:start}
+.item.folded .fold-thumb{display:block;grid-column:1;grid-row:1 / span 3;width:72px;height:90px;padding:0;border:0;border-radius:10px;overflow:hidden;background:#F1F5F9;cursor:pointer}
+.item.folded .fold-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.item.folded .fold-thumb:hover{box-shadow:0 0 0 2px var(--accent)}
+/* «다음 후보 받기»가 도는 동안 — 돌고 있다는 것이 눈에 보이게 */
+.next-live{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.next-live .muted{color:var(--faint);font-weight:400}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reload-now{font:inherit;font-size:13.5px;font-weight:600;min-height:36px;padding:0 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+/* 좁은 화면 — 맨 끝에 둔다(위의 기본 규칙이 뒤에 오면 같은 무게라 이긴다). 골든셋 검수·증분 검수가 함께 쓴다.
+   진행률 줄은 세로로 쌓이는데(EXTRA_STYLE), 진행률 칸의 기준 크기(380px)가 세로에서는 높이가 되어 빈 칸이 생겼다. */
+@media (max-width:640px){
+  .progress-block{flex:0 0 auto;width:100%}
+  .title-side,.status-side{width:100%}
+  .who{flex:1 1 auto;white-space:nowrap}.who input{width:100%;min-width:0}
+  .masthead-top{flex-wrap:wrap;gap:4px 12px}
+  /* 값이 많은 칸의 선택기는 줄을 바꾼다 — 한 줄로 이으면 화면 오른쪽 밖으로 밀린다 */
+  .decide .cell .act.chips{flex-wrap:wrap}
+  .decide .cell .act.chips button.chip{flex:1 1 30%;min-width:0;border-top:1px solid var(--rule);margin-top:-1px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.side-help{margin-top:auto;padding:12px 14px;border-radius:12px;background:var(--paper);font-size:12.5px;color:var(--muted);line-height:1.55}
+.side-help > summary{cursor:pointer;font-weight:600;color:var(--ink);list-style:none}
+.side-help > summary::-webkit-details-marker{display:none}
+.side-help > summary::before{content:"? ";color:var(--accent);font-weight:700}
+.side-help p{margin:8px 0}
+.side-help dl{margin:0}
+.side-help dt{margin-top:6px;font-weight:600;color:var(--ink)}
+.side-help dd{margin:0}
+.side-help[open]{max-height:60vh;overflow:auto}
+@media (max-width:900px){.side-help{display:none}}
+
+/* 밀도 — 화면 전체를 한 비율로 줄인다(사용자가 고른 촘촘한 크기). 바꿀 때는 이 한 줄만. */
+:root{--zoom:.75}
+html{zoom:var(--zoom)}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh / var(--zoom))}
+@media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr)}}
+.shell > .wrap{width:min(1180px,calc(100% - 80px));margin:0 auto}
+.side{position:sticky;top:0;align-self:start;height:calc(100vh / var(--zoom));box-sizing:border-box;padding:24px 14px;background:#fff;box-shadow:1px 0 0 #F1F5F9;
+  display:flex;flex-direction:column;gap:26px;overflow:auto}
+.side a{border-bottom:0;text-decoration:none}
+.side-brand{display:flex;align-items:center;gap:10px;padding:0 10px;color:var(--ink);font-size:16px;font-weight:700}
+.side-logo{width:30px;height:30px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-link,.side-task{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14.5px;font-weight:500}
+.side-link:hover,.side-task:hover{background:#F1F5F9;color:var(--ink)}
+.side-disabled{opacity:.68;cursor:not-allowed}
+.side-disabled small{margin-left:auto;font-size:10.5px;font-weight:500;line-height:1.2;text-align:right}
+.side{overflow:visible}
+.side-item{position:relative}
+.flyout{display:none;position:absolute;left:calc(100% + 6px);top:0;z-index:20;min-width:220px;padding:6px;border-radius:12px;background:#fff;
+  box-shadow:0 12px 32px -8px rgba(15,23,42,.25),0 0 0 1px var(--rule)}
+.flyout::before{content:"";position:absolute;left:-8px;top:0;width:8px;height:100%}
+.side-item.has-menu:hover .flyout,.side-item.has-menu:focus-within .flyout{display:flex;flex-direction:column;gap:2px}
+.side-item.closed .flyout{display:none!important}  /* Esc로 닫은 메뉴 — 포커스는 부모에 남는다 */
+.flyout-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--muted);white-space:nowrap}
+.flyout-link:hover,.flyout-link:focus-visible{background:#F1F5F9;color:var(--ink)}
+.flyout-link.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side-link.on,.side-task.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.side-task{justify-content:space-between;font-size:14px}
+.side-count{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:#F1F5F9;color:var(--muted)}
+.side-link .side-count{margin-left:auto}
+.side-count[hidden]{display:none}
+.side-empty{font-size:12px;color:#94A3B8}
+.flyout-link.empty{color:var(--faint)}
+.side-task.on .side-count{background:#fff;color:var(--accent-ink)}
+.side-kicker{padding:0 12px 6px;font-size:12px;font-weight:600;color:var(--faint);margin:0}
+.side-others{margin-top:auto;padding:14px;border-radius:12px;background:var(--paper)}
+.side-others .side-kicker{padding:0 0 4px}
+.side-door{display:block;font-size:13.5px;font-weight:500;color:var(--accent)}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr)}  /* 1fr(=minmax(auto,1fr))이면 한 줄 메뉴의 폭만큼 화면 전체가 넓어진다 */
+  .side{min-width:0;position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:12px 16px}
+  /* 좁은 화면 — 메뉴는 줄을 바꿔 두 줄이 된다. 가로 스크롤(overflow)은 펼침 목록까지 잘라 내므로 쓰지 않는다 */
+  .side-nav{flex-direction:row;flex-wrap:wrap;max-width:100%}.side-group,.side-others{display:none}
+  .side-link{white-space:nowrap}  /* «골든셋 검/수»처럼 낱말 가운데서 끊지 않는다 */
+  .shell > .wrap{width:calc(100% - 32px)}
+  .flyout{left:0;top:calc(100% + 4px)}.flyout::before{display:none}
+}
+
+.card{background:#fff;border-radius:16px;padding:22px 24px;margin-top:20px;box-shadow:var(--shadow)}
+.card h2{font-size:17px;font-weight:700;margin:0 0 4px}
+.card .sub{font-size:13px;color:var(--faint);margin:0 0 14px}
+.table{margin-top:16px;background:#fff;border-radius:16px;box-shadow:var(--shadow);overflow:auto}
+.table table{width:100%;border-collapse:collapse;font-size:13.5px}
+.table th{position:sticky;top:0;background:var(--paper);text-align:left;font-size:12px;font-weight:600;color:var(--faint);padding:10px 14px;white-space:nowrap}
+.table td{padding:10px 14px;box-shadow:inset 0 1px 0 #F1F5F9;white-space:nowrap}
+.table tr:hover td{background:#FAFCFF}
+.table td.key{font-weight:600}
+.table .empty{color:#94A3B8;font-style:italic}
+.table .pill{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
+.pill.out{background:var(--bad-soft);color:var(--bad)}
+.pill.to{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.table .src{color:var(--faint);font-size:12.5px}
+
+.page-head{padding:28px 0 8px;display:flex;flex-direction:column;gap:6px}
+.page-head h1{font-size:clamp(1.5rem,2.6vw,1.75rem);font-weight:700;letter-spacing:-.02em;margin:0}
+.page-head .lead{margin:0}
+.goal-row{display:grid;grid-template-columns:110px 1fr;gap:12px;padding:6px 0;font-size:14px}
+.goal-row>span{color:var(--muted)}
+.goal-row .deftext p{margin:0}
+.policy-rules li{line-height:1.6}
+.policy-rules .tag{display:inline-block;padding:1px 7px;border-radius:6px;font-size:12px;font-weight:600;background:#F1F5F9;color:#475569}
+.policy-rules .tag.from-review{background:#FEF3C7;color:#92400E}
+.policy-rules li.struck{color:var(--muted)}
+.policy-rules li.struck .rule-text{text-decoration:line-through}
+.values{list-style:none;padding:0;margin:0 0 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.values li{padding:12px 14px;border-radius:12px;background:var(--paper);font-size:13.5px;line-height:1.55;color:var(--muted)}
+.values strong.vn{display:block;color:var(--ink);font-size:14.5px;margin-bottom:2px}
+.values b{color:var(--ink);font-weight:600}
+.values .n{font-size:11.5px;font-weight:600;color:var(--faint);margin-left:6px}
+.edit-lead{margin:0}
+.edit-name{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin-top:4px}
+.edit-name input,.edit-row input,.edit-row select,.combo select{font:inherit;font-size:13.5px;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;color:var(--ink)}
+details.edit{margin-top:16px;border-top:1px solid #F1F5F9;padding-top:10px}
+details.edit>summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent)}
+.edit-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:12px}
+.edit-form{background:var(--paper);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.edit-title{margin:0;font-size:13.5px;font-weight:700;color:var(--ink)}
+.edit-row{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.edit-row input,.edit-row select{min-width:0;width:100%}
+.combo{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.combo label{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--muted)}
+.edit-actions{display:flex;gap:8px}
+.edit-form .btn{font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+.edit-form .btn.ghost{background:#fff;color:var(--muted);border:1px solid #E2E8F0}
+.edit-form .btn:disabled{opacity:.5;cursor:default}
+.edit-result{font-size:13px;line-height:1.55;border-top:1px dashed #E2E8F0;padding-top:8px}
+.edit-result p{margin:4px 0}
+.edit-result .warn{color:var(--bad)}
+.edit-result .ok{color:var(--ok)}
+.edit-result .was{color:var(--muted);text-decoration:line-through}
+.edit-result .will{color:var(--ink);font-weight:600}
+.edit-result .changes,.edit-result .table-lines{margin:4px 0;padding-left:18px}
+details.src > summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent);min-height:36px;display:flex;align-items:center}
+details.src .deftext{font-size:13.5px;line-height:1.65;color:var(--muted);padding:12px 16px;border-radius:12px;background:var(--paper)}
+.rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.rules li{padding:10px 14px;border-radius:10px;background:var(--paper)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}
+.filters input[type=search],.filters select{font:inherit;font-size:14px;min-height:42px;box-sizing:border-box;padding:0 14px;border:0;border-radius:10px;background:#fff;box-shadow:var(--shadow);color:var(--ink)}
+.filters input[type=search]{width:260px}
+.filters input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.filters label{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.filters .shown{margin-left:auto;font-size:13px;color:var(--faint)}
+/* 골든셋 카드 — 검수 화면의 접힌 상품처럼: 왼쪽 대표 사진, 오른쪽 키와 칸별 값 */
+.gcards{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+.gcard{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;padding:16px 20px;background:#fff;border-radius:16px;box-shadow:var(--shadow)}
+.gcard[hidden]{display:none}
+.gthumb{display:block;width:96px;height:120px;border-radius:10px;overflow:hidden;background:#F1F5F9;border:0}
+.gthumb img{width:100%;height:100%;object-fit:cover;display:block}
+a.gthumb:hover{box-shadow:0 0 0 2px var(--accent)}
+.gthumb.none{display:flex;align-items:center;justify-content:center;font-size:11.5px;color:var(--faint)}
+.ghead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.ghead .gkey{font-size:1.05rem;font-weight:700;color:var(--ink);border:0}
+.ghead a.gkey:hover{color:var(--accent)}
+.ghead small{font-size:13px;color:var(--faint)}
+.ghead .src{margin-left:auto;font-size:12.5px;color:var(--faint)}
+.gvals{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 20px;margin:10px 0 0;padding:0}
+.gvals > div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gvals dt{font-size:12px;color:var(--faint)}
+.gvals dd{margin:0;font-size:14px;font-weight:600;color:var(--ink)}
+.gvals .empty{color:#94A3B8;font-style:italic;font-weight:400}
+.gvals .pill{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="shell"><aside class="side" data-task="clothing-thumbnail-model-gender" data-base=""><a class="side-brand" href="/"><span class="side-logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>데이터 운영</a><nav class="side-nav" aria-label="주 메뉴"><div class="side-item"><a class="side-link" href="/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>홈</a></div><div class="side-item"><span class="side-link side-disabled" aria-disabled="true" title="이 작업은 GT 검수 기능을 제공하지 않습니다"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"></path></svg>골든셋 검수 <small>이 작업은 제공하지 않음</small></span></div><div class="side-item" data-menu="incr"><a class="side-link" href="/incr" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>증분 검수</a><div class="flyout" role="menu" aria-label="증분 검수 — 고르기"></div></div><div class="side-item" data-menu="policy"><a class="side-link on" href="policy.html" aria-current="page" aria-haspopup="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu" aria-label="정책 — 고르기"></div></div><div class="side-item"><span class="side-link side-disabled" aria-disabled="true" title="이 작업은 GT 검수 기능을 제공하지 않습니다"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋 <small>이 작업은 제공하지 않음</small></span></div></nav><details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 기존 정답과 판독이 다를 때 정책·근거로 다시 확인하는 AI)이 검토하고, 고칠 만한 칸만 올립니다.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>관찰 · 값 규칙</dt><dd>어떤 칸은 AI가 값을 고르지 않고 사진의 사실(예/아니오)에만 답합니다 — 화면의 «AI가 본 것». 값은 정책의 값 규칙 표가 정합니다. 두 번 본 AI의 답이 갈린 항목은 «갈림»으로 표시되고 사람이 봅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details></aside><div class="wrap"><header class="page-head"><h1>의류 썸네일 모델 성별 정책</h1></header><nav class="policy-jump" aria-label="정책 구역"><a href="#policy-purpose">목적</a><a href="#policy-values">허용값</a><a href="#policy-rules">규칙</a><a href="#policy-document">문서 전체 · 전달 정책</a></nav><section class="policy-zone" id="policy-purpose" aria-labelledby="purpose-title"><div class="policy-zone-heading"><span class="policy-step">01</span><h2 id="purpose-title">목적</h2></div><div class="policy-purpose-body"><p>사진 한 장에서 대상 의류 상품을 입은 중심 착용자의 겉으로 보이는 성별 표현을 분류한다. 실제 성별 정체성은 추정하지 않는다.</p></div></section><section class="policy-zone" id="policy-values" aria-labelledby="values-title"><div class="policy-zone-heading"><span class="policy-step">02</span><h2 id="values-title">허용값</h2></div><p class="policy-field-purpose">대상 상품을 입은 중심 착용자가 없거나 성별 표현을 직접 판단할 근거가 부족하면 알 수 없음으로 판단한다.</p><dl class="policy-values-list"><div class="policy-value-row"><dt>남성</dt><dd>사진에서 대상 의류를 입은 중심 착용자가 남성으로 보인다.</dd></div><div class="policy-value-row"><dt>여성</dt><dd>사진에서 대상 의류를 입은 중심 착용자가 여성으로 보인다.</dd></div><div class="policy-value-row"><dt>남녀 모두</dt><dd>대상 상품을 입은 남성과 여성이 동등한 중심 모델로 확인된다.</dd></div><div class="policy-value-row"><dt>알 수 없음</dt><dd>착용자가 없거나, 중심 착용자를 정할 수 없거나, 성별 표현을 판단할 직접 증거가 부족하다. 남녀 모두라는 뜻으로 쓰지 않는다.</dd></div></dl></section><section class="policy-zone" id="policy-rules" aria-labelledby="rules-title"><div class="policy-zone-heading"><span class="policy-step">03</span><h2 id="rules-title">규칙</h2></div><div class="policy-rule-group"><h3>판정 규칙 <span>우선순위 순서로 적용</span></h3><article class="policy-rule" id="rule-modelGender-P1"><header class="policy-rule-head"><span class="policy-rank">1순위</span><h4>대상 상품을 입은 중심 착용자 선택</h4><span class="policy-rule-id">P1</span></header><div class="deftext"><p>대상 상품을 실제로 입은 사람만 후보로 삼고 상품과 무관한 배경 인물은 제외한다. 후보마다 사진에서 차지하는 크기와 화면 중심에 얼마나 가까운지를 함께 비교한다. 한 사람이 다른 후보보다 분명히 더 크면서 화면 중심에도 더 가까우면 그 한 사람만 중심 착용자로 판정한다. 크기와 위치가 서로 다른 사람을 가리키거나 차이가 뚜렷하지 않아 한 사람을 고를 수 없으면 해당 후보들을 동등한 중심 착용자로 본다.</p></div><footer class="policy-case">판례 <span>없음.</span></footer></article><article class="policy-rule" id="rule-modelGender-P2"><header class="policy-rule-head"><span class="policy-rank">2순위</span><h4>중심 착용자의 성별 표현</h4><span class="policy-rule-id">P2</span></header><div class="deftext"><p>중심 착용자가 한 명이거나 동등한 중심 착용자 모두 같은 성별 표현으로 분명히 보이면 그 성별로 판단한다. 얼굴, 머리 모양과 손질, 체형 등 사진에서 직접 보이는 여러 단서를 함께 확인한다. 옷 종류나 상품 카테고리 하나만으로 판단하지 않는다.</p></div><footer class="policy-case">판례 <span>없음.</span></footer></article><article class="policy-rule" id="rule-modelGender-P3"><header class="policy-rule-head"><span class="policy-rank">3순위</span><h4>남녀 중심 착용자 또는 판단 불가</h4><span class="policy-rule-id">P3</span></header><div class="deftext"><p>동등한 중심 착용자 가운데 남성과 여성이 모두 분명히 확인되면 남녀 모두로 판단한다. 동등한 중심 착용자 중 성별 표현이 불분명한 사람이 있거나 착용자가 없거나 중심 착용자를 정할 수 없으면 알 수 없음으로 판단한다. 한 중심 착용자의 성별 단서끼리 서로 맞지 않는 경우도 알 수 없음으로 판단한다.</p></div><footer class="policy-case">판례 <span>없음.</span></footer></article></div></section><section class="card policy-transparency" id="policy-document"><details class="policy-disclosure"><summary>정책 문서 전체</summary><p>아래는 definitions.md 전체입니다. 문서에 있는 모든 항목을 생략 없이 표시합니다.</p><p class="sub">원본: /Users/mj/musinsa/dev/my-claude-code-os/.claude/os/attributes/clothing-thumbnail-model-gender/definitions.md<br>문서 SHA-256: <code>d7f0257791bebd03fb3bdcf69ce99f85d86090f304a6af9ca32ade052b5c8d93</code></p><pre class="complete-policy-text" id="policy-document-source"># 의류 썸네일 모델 성별 정책
+
+## 목적
+
+사진 한 장에서 대상 의류 상품을 입은 중심 착용자의 겉으로 보이는 성별 표현을 분류한다. 실제 성별 정체성은 추정하지 않는다.
+
+## 썸네일 속 모델 성별 표현
+
+대상 상품을 입은 중심 착용자가 없거나 성별 표현을 직접 판단할 근거가 부족하면 알 수 없음으로 판단한다.
+
+### 허용값
+
+- 남성 — 사진에서 대상 의류를 입은 중심 착용자가 남성으로 보인다.
+- 여성 — 사진에서 대상 의류를 입은 중심 착용자가 여성으로 보인다.
+- 남녀 모두 — 대상 상품을 입은 남성과 여성이 동등한 중심 모델로 확인된다.
+- 알 수 없음 — 착용자가 없거나, 중심 착용자를 정할 수 없거나, 성별 표현을 판단할 직접 증거가 부족하다. 남녀 모두라는 뜻으로 쓰지 않는다.
+
+### 규칙
+
+#### P1 · 대상 상품을 입은 중심 착용자 선택
+- 내용: 대상 상품을 실제로 입은 사람만 후보로 삼고 상품과 무관한 배경 인물은 제외한다. 후보마다 사진에서 차지하는 크기와 화면 중심에 얼마나 가까운지를 함께 비교한다. 한 사람이 다른 후보보다 분명히 더 크면서 화면 중심에도 더 가까우면 그 한 사람만 중심 착용자로 판정한다. 크기와 위치가 서로 다른 사람을 가리키거나 차이가 뚜렷하지 않아 한 사람을 고를 수 없으면 해당 후보들을 동등한 중심 착용자로 본다.
+- 우선순위: 1
+- 판례: 없음.
+
+#### P2 · 중심 착용자의 성별 표현
+- 내용: 중심 착용자가 한 명이거나 동등한 중심 착용자 모두 같은 성별 표현으로 분명히 보이면 그 성별로 판단한다. 얼굴, 머리 모양과 손질, 체형 등 사진에서 직접 보이는 여러 단서를 함께 확인한다. 옷 종류나 상품 카테고리 하나만으로 판단하지 않는다.
+- 우선순위: 2
+- 판례: 없음.
+
+#### P3 · 남녀 중심 착용자 또는 판단 불가
+- 내용: 동등한 중심 착용자 가운데 남성과 여성이 모두 분명히 확인되면 남녀 모두로 판단한다. 동등한 중심 착용자 중 성별 표현이 불분명한 사람이 있거나 착용자가 없거나 중심 착용자를 정할 수 없으면 알 수 없음으로 판단한다. 한 중심 착용자의 성별 단서끼리 서로 맞지 않는 경우도 알 수 없음으로 판단한다.
+- 우선순위: 3
+- 판례: 없음.
+</pre></details><details class="policy-disclosure"><summary>에이전트 전달 정책</summary><p>SDK 판독·검수·판례 에이전트가 사용하는 정책입니다. 같은 변환 함수로 표시합니다. 역할 지침과 상품 입력은 별도로 전달되며, 아래는 정책 부분입니다.</p><details class="policy-disclosure"><summary>SDK 에이전트에 전달되는 정책</summary><pre class="complete-policy-text" data-agent-policy="modelGender">[목적]
+사진 한 장에서 대상 의류 상품을 입은 중심 착용자의 겉으로 보이는 성별 표현을 분류한다. 실제 성별 정체성은 추정하지 않는다.
+
+[썸네일 속 모델 성별 표현]
+대상 상품을 입은 중심 착용자가 없거나 성별 표현을 직접 판단할 근거가 부족하면 알 수 없음으로 판단한다.
+
+[정책]
+P1 · 대상 상품을 입은 중심 착용자 선택
+우선순위: 1
+대상 상품을 실제로 입은 사람만 후보로 삼고 상품과 무관한 배경 인물은 제외한다. 후보마다 사진에서 차지하는 크기와 화면 중심에 얼마나 가까운지를 함께 비교한다. 한 사람이 다른 후보보다 분명히 더 크면서 화면 중심에도 더 가까우면 그 한 사람만 중심 착용자로 판정한다. 크기와 위치가 서로 다른 사람을 가리키거나 차이가 뚜렷하지 않아 한 사람을 고를 수 없으면 해당 후보들을 동등한 중심 착용자로 본다.
+판례: 없음.
+
+P2 · 중심 착용자의 성별 표현
+우선순위: 2
+중심 착용자가 한 명이거나 동등한 중심 착용자 모두 같은 성별 표현으로 분명히 보이면 그 성별로 판단한다. 얼굴, 머리 모양과 손질, 체형 등 사진에서 직접 보이는 여러 단서를 함께 확인한다. 옷 종류나 상품 카테고리 하나만으로 판단하지 않는다.
+판례: 없음.
+
+P3 · 남녀 중심 착용자 또는 판단 불가
+우선순위: 3
+동등한 중심 착용자 가운데 남성과 여성이 모두 분명히 확인되면 남녀 모두로 판단한다. 동등한 중심 착용자 중 성별 표현이 불분명한 사람이 있거나 착용자가 없거나 중심 착용자를 정할 수 없으면 알 수 없음으로 판단한다. 한 중심 착용자의 성별 단서끼리 서로 맞지 않는 경우도 알 수 없음으로 판단한다.
+판례: 없음.
+
+[허용값]
+- `MALE` 남성 — 사진에서 대상 의류를 입은 중심 착용자가 남성으로 보인다.
+- `FEMALE` 여성 — 사진에서 대상 의류를 입은 중심 착용자가 여성으로 보인다.
+- `UNISEX` 남녀 모두 — 대상 상품을 입은 남성과 여성이 동등한 중심 모델로 확인된다.
+- `UNKNOWN` 알 수 없음 — 착용자가 없거나, 중심 착용자를 정할 수 없거나, 성별 표현을 판단할 직접 증거가 부족하다. 남녀 모두라는 뜻으로 쓰지 않는다.
+</pre></details></details></section><style>.complete-policy-text{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.8 ui-monospace,monospace;background:#f5f6f8;padding:20px;border:1px solid #e1e4e8;border-radius:6px;max-height:none}.policy-transparency{min-width:0}.policy-transparency code{overflow-wrap:anywhere}.policy-disclosure>summary{cursor:pointer;font-weight:600;padding:12px 0}.policy-disclosure>summary:focus-visible{outline:2px solid #557da9;outline-offset:3px}.policy-transparency>.policy-disclosure+.policy-disclosure{border-top:1px solid #e1e4e8}.policy-disclosure .policy-disclosure{margin-left:16px}</style><style>
+.policy-jump{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 28px}
+.policy-jump a{padding:7px 14px;border:1px solid #d7dfe8;border-radius:6px;color:#29435e;text-decoration:none;background:#fff;font-size:13px}
+.policy-jump a:hover,.policy-jump a:focus-visible{background:#eaf1fa;border-color:#668bb9}
+.policy-zone{margin:28px 0 38px;scroll-margin-top:24px}
+.policy-zone-heading{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.policy-zone-heading .policy-step{font:600 12px ui-monospace,monospace;color:#5279a6}
+.policy-zone-heading h2{margin:0;font-size:22px;color:#182c43}
+.policy-purpose-body{border-left:4px solid #557da9;padding:14px 22px;background:#edf3f9;font-size:17px;line-height:1.8}
+.policy-purpose-body p{margin:0}
+.policy-values-list{margin:0;background:#fff;border-top:2px solid #354b63;border-bottom:1px solid #d8e0e8}
+.policy-value-row{display:grid;grid-template-columns:130px 1fr;gap:22px;padding:15px 18px;border-bottom:1px solid #edf0f3;align-items:baseline}
+.policy-value-row:last-child{border-bottom:0}.policy-value-row dt{font-weight:700;color:#213b58}.policy-value-row dd{margin:0;color:#485769;line-height:1.6}
+.policy-field-heading{margin:28px 0 12px;padding-bottom:8px;border-bottom:2px solid #354b63;font-size:18px}.policy-rule-group{margin-top:24px}.policy-rule-group>h3{font-size:15px;margin:0 0 12px;display:flex;gap:12px;align-items:baseline}
+.policy-rule-group>h3 span{font-size:12px;font-weight:400;color:#637387}
+.policy-rule{background:#fff;border:1px solid #dce3eb;border-radius:8px;padding:20px 22px;margin:12px 0;scroll-margin-top:24px}
+.policy-rule-head{display:flex;gap:12px;align-items:baseline;margin-bottom:14px}.policy-rule-head h4{font-size:17px;line-height:1.5;margin:0;flex:1}
+.policy-rank{background:#edf2f8;color:#31567d;border-radius:4px;padding:4px 8px;font-size:12px;white-space:nowrap;font-weight:600}
+.policy-rule-id{font:11px ui-monospace,monospace;color:#7c8997}.policy-case{border-top:1px solid #edf0f3;padding-top:12px;margin-top:16px;color:#7c8997;font-size:12px}.policy-case span{color:#485769;margin-left:10px}
+@media(max-width:600px){.policy-value-row{grid-template-columns:90px 1fr;gap:12px;padding:12px}.policy-rule{padding:16px}.policy-rule-head{gap:8px}.policy-rule-head h4{font-size:16px}.policy-zone-heading h2{font-size:20px}.policy-purpose-body{padding:12px 16px;font-size:15px}}
+</style></div></div><script>
+(() => {
+  const side = document.querySelector('aside.side');
+  if (!side || location.protocol === 'file:') return;
+  const me = side.dataset.task;
+  // 증분 화면은 과제를 주소(?task=)로 안다 — 그 과제를 목록에서 «지금»으로 칠한다.
+  const incrMe = location.pathname === '/incr' ? new URLSearchParams(location.search).get('task') : null;
+  const currentTask = me || incrMe;
+  const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  // 메뉴 하나를 채운다 — 네 메뉴(골든셋 검수·증분 검수·정책·골든셋)가 같은 함수를 쓴다. 과제 이름은 두 목록이 같은 이름(name)이고,
+  // 수는 서버가 센 그대로다. 부모 줄의 수는 자식 수의 합(수가 있는 메뉴만). 과제 없는 화면(증분)에서 부모 링크가 첫 화면(«/»)이면
+  // 첫 과제로 보낸다 — 첫 화면의 사이드바와 같은 동작.
+  const fill = (key, rows) => {
+    const item = side.querySelector('.side-item[data-menu="' + key + '"]');
+    if (!item) return;
+    const menu = item.querySelector('.flyout'); menu.textContent = '';
+    rows.forEach(row => {
+      const a = make('a', 'flyout-link' + (row.on ? ' on' : '') + (row.empty ? ' empty' : ''));
+      a.href = row.href; a.setAttribute('role', 'menuitem');
+      a.appendChild(make('span', null, row.name));
+      if (row.count) a.appendChild(make('span', 'side-count', String(row.count)));
+      else if (row.empty) a.appendChild(make('span', 'side-empty', row.empty));
+      menu.appendChild(a);
+    });
+    item.classList.toggle('has-menu', menu.children.length > 0);
+    const link = item.querySelector('a.side-link');
+    if (!link) return;
+    link.setAttribute('aria-haspopup', 'true');
+    if (link.getAttribute('href') === '/' && rows.length) link.href = (rows.find(row => row.on) || rows.find(row => !row.empty) || rows[0]).href;
+    const total = rows.reduce((sum, row) => sum + (row.count || 0), 0);
+    let badge = link.querySelector('.side-count');
+    if (key === 'review' || key === 'incr') {
+      if (!badge) { badge = make('span', 'side-count'); link.appendChild(badge); }
+      badge.textContent = String(total); badge.hidden = !total;
+    }
+  };
+  fetch('/gt-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(listing => {
+    if (!listing) return;
+    const pages = {review: task => task.page || ('/gt/' + encodeURIComponent(task.task)),
+                   policy: task => task.policyPage || ('/f/' + encodeURIComponent(task.task) + '/gt-review/policy.html'),
+                   golden: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/golden.html'};
+    ['review', 'policy', 'golden'].forEach(key => {
+      const tasks = key === 'policy' ? (listing.policies || listing.tasks || []) : (listing.tasks || []);
+      fill(key, tasks.filter(task => key === 'review' || task.pages || task.prepared).map(task => ({
+        href: pages[key](task), name: task.name, on: task.task === currentTask,
+        count: key === 'review' ? (task.waitingForHuman || 0) + (task.notRead || 0) : 0})));
+    });
+  }).catch(() => {});
+  fetch('/incr-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(incr => {
+    if (!incr) return;
+    fill('incr', (incr.tasks || []).map(task => ({href: '/incr?task=' + encodeURIComponent(task.task), name: task.menuName || task.name,
+                                                on: task.task === incrMe, count: task.itemsLeft || 0,
+                                                empty: (task.batches || []).length ? '' : '증분 없음'})));
+  }).catch(() => {});
+
+  // 메뉴 글쇠 — ↓ 목록으로 들어가 다음, ↑ 이전(맨 위에서 부모로), Esc 닫고 부모로. 골든셋·증분·정책·골든셋 메뉴가 같다.
+  side.addEventListener('keydown', (event) => {
+    const item = event.target.closest('.side-item.has-menu');
+    if (!item || !['ArrowDown', 'ArrowUp', 'Escape'].includes(event.key)) return;
+    item.classList.remove('closed');
+    const parent = item.querySelector('a.side-link');
+    const links = [...item.querySelectorAll('.flyout a')];
+    const now = links.indexOf(event.target);
+    event.preventDefault();
+    if (event.key === 'Escape') { item.classList.add('closed'); parent.focus(); return; }  // 포커스는 부모에 남긴다 — 다음 Tab이 제자리에서 이어진다
+    if (event.key === 'ArrowDown') (links[now + 1] || links[0]).focus();
+    else if (now <= 0) parent.focus(); else links[now - 1].focus();
+  });
+  side.addEventListener('focusout', (event) => { const item = event.target.closest('.side-item'); if (item && !item.contains(event.relatedTarget)) item.classList.remove('closed'); });
+  side.addEventListener('mouseleave', () => side.querySelectorAll('.side-item.closed').forEach((item) => item.classList.remove('closed')));
+  // 감사 사이클(과제 목록 밖의 GT)로 가는 문은 사이드바에 두지 않는다 — 운영 화면은 골든셋 검수 과제만 다룬다. 감사 화면은 /audit 주소로 연다.
+})();
+</script>
+</body></html>

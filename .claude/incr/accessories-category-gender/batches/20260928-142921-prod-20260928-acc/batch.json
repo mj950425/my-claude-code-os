@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "incr-review-v1",
+  "profileId": "accessories-category-gender",
+  "batchId": "20260928-142921-prod-20260928-acc",
+  "pushedAt": "2026-09-28T14:29:21+00:00",
+  "source": ".claude/os/runs/accessories-category-gender/incr/_inbox/prod-20260928-acc/input.jsonl",
+  "rows": 100,
+  "ownImages": true
+}

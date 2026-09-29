@@ -8,10 +8,10 @@
     "gtFixesReport": ".claude/os/runs/bag-category-gender/reports/gt-fixes.html",
     "htmlReport": ".claude/os/runs/bag-category-gender/reports/catalog-audit.html",
     "policyGapReport": ".claude/os/runs/bag-category-gender/reports/policy-gaps.html",
-    "policyIndex": ".claude/os/runs/bag-category-gender/policy/policy-index.json",
+    "policyIndex": "/private/tmp/bag-policy-index-v2-final.json",
     "policyQuestions": ".claude/os/runs/bag-category-gender/reports/bag-category-gender-policy-questions.md",
     "policyQuestionsJson": ".claude/os/runs/bag-category-gender/reports/policy-questions.json",
-    "policyStatus": ".claude/os/runs/bag-category-gender/reports/policy-status.md",
+    "policyStatus": "/private/tmp/bag-policy-status-v2-final.md",
     "queueDirectory": ".claude/os/runs/bag-category-gender/queue",
     "reviewProgress": ".claude/os/runs/bag-category-gender/reports/review-progress.md",
     "reviewStatus": ".claude/os/runs/bag-category-gender/review/status.json",
@@ -71,7 +71,7 @@
     "questionsResolved": 0,
     "questionsWithPrecedent": 3,
     "untrackedReviewViolations": 0,
-    "version": "3"
+    "version": "2"
   },
   "precedentBriefs": {
     "readersCanLearnFrom": 0,

@@ -1,0 +1,13 @@
+{
+  "engine": {
+    "tests": 484,
+    "seconds": 194.357,
+    "passed": true
+  },
+  "clothingImageAdapter": {
+    "tests": 6,
+    "seconds": 0.016,
+    "passed": true
+  },
+  "total": 490
+}

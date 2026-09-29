@@ -1,15 +1,32 @@
 {
   "schemaVersion": "catalog-data-profile-v1",
   "id": "bag-category-gender",
-  "displayName": "가방 대상 고객 성별 골든셋",
+  "displayName": "가방 대상 고객 성별",
   "attributeName": "대상 고객 성별",
   "subjectName": "가방 상품",
   "outputRoot": ".claude/os/runs/bag-category-gender",
   "source": {
     "repository": "../core-catalog-platfom"
   },
+  "policyTask": {
+    "schemaVersion": "policy-task-v1",
+    "definitions": ".claude/os/attributes/bag-category-gender/definitions.md",
+    "documentFormat": "policy-document-v2",
+    "fields": [
+      {
+        "id": "targetGender",
+        "name": "대상 고객 성별",
+        "valueCodes": {
+          "남성": "MALE",
+          "여성": "FEMALE",
+          "공용": "UNISEX",
+          "판단 불가": "UNDETERMINED"
+        }
+      }
+    ]
+  },
   "policy": {
-    "owned": ".claude/os/attributes/bag-category-gender/policy/policy.md",
+    "owned": ".claude/os/attributes/bag-category-gender/definitions.md",
     "precedents": ".claude/os/attributes/bag-category-gender/policy/precedents",
     "imported": ".claude/os/runs/bag-category-gender/policy/bag-category-gender.md"
   },
@@ -196,6 +213,7 @@
       "roleField": "role",
       "roles": [
         "THUMBNAIL",
+        "THUMBNAIL_EXTRA",
         "DETAIL_TILE"
       ],
       "maxImages": 16,
@@ -213,8 +231,13 @@
       ],
       "roleNames": {
         "THUMBNAIL": "대표 썸네일",
-        "DETAIL_TILE": "상세 조각"
-      }
+        "DETAIL_TILE": "상세 조각",
+        "THUMBNAIL_EXTRA": "추가 썸네일"
+      },
+      "alwaysKeepRoles": [
+        "THUMBNAIL",
+        "THUMBNAIL_EXTRA"
+      ]
     },
     "limit": 60,
     "prerequisite": {
@@ -241,7 +264,7 @@
     "categoryPrefix": "가방>",
     "key": "{platform}:{goodsNo}",
     "hosts": {
-      "MUSINSA": "https://image.msscdn.net",
+      "MUSINSA": "https://image.msscdn.net/thumbnails",
       "EGOOCM": "https://img.29cm.co.kr"
     },
     "pdp": {
@@ -249,6 +272,20 @@
       "EGOOCM": "https://www.29cm.co.kr/products/{goodsNo}"
     },
     "detail": true,
-    "maxDetailImages": 6
+    "maxDetailImages": 0,
+    "tileRule": {
+      "name": "ccp-batch-image-composer-tile-ranges",
+      "version": "v2-band-then-seam",
+      "decoder": "java-imageio",
+      "by": "core-catalog-platfom BatchImageComposer.tileRanges (prd 344ca53b) — 운영이 지금 자르는 규칙. 골든셋 색인의 preTiledRule은 옛 번호의 선언이라 새 상품에 쓰지 않는다"
+    },
+    "ledgerFallbackPlatforms": [
+      "EGOOCM"
+    ],
+    "thumbnailSource": "ledger",
+    "extraThumbnailRole": "THUMBNAIL_EXTRA",
+    "productStatuses": [
+      "ONSALE"
+    ]
   }
 }

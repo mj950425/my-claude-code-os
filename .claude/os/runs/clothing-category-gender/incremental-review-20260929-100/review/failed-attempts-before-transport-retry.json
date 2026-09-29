@@ -1,0 +1,132 @@
+{
+  "MUSINSA:6834345": {
+    "status": "ERROR",
+    "errorCategory": "RUNNER_ERROR",
+    "error": "CLIJSONDecodeError: Failed to decode JSON: JSON message exceeded maximum buffer size of 1048576 bytes...",
+    "case": {
+      "id": "MUSINSA:6834345",
+      "metadata": {
+        "sellerProductId": 10368931,
+        "targetId": "6aba28d08f88b8d124990f27",
+        "targetVersion": 1790585040588,
+        "completedAt": "2026-09-28T08:46:01.658000"
+      }
+    },
+    "productionComparison": {
+      "source": "productionValue",
+      "isGold": false,
+      "productionValue": "MALE",
+      "extractedValue": null,
+      "matches": null
+    },
+    "imageAvailability": {
+      "complete": true,
+      "failures": []
+    },
+    "inputHash": "a6d33a66292b2805f8aadcbb8feae53cd2e5f46611ddbde4aa7232f8383ee62e"
+  },
+  "MUSINSA:7187029": {
+    "status": "ERROR",
+    "errorCategory": "RUNNER_ERROR",
+    "error": "CLIJSONDecodeError: Failed to decode JSON: JSON message exceeded maximum buffer size of 1048576 bytes...",
+    "case": {
+      "id": "MUSINSA:7187029",
+      "metadata": {
+        "sellerProductId": 11020148,
+        "targetId": "6aba28d24741b5b288b70139",
+        "targetVersion": 1790585042398,
+        "completedAt": "2026-09-28T08:46:01.771000"
+      }
+    },
+    "productionComparison": {
+      "source": "productionValue",
+      "isGold": false,
+      "productionValue": "MALE",
+      "extractedValue": null,
+      "matches": null
+    },
+    "imageAvailability": {
+      "complete": true,
+      "failures": []
+    },
+    "inputHash": "d7bb9eada8e580c7c49678d1037c4448ebea3d5deed9c014a4b4552b507c1509"
+  },
+  "MUSINSA:6850371": {
+    "status": "ERROR",
+    "errorCategory": "RUNNER_ERROR",
+    "error": "CLIJSONDecodeError: Failed to decode JSON: JSON message exceeded maximum buffer size of 1048576 bytes...",
+    "case": {
+      "id": "MUSINSA:6850371",
+      "metadata": {
+        "sellerProductId": 10389224,
+        "targetId": "6aba28d14741b5b288b7012d",
+        "targetVersion": 1790585041937,
+        "completedAt": "2026-09-28T08:46:01.194000"
+      }
+    },
+    "productionComparison": {
+      "source": "productionValue",
+      "isGold": false,
+      "productionValue": "UNISEX",
+      "extractedValue": null,
+      "matches": null
+    },
+    "imageAvailability": {
+      "complete": true,
+      "failures": []
+    },
+    "inputHash": "6b4fd1980dd2feece5e4b91472ee9faaeac7e6a0b7e862f5af138af30777559a"
+  },
+  "MUSINSA:6877199": {
+    "status": "ERROR",
+    "errorCategory": "RUNNER_ERROR",
+    "error": "CLIJSONDecodeError: Failed to decode JSON: JSON message exceeded maximum buffer size of 1048576 bytes...",
+    "case": {
+      "id": "MUSINSA:6877199",
+      "metadata": {
+        "sellerProductId": 10457762,
+        "targetId": "6ab33384c1748a8be9b6af1c",
+        "targetVersion": 1790585042057,
+        "completedAt": "2026-09-28T08:46:01.161000"
+      }
+    },
+    "productionComparison": {
+      "source": "productionValue",
+      "isGold": false,
+      "productionValue": "UNISEX",
+      "extractedValue": null,
+      "matches": null
+    },
+    "imageAvailability": {
+      "complete": true,
+      "failures": []
+    },
+    "inputHash": "0adc1b5ef1513a7bca8100c3ac3cafda5b7626fa491477cbd0a84595457c9dbd"
+  },
+  "MUSINSA:7272917": {
+    "status": "ERROR",
+    "errorCategory": "RUNNER_ERROR",
+    "error": "CLIJSONDecodeError: Failed to decode JSON: JSON message exceeded maximum buffer size of 1048576 bytes...",
+    "case": {
+      "id": "MUSINSA:7272917",
+      "metadata": {
+        "sellerProductId": 11168840,
+        "targetId": "6a9fed4c0cf39a22364f1456",
+        "targetVersion": 1790585042269,
+        "completedAt": "2026-09-28T08:46:00.996000"
+      }
+    },
+    "productionComparison": {
+      "source": "productionValue",
+      "isGold": false,
+      "productionValue": "UNISEX",
+      "extractedValue": null,
+      "matches": null
+    },
+    "imageAvailability": {
+      "complete": true,
+      "failures": []
+    },
+    "inputHash": "99e8a9788a44a06b8a1b759ce5f42a6b5f11c9682a3776b4be6429e011684914"
+  }
+}

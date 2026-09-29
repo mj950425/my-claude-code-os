@@ -1,0 +1,28 @@
+{
+  "id": "MUSINSA:7408793",
+  "subjectKey": "MUSINSA:7408793",
+  "data": {
+    "productName": "YEI Hood Padding Jacket (black)",
+    "context": {
+      "standardCategory": "의류>아우터>패딩/헤비 아우터>숏/하프 패딩"
+    },
+    "text": {
+      "productName": "YEI Hood Padding Jacket (black)"
+    }
+  },
+  "images": [
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P01.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P02.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P03.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P04.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P05.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P06.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P07.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P08.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P09.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P10.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P11.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P12.jpg",
+    "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incr/20260928-142225-prod-20260928-clo-gender/images/831bfd6caa90/P13.jpg"
+  ]
+}

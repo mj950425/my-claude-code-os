@@ -205,7 +205,7 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
     REVIEWED_TASK = {"schemaVersion", "unit", "keyField", "groupField", "titleField", "titleAsEvidence", "linkField", "definitions",
                      "definitionsRoot", "gt", "authority", "correctionSourcePrefix", "fields", "constraints",
                      "images", "evidence", "columnNames", "prerequisite", "agents", "limit"}
-    REVIEWED_IMAGES = {"path", "root", "keyField", "joinField", "listField", "fileField", "fileRoot", "fileBase", "idField",
+    REVIEWED_IMAGES = {"alwaysKeepRoles", "path", "root", "keyField", "joinField", "listField", "fileField", "fileRoot", "fileBase", "idField",
                        "roleField", "roles", "roleNames", "matchField", "entryField", "tileRoles", "tileRule", "sourceIndexField",
                        "sourceListComplete", "preTiledRoles", "preTiledRule", "contextFields", "maxImages", "maxEdge",
                        "urlField", "urlSha256Field"}
@@ -214,17 +214,38 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
         "gt": {"path", "root", "sourceField", "fieldSourcesField", "supersededBy", "upstream"},
         "upstream": {"kind", "note", "refresh", "acceptsEmpty", "columns", "headerNames", "locatorFields", "mirrorFields",
                      "rowCheck"},
-        "field": {"id", "name", "labels", "labelNames", "legacy", "gtField", "alternativesField", "fillMissing", "unknownLabel",
+        "field": {"id", "name", "labels", "labelNames", "valueCodes", "legacy", "gtField", "alternativesField", "fillMissing", "unknownLabel",
                   "cardinality", "valueType", "definition"},
         "constraint": {"id", "text", "when", "require", "forbid"},
         "evidence": {"textFields"},
         "authority": {"trusted", "reference", "default"},
+        "promptDelivery": {"resource", "adapter", "field", "root", "beginMarker", "endMarker", "adapterTargets"},
+        "adapterTarget": {"name", "pattern", "valueTemplate"},
+        "policyCard": {"title", "description", "observations", "rules", "decisionRules"},
+        "legacyResponseProjection": {"personPresenceField", "unknownGenderValue", "absentPersonValue", "unclearPersonValue", "legacyOnly"},
     }
+
+    REVIEWED_POLICY_TASK = {"schemaVersion", "documentFormat", "definitions", "definitionsRoot", "fields", "policyCards",
+                            "promptDelivery", "legacyResponseProjection"}
 
     def test_every_declared_key_has_been_reviewed(self) -> None:
         unknown = []
         for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
-            task = json.loads(path.read_text(encoding="utf-8")).get("gtTask")
+            profile = json.loads(path.read_text(encoding="utf-8"))
+            policy_task = profile.get("policyTask")
+            if isinstance(policy_task, dict):
+                unknown += [f"{path.parent.name}: policyTask.{key}" for key in policy_task if key not in self.REVIEWED_POLICY_TASK]
+                policy_blocks = {
+                    "field": policy_task.get("fields") or [],
+                    "promptDelivery": [policy_task.get("promptDelivery") or {}],
+                    "adapterTarget": (policy_task.get("promptDelivery") or {}).get("adapterTargets") or [],
+                    "policyCard": policy_task.get("policyCards") or [],
+                    "legacyResponseProjection": [policy_task.get("legacyResponseProjection") or {}],
+                }
+                for name, dicts in policy_blocks.items():
+                    unknown += [f"{path.parent.name}: policyTask.{name}.{key}" for block in dicts for key in block
+                                if key not in self.REVIEWED_NESTED[name]]
+            task = profile.get("gtTask")
             if not isinstance(task, dict):
                 continue
             unknown += [f"{path.parent.name}: gtTask.{key}" for key in task if key not in self.REVIEWED_TASK]
@@ -232,7 +253,10 @@ class GtTaskKeysAreReviewedTest(unittest.TestCase):
             gt = task.get("gt") or {}
             blocks = {"gt": [gt], "upstream": [gt.get("upstream") or {}],
                       "field": task.get("fields") or [], "constraint": task.get("constraints") or [],
-                      "evidence": [task.get("evidence") or {}], "authority": [task.get("authority") or {}]}
+                      "evidence": [task.get("evidence") or {}], "authority": [task.get("authority") or {}],
+                      "promptDelivery": [task.get("promptDelivery") or {}],
+                      "adapterTarget": (task.get("promptDelivery") or {}).get("adapterTargets") or [],
+                      "policyCard": task.get("policyCards") or []}
             for name, dicts in blocks.items():
                 unknown += [f"{path.parent.name}: {name}.{key}" for block in dicts for key in block
                             if key not in self.REVIEWED_NESTED[name]]
@@ -321,59 +345,60 @@ class GtHarnessKnowsNoTaskTest(unittest.TestCase):
         for path in sorted((OS_ROOT / "attributes").glob("*/profile.json")):
             profile = json.loads(path.read_text(encoding="utf-8"))
             task = profile.get("gtTask")
-            if not isinstance(task, dict):
+            policy = profile.get("policyTask") or task
+            if not isinstance(policy, dict):
                 continue
             words |= {str(profile.get(key)) for key in ("id", "displayName", "attributeName", "subjectName") if profile.get(key)}
-            words |= {str(task["unit"])} if task.get("unit") else set()
-            words |= {str(name) for name in (task.get("evidence") or {}).get("textFields") or []}
-            images = task.get("images") or {}
+            words |= {str(name) for name in (task or {}).get("evidence", {}).get("textFields", [])}
+            images = (task or {}).get("images") or {}
             for key in ("roles", "tileRoles", "preTiledRoles", "contextFields"):
                 words |= {str(item) for item in images.get(key) or []}
             # 주소·해시 열 이름은 그 팩의 색인이 정한 어휘다(가져오기 어댑터가 쓴다) — 엔진 문서가 알면 안 된다.
             words |= {str(images[key]) for key in ("urlField", "urlSha256Field") if images.get(key)}
             for key in ("keyField", "titleField", "groupField"):
-                value = task.get(key)
+                value = (task or {}).get(key)
                 words |= {str(item) for item in (value if isinstance(value, list) else [value] if value else [])}
-            # 허용값·이름표는 정책(정의 문서)의 `### 허용값` 목록에 있다 — 로더와 같은 해석(definition_values)으로 모은다.
+            # 허용값·이름표는 공통 policyTask가 가리키는 문서에서 읽는다.
             if str(ENGINE_SCRIPTS) not in sys.path:
                 sys.path.insert(0, str(ENGINE_SCRIPTS))
             from gt_task import definition_values, resolve
 
+            definitions_spec = policy
             definitions = resolve({**profile, "_path": str(path)},
-                                  {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+                                  {"path": definitions_spec["definitions"], "root": definitions_spec.get("definitionsRoot") or "project"})
             self.assertTrue(definitions.is_file(), f"{path.parent.name}: 정의 문서가 없습니다 — {definitions}")
             for rows in definition_values(definitions).values():
                 for code, name in rows:
                     words.add(code)
                     if name:
                         words.add(name)
-            for field in task.get("fields") or []:
+            for field in policy.get("fields") or []:
                 words.add(str(field["id"]))
+                if field.get("name"):
+                    words.add(str(field["name"]))
+            for field in (task or {}).get("fields") or []:
                 words |= {str(label) for label in field.get("labels") or []}
                 words |= {str(name) for name in (field.get("labelNames") or {}).values()}
                 words |= {str(old) for old in (field.get("legacy") or {})}
-                if field.get("name"):
-                    words.add(str(field["name"]))
-            words |= {str(item.get("id")) for item in task.get("constraints") or []}
+            words |= {str(item.get("id")) for item in (task or {}).get("constraints") or []}
             # 과제가 가리키는 파일의 열 이름·상류 시트의 열 이름·출처 규약도 과제의 어휘다.
-            gt = task.get("gt") or {}
+            gt = (task or {}).get("gt") or {}
             upstream = gt.get("upstream") or {}
             words |= {str(gt[key]) for key in ("sourceField", "fieldSourcesField") if gt.get(key)}
             words |= {str(value) for value in (upstream.get("columns") or {}).values()}
             words |= {str(value) for value in (upstream.get("headerNames") or {}).values()}
-            # 출처 이름 규약(등급 패턴의 낱말·정정 출처 앞머리)도 과제의 것이다 — 엔진이 알면 그 상류 규약에 묶인다.
             for grade in ("trusted", "reference"):
-                words |= {re.sub(r"[\^$]", "", str(pattern)) for pattern in (task.get("authority") or {}).get(grade) or []}
-            words |= {str(task["correctionSourcePrefix"])} if task.get("correctionSourcePrefix") else set()
-            words |= {str(value) for value in (task.get("columnNames") or {}).values()}
+                words |= {re.sub(r"[\^$]", "", str(pattern)) for pattern in (task or {}).get("authority", {}).get(grade, [])}
+            if (task or {}).get("correctionSourcePrefix"):
+                words.add(str(task["correctionSourcePrefix"]))
+            words |= {str(value) for value in ((task or {}).get("columnNames") or {}).values()}
             words |= {str(item) for key in ("mirrorFields", "locatorFields") for item in upstream.get(key) or []}
             words |= {str(value) for value in (upstream.get("rowCheck") or {}).values()}
             words |= {str(value) for value in (gt.get("supersededBy") or {}).values()}
             words |= {str(value) for key, value in images.items() if key.endswith("Field") and isinstance(value, str)}
             words |= {str(value) for value in (images.get("roleNames") or {}).values()}
-            for field in task.get("fields") or []:
+            for field in (task or {}).get("fields") or []:
                 words |= {str(field[key]) for key in ("gtField", "alternativesField") if field.get(key)}
-        # 영문은 3자 이상(짧은 낱말은 흔한 코드 조각과 겹친다), 한글은 2자 이상(«여성» 같은 라벨 이름).
         return {word for word in words if word not in self.GENERIC
                 and (len(word) >= 3 or (len(word) >= 2 and not word.isascii()))}
 

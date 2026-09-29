@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-29",
+  "policy": "clothing-thumbnail-observation",
+  "summary": "Legacy observed-label plus deterministic derivation flow is replaced by direct natural-language extraction for all five fields. Existing cross-field constraints remain script-validated; blank productVisibility means abstention, not an allowed value.",
+  "files": {
+    "definitions.md": {
+      "snapshotSha256": "b39611bbdf58de17c90265003506cd2e21426ac909122e28b2a5c5e3ce5e0261",
+      "currentSha256": "43f49367f0496864f999827e3798b47205b2a1f4b951c368ba37cd01424c6d43"
+    },
+    "profile.json": {
+      "snapshotSha256": "4939b98ea9388d917d3a329a2d5011b98cd62e1c7edb73638bfa6ab43e1eef31",
+      "currentSha256": "5310596e90515f34afbf1582d15f93ce8c41a9212d66e63b624f79cc9b6be580"
+    }
+  }
+}

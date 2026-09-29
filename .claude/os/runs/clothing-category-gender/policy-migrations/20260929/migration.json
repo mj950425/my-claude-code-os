@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-29",
+  "policy": "clothing-category-gender",
+  "summary": "Existing v2 policy retained; this snapshot records the reviewed source state.",
+  "files": {
+    "definitions.md": {
+      "snapshotSha256": "9ce47ead0b55718c955895bcd74cd81f6fe9a96698385d70c1efdc4034274a95",
+      "currentSha256": "9ce47ead0b55718c955895bcd74cd81f6fe9a96698385d70c1efdc4034274a95"
+    },
+    "profile.json": {
+      "snapshotSha256": "562e4d17add026c193dbb2b42d873d718235f20945c63f7cea3db86d2fc47256",
+      "currentSha256": "562e4d17add026c193dbb2b42d873d718235f20945c63f7cea3db86d2fc47256"
+    }
+  }
+}

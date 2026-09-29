@@ -1,0 +1,88 @@
+{
+  "readAt": "2026-09-28T14:28:36+00:00",
+  "runId": "20260928-142225-prod-20260928-clo-gender-2026-09-28T14:22:48+00:00-d6cd1c",
+  "cells": {
+    "targetGender": {
+      "value": "UNDETERMINED",
+      "confidence": "HIGH",
+      "evidenceImageIds": [
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P09",
+        "P10",
+        "P11",
+        "P12",
+        "P13"
+      ],
+      "observation": "착용 사진(P01~P07, P09, P10)에서는 사람마다 모자와 마스크, 휴대폰으로 얼굴과 머리가 가려져 체형만 보입니다. 정책에 따라 이런 사람은 성별을 가를 수 없는 것으로 두었습니다. 상품명 «YEI Hood Padding Jacket (black)»과 사진 속 글(«Archive Nus.» 로고, 세탁·교환 안내)에는 성별 문구가 없고, 사이즈표도 보이지 않습니다. 후드 달린 숏패딩은 어느 한 성별 전용인 종류가 아닙니다. 관찰 — 여성 대상 문구 없음 · 남성 대상 문구 없음 · 남녀 공용 문구 없음 · 여성 착용자 없음 · 남성 착용자 없음 · 남녀 사이즈 구간 없음 · 여성 성인 범위 실측 없음 · 여성 전용 종류 없음 · 남성 전용 종류 없음",
+      "definitionGap": false,
+      "askHuman": null,
+      "rulesApplied": [],
+      "casesOpened": [],
+      "casesApplied": [],
+      "observations": [
+        {
+          "id": "TEXT_WOMEN",
+          "v": false,
+          "sure": true,
+          "why": "상품명과 사진 속 글 어디에도 여성용 문구가 없습니다"
+        },
+        {
+          "id": "TEXT_MEN",
+          "v": false,
+          "sure": true,
+          "why": "상품명과 사진 속 글 어디에도 남성용 문구가 없습니다"
+        },
+        {
+          "id": "TEXT_BOTH",
+          "v": false,
+          "sure": true,
+          "why": "남녀공용·유니섹스 같은 문구가 보이지 않습니다"
+        },
+        {
+          "id": "WEARER_WOMAN",
+          "v": false,
+          "sure": true,
+          "why": "여성으로 분명한 착용자가 보이지 않습니다"
+        },
+        {
+          "id": "WEARER_MAN",
+          "v": false,
+          "sure": true,
+          "why": "착용자의 얼굴과 머리가 모자·마스크·휴대폰에 가려 체형만 보이므로 정책상 성별을 가를 수 없습니다"
+        },
+        {
+          "id": "SIZE_BOTH",
+          "v": false,
+          "sure": true,
+          "why": "사이즈표나 남녀 사이즈 구간이 보이지 않습니다"
+        },
+        {
+          "id": "SIZE_WOMEN_ONLY",
+          "v": false,
+          "sure": true,
+          "why": "실측 사이즈표가 사진에 없습니다"
+        },
+        {
+          "id": "KIND_WOMEN",
+          "v": false,
+          "sure": true,
+          "why": "후드 숏패딩은 여성 전용 종류가 아닙니다"
+        },
+        {
+          "id": "KIND_MEN",
+          "v": false,
+          "sure": true,
+          "why": "후드 숏패딩은 남성 전용 종류가 아닙니다"
+        }
+      ],
+      "split": []
+    }
+  },
+  "note": "사진 13장을 모두 열었습니다. P08은 빈 흰 조각입니다. 착용 사진은 모두 얼굴이 가려진 같은 착용자이고, P11·P12는 제품만 찍은 앞·뒤 사진, P13은 세탁·교환 안내입니다. 성별 문구와 사이즈표는 증거 안에 없었습니다. 사례 목록은 주어지지 않았습니다."
+}

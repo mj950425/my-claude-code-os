@@ -1,0 +1,368 @@
+{
+  "version": 1,
+  "policyId": "clothing-category-gender",
+  "definitions": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/attributes/clothing-category-gender/definitions.md",
+  "profile": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/attributes/clothing-category-gender/profile.json",
+  "field": "targetGender",
+  "cases": [
+    {
+      "id": "MUSINSA:6950034",
+      "data": {
+        "productName": "MARITHE SPORT SHELL PADDED JACKET light gray",
+        "standardCategory": "의류>아우터>점퍼/재킷>트레이닝 재킷",
+        "descriptionText": "",
+        "imageRoles": [
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5ed513be602e37f8af030fd15c35a01121b88f4f59bf649d5093250c1b4ceb86-THUMBNAIL-001.jpg",
+            "role": "THUMBNAIL",
+            "sourceIndex": 1
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/b0ff1370ea9ec6adc764b9de22b89f38a123ff23d8151efd37658b9865b8e07c-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 1
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 2
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 2
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 2
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5eda3f5fc624d46450bb576d14edf995774473ab86e08124395526e92e5e50c5-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 3
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/8aa7c4304f56e2af9f9f7db17f4d2d3642ef809c6820216203758d7f4a4322e1-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 4
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/2884a7897c2d005498e568306bb2ee83e23518343b4e2cc8e7c22347f881b058-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 5
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 6
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 6
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 6
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-004.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-005.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-006.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 7
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 8
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 8
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 8
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-004.jpg",
+            "role": "DETAIL",
+            "sourceIndex": 8
+          }
+        ]
+      },
+      "images": [
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5ed513be602e37f8af030fd15c35a01121b88f4f59bf649d5093250c1b4ceb86-THUMBNAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/b0ff1370ea9ec6adc764b9de22b89f38a123ff23d8151efd37658b9865b8e07c-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-002.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-003.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5eda3f5fc624d46450bb576d14edf995774473ab86e08124395526e92e5e50c5-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/8aa7c4304f56e2af9f9f7db17f4d2d3642ef809c6820216203758d7f4a4322e1-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/2884a7897c2d005498e568306bb2ee83e23518343b4e2cc8e7c22347f881b058-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-002.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-003.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-002.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-003.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-004.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-005.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-006.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-001.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-002.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-003.jpg",
+        "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-004.jpg"
+      ],
+      "productionValue": "MALE",
+      "metadata": {
+        "sellerProductId": 10581816,
+        "platformProductId": "6950034",
+        "targetId": "6a9f46d9921be6fcd6f50030",
+        "targetVersion": 1790585042346,
+        "completedAt": "2026-09-28T08:46:00.562000",
+        "productionSource": "DETAIL_IMAGE",
+        "productStatus": "ONSALE",
+        "pdpUrl": "https://www.musinsa.com/products/6950034",
+        "evidenceSnapshot": "Current catalog/images downloaded for review, not a byte-identical replay of historical inference",
+        "imageSources": [
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5ed513be602e37f8af030fd15c35a01121b88f4f59bf649d5093250c1b4ceb86-THUMBNAIL-001.jpg",
+            "role": "THUMBNAIL",
+            "sourceUrl": "https://image.msscdn.net/thumbnails/images/goods_img/20260729/6950034/6950034_17885032265556_500.jpg",
+            "sourceIndex": 1,
+            "top": 0,
+            "bottom": 600,
+            "sourceSha256": "cdc7d9febaa62fe46d551e4fa4fdd267f3c801fca2263afe4d7a865e492dd15d"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/b0ff1370ea9ec6adc764b9de22b89f38a123ff23d8151efd37658b9865b8e07c-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/WEB/MFG_GPA.jpg",
+            "sourceIndex": 1,
+            "top": 0,
+            "bottom": 430,
+            "sourceSha256": "4919340c190e12d0736b50622f334a1e15138fd3a6996b5f69d8b2098112ff12"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d0.jpg",
+            "sourceIndex": 2,
+            "top": 0,
+            "bottom": 1247,
+            "sourceSha256": "ad3f40639c2b37c6fd9ec6b35ab660f2762f27f02c071ebffea54b3aaecb3536"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d0.jpg",
+            "sourceIndex": 2,
+            "top": 1247,
+            "bottom": 3042,
+            "sourceSha256": "ad3f40639c2b37c6fd9ec6b35ab660f2762f27f02c071ebffea54b3aaecb3536"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/e1cf1ce1fcc6e5e9bb238054c065ecfd7100311b4b3c2e976de318b3c8af66f5-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d0.jpg",
+            "sourceIndex": 2,
+            "top": 3042,
+            "bottom": 3125,
+            "sourceSha256": "ad3f40639c2b37c6fd9ec6b35ab660f2762f27f02c071ebffea54b3aaecb3536"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/5eda3f5fc624d46450bb576d14edf995774473ab86e08124395526e92e5e50c5-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d1-1.jpg",
+            "sourceIndex": 3,
+            "top": 0,
+            "bottom": 10,
+            "sourceSha256": "0241d15582101702fbef4f38670de20dfd67442ef8ef8853de32bc58e85284a1"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/8aa7c4304f56e2af9f9f7db17f4d2d3642ef809c6820216203758d7f4a4322e1-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d1-2.jpg",
+            "sourceIndex": 4,
+            "top": 0,
+            "bottom": 10,
+            "sourceSha256": "0241d15582101702fbef4f38670de20dfd67442ef8ef8853de32bc58e85284a1"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/2884a7897c2d005498e568306bb2ee83e23518343b4e2cc8e7c22347f881b058-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d2.jpg",
+            "sourceIndex": 5,
+            "top": 0,
+            "bottom": 10,
+            "sourceSha256": "0241d15582101702fbef4f38670de20dfd67442ef8ef8853de32bc58e85284a1"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d3.jpg",
+            "sourceIndex": 6,
+            "top": 0,
+            "bottom": 1419,
+            "sourceSha256": "22ce062270e4064c0c6192399f8c665414262535bb06078039b817a6d6981f75"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d3.jpg",
+            "sourceIndex": 6,
+            "top": 1419,
+            "bottom": 3306,
+            "sourceSha256": "22ce062270e4064c0c6192399f8c665414262535bb06078039b817a6d6981f75"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/40cd44aeb42475d590012d3aa1f1259a348d7f7a97843e3c9573bd4ac7a2d994-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d3.jpg",
+            "sourceIndex": 6,
+            "top": 3306,
+            "bottom": 4666,
+            "sourceSha256": "22ce062270e4064c0c6192399f8c665414262535bb06078039b817a6d6981f75"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 0,
+            "bottom": 1249,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 1249,
+            "bottom": 2549,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 2549,
+            "bottom": 3849,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-004.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 3849,
+            "bottom": 5149,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-005.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 5149,
+            "bottom": 6449,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/d3ef3da6e6c161812d55ab8035873c56c97ad7454917d2e57ff8a2829b7d3227-DETAIL-006.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d4.jpg",
+            "sourceIndex": 7,
+            "top": 6449,
+            "bottom": 7800,
+            "sourceSha256": "642d4cdba35c9af490218d81c3575c4b80a5e8d22b9e46d06121f4f516043094"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-001.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d5.jpg",
+            "sourceIndex": 8,
+            "top": 0,
+            "bottom": 1362,
+            "sourceSha256": "c25deb836f47075d77f3bda5864ecd1a7752fd4a7eff753d4ab7a42a78fce368"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-002.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d5.jpg",
+            "sourceIndex": 8,
+            "top": 1362,
+            "bottom": 2654,
+            "sourceSha256": "c25deb836f47075d77f3bda5864ecd1a7752fd4a7eff753d4ab7a42a78fce368"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-003.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d5.jpg",
+            "sourceIndex": 8,
+            "top": 2654,
+            "bottom": 4154,
+            "sourceSha256": "c25deb836f47075d77f3bda5864ecd1a7752fd4a7eff753d4ab7a42a78fce368"
+          },
+          {
+            "path": "/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/runs/clothing-category-gender/incremental-review-20260929-100/images/c76817634ff20c5767fea08556d1a2f90dea0b7d20fb3b6f1c4adcc262362eba-DETAIL-004.jpg",
+            "role": "DETAIL",
+            "sourceUrl": "https://layerimg.xcache.kinxcdn.com/product/MFG/26FW/ADULT/FALL/4TH_SPORT/DETAIL/MFG46WJK301LGY/d5.jpg",
+            "sourceIndex": 8,
+            "top": 4154,
+            "bottom": 5100,
+            "sourceSha256": "c25deb836f47075d77f3bda5864ecd1a7752fd4a7eff753d4ab7a42a78fce368"
+          }
+        ],
+        "imageFailures": []
+      }
+    }
+  ],
+  "metadata": {
+    "preparedAt": "2026-09-29T02:53:51.618571+00:00",
+    "selection": {
+      "type": "GENDER",
+      "inference_origin": "INCREMENTAL",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "dt": null
+    },
+    "cohortSize": 1,
+    "errors": [],
+    "decoder": "Pillow",
+    "tileVersion": "v2-band-then-seam",
+    "comparisonSource": "PRODUCTION_PREDICTION",
+    "retryOfManifestSha256": "55f28dcc6b7580992ce7906de3b366e7cb31ae65138dde2141071ebbc83ddfe7",
+    "reason": "Fresh SDK session after completed child notifications did not advance to a parent result."
+  }
+}

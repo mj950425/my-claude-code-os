@@ -2,7 +2,7 @@
 """가방 성별 정책을 큐 행에 기계적으로 적용하는 심판 술어.
 
 공통 심판(arbitrate.py)은 라벨 비교만 한다. 이 파일만 가방을 안다.
-`.claude/os/attributes/bag-category-gender/policy/policy.md`의 근거 우선순위를 그대로 옮긴 것이고,
+`.claude/os/attributes/bag-category-gender/definitions.md`의 근거 우선순위를 그대로 옮긴 것이고,
 새 판단을 넣지 않는다. 정책이 바뀌면 여기도 같이 바뀌어야 한다.
 """
 

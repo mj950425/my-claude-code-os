@@ -46,6 +46,7 @@ from catalog_profile import PROJECT_ROOT
 from gt_decisions import _write_atomic, answered_on_page, locked, reasked
 from gt_task import (MANY_SEPARATOR, PURPOSE_PARTS, TaskError, authority, definition_policy, definition_texts, definition_value_notes, gt_source, gt_value,
                      in_range, load_gt, load_task, resolve)
+from policy_prompt import decision_rules
 from page_style import head
 
 REVIEW_SCHEMA = "gt-review-v2"
@@ -76,8 +77,15 @@ AUTHORITY_SHORT = {"TRUSTED": "사람이 확정한 라벨", "REFERENCE": "사람
 
 
 def call_name(profile: dict[str, Any]) -> str:
-    """운영팀이 Claude에게 이 과제를 부르는 이름. 화면 제목과 같다 — 이름이 셋이면 어느 것으로 불러야 할지 모른다."""
-    return str(profile.get("displayName") or profile.get("id") or "")
+    """과제 이름 — 메뉴·정책·골든셋·증분 화면이 모두 이 이름으로 과제를 부른다. 과제는 정책·골든셋·증분을 함께 가지므로
+    이름에 «골든셋»을 넣지 않는다(옛 프로필이 «… 골든셋»으로 적었으면 꼬리를 뗀다 — 메뉴마다 이름이 달라지지 않게)."""
+    name = str(profile.get("displayName") or profile.get("id") or "")
+    return re.sub(r"\s*골든셋$", "", name) or name
+
+
+def golden_call(profile: dict[str, Any]) -> str:
+    """골든셋 검수를 Claude에게 부르는 말 — «<과제> 골든셋 반영해줘»·«… 다음 거». 증분 검수(«<과제> 증분 …»)와 섞이지 않게 «골든셋»을 붙인다."""
+    return f"{call_name(profile)} 골든셋"
 
 
 def flow_steps(profile: dict[str, Any]) -> list[dict[str, str]]:
@@ -85,7 +93,7 @@ def flow_steps(profile: dict[str, Any]) -> list[dict[str, str]]:
     원본이 이 레포·이 컴퓨터의 파일이면 «반영하기» 버튼이 곧바로 넣는다. 상류(시트)가 원본이면 목록까지만 — 붙여 넣기는 사람이 한다."""
     spec = (profile.get("gtTask") or {}).get("gt") or {}
     upstream = spec.get("upstream") or {}
-    name = call_name(profile)
+    name = golden_call(profile)
     if upstream:
         where = upstream.get("note") or "원천"
         return [{"say": "칸마다 버튼", "does": "판정만 기록 — GT는 그대로"},
@@ -181,7 +189,9 @@ def _inline(text: str, names: dict[str, str]) -> str:
             return f"<code>{match.group(1)}</code>{after}"
         return f"<b>{html.escape(names[word])}</b>{josa(names[word], after) if after else ''}"
     particles = "|".join(sorted(JOSA, key=len, reverse=True))
-    return re.sub(r"`([^`]+)`(" + particles + r")?(?![가-힣])", code, out)
+    # 조사는 그 뒤가 한글이 아닐 때만 조사다(«은행»의 «은»이 아니게). 뒤에 무엇이 오든 백틱은 짝끼리만 묶는다 — 조사 목록에 없는 말(«의»)이
+    # 뒤에 오면 짝이 어긋나 다음 백틱과 묶이던 일을 막는다.
+    return re.sub(r"`([^`]+)`((?:" + particles + r")(?![가-힣]))?", code, out)
 
 
 def _md(text: str, names: dict[str, str]) -> str:
@@ -268,8 +278,12 @@ def ask_of(reading: dict[str, Any] | None, rebuttal: dict[str, Any] | None, labe
             parts = [part for part in value.split(MANY_SEPARATOR) if part] if many else [value]
             if parts and all(part in labels for part in parts):
                 options.append({"answer": str(option["answer"]).strip(), "value": value})
-        return {"question": str(ask["question"]).strip(), "here": str(ask.get("here") or "").strip(),
-                "imageIds": [str(i) for i in ask.get("imageIds") or []], "options": options}
+        shaped = {"question": str(ask["question"]).strip(), "here": str(ask.get("here") or "").strip(),
+                  "imageIds": [str(i) for i in ask.get("imageIds") or []], "options": options}
+        # 관찰 칸의 물음 — 어느 관찰 항목을 가르는 물음인지. 사람의 답(값)을 «그 항목 예/아니오»로 되돌려 다음 판독자의 사례로 줄 때 쓴다.
+        if isinstance(ask.get("observe"), str) and ask["observe"].strip():
+            shaped["observe"] = ask["observe"].strip()
+        return shaped
     return None
 
 
@@ -943,6 +957,12 @@ footer{color:var(--muted)}
 details.def .deftext{white-space:normal}
 .gap-strong{color:var(--accent)!important;font-weight:600}
 .gap-note{color:var(--ink)}
+.obs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
+.obs span{font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);background:var(--paper)}
+.obs .yes{border-color:transparent;background:color-mix(in srgb,var(--accent,#0E6B5F) 14%,transparent)}
+.obs .no{color:var(--muted);text-decoration:line-through}
+.obs .split{border-color:var(--warn,#b8860b);outline:1px dashed var(--warn,#b8860b)}
+.obs .unsure::after{content:" ?";color:var(--muted)}
 .act button:disabled{color:var(--faint);border-style:dashed;cursor:default}
 #progress-bottom{display:flex;gap:16px;justify-content:space-between;align-items:center}
 #progress-bottom[hidden]{display:none!important}
@@ -1340,18 +1360,23 @@ SIDEBAR_ICONS = {
 }
 
 
-def sidebar_html(active: str, task_id: str | None, base: str = "") -> str:
+def sidebar_html(active: str, task_id: str | None, base: str = "", *, has_gt: bool = True) -> str:
     """`active`는 home·review·incr·policy·golden. `base`는 이 과제 화면 폴더로 가는 앞머리(같은 폴더면 빈 문자열).
     과제가 없는 화면(증분 검수)에서는 골든셋 검수·정책·골든셋이 첫 화면으로 가고, 과제는 펼쳐지는 목록에서 고른다."""
     e = html.escape
     if task_id is None:
         base = None
 
-    def link(key: str, label: str, href: str) -> str:
+    def link(key: str, label: str, href: str | None) -> str:
         current = ' aria-current="page"' if active == key or (key == "home" and active == "home") else ""
         # 마우스를 올리거나 키보드로 오면 오른쪽에 과제 목록이 펼쳐진다 — 어느 과제의 골든셋 검수·증분 검수·정책·골든셋으로 갈지
         # 고른다(목록은 SIDEBAR_SCRIPT가 채운다 — 골든셋 쪽은 /gt-tasks, 증분 검수는 /incr-tasks).
         menu = key != "home"  # 홈은 첫 화면 하나 — 고를 것이 없다
+        if href is None:
+            return (f'<div class="side-item"><span class="side-link side-disabled" aria-disabled="true" title="이 작업은 GT 검수 기능을 제공하지 않습니다">'
+                    f'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" '
+                    f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{SIDEBAR_ICONS[key]}"></path></svg>{e(label)} '
+                    '<small>이 작업은 제공하지 않음</small></span></div>')
         return (f'<div class="side-item"{f' data-menu="{key}"' if menu else ""}><a class="side-link{" on" if current else ""}" href="{e(href)}"{current}'
                 f'{' aria-haspopup="true"' if menu else ""}>'
                 f'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" '
@@ -1362,16 +1387,16 @@ def sidebar_html(active: str, task_id: str | None, base: str = "") -> str:
             '<a class="side-brand" href="/"><span class="side-logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
             'stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>데이터 운영</a>'
             '<nav class="side-nav" aria-label="주 메뉴">'
-            + link("home", "홈", "/") + link("review", "골든셋 검수", "/" if base is None else base + "review.html")
+            + link("home", "홈", "/") + link("review", "골든셋 검수", ("/gt/" + urllib.parse.quote(task_id) if task_id and has_gt else "/" if has_gt else None))
             + link("incr", "증분 검수", "/incr") + link("policy", "정책", "/" if base is None else base + "policy.html")
-            + link("golden", "골든셋", "/" if base is None else base + "golden.html")
+            + link("golden", "골든셋", ("/" if base is None else base + "golden.html") if has_gt else None)
             + '</nav>'
             + SIDEBAR_HELP
             + '</aside>')
 
 
 # 사이드바 맨 아래 도움말 — «Claude에게 말해 주세요»가 어디인지와 화면의 말뜻. 코딩을 모르는 운영팀이 막히는 첫 자리다.
-SIDEBAR_HELP = '<details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 정답 편 AI)이 다시 보고, 고칠 만한 칸만 올린 것.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>'
+SIDEBAR_HELP = '<details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 기존 정답과 판독이 다를 때 정책·근거로 다시 확인하는 AI)이 검토하고, 고칠 만한 칸만 올립니다.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>관찰 · 값 규칙</dt><dd>어떤 칸은 AI가 값을 고르지 않고 사진의 사실(예/아니오)에만 답합니다 — 화면의 «AI가 본 것». 값은 정책의 값 규칙 표가 정합니다. 두 번 본 AI의 답이 갈린 항목은 «갈림»으로 표시되고 사람이 봅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>'
 
 SIDEBAR_SCRIPT = r"""
 (() => {
@@ -1380,6 +1405,7 @@ SIDEBAR_SCRIPT = r"""
   const me = side.dataset.task;
   // 증분 화면은 과제를 주소(?task=)로 안다 — 그 과제를 목록에서 «지금»으로 칠한다.
   const incrMe = location.pathname === '/incr' ? new URLSearchParams(location.search).get('task') : null;
+  const currentTask = me || incrMe;
   const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   // 메뉴 하나를 채운다 — 네 메뉴(골든셋 검수·증분 검수·정책·골든셋)가 같은 함수를 쓴다. 과제 이름은 두 목록이 같은 이름(name)이고,
   // 수는 서버가 센 그대로다. 부모 줄의 수는 자식 수의 합(수가 있는 메뉴만). 과제 없는 화면(증분)에서 부모 링크가 첫 화면(«/»)이면
@@ -1411,11 +1437,12 @@ SIDEBAR_SCRIPT = r"""
   fetch('/gt-tasks', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(listing => {
     if (!listing) return;
     const pages = {review: task => task.page || ('/gt/' + encodeURIComponent(task.task)),
-                   policy: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/policy.html',
+                   policy: task => task.policyPage || ('/f/' + encodeURIComponent(task.task) + '/gt-review/policy.html'),
                    golden: task => '/f/' + encodeURIComponent(task.task) + '/gt-review/golden.html'};
     ['review', 'policy', 'golden'].forEach(key => {
-      fill(key, (listing.tasks || []).filter(task => key === 'review' || task.pages || task.prepared).map(task => ({
-        href: pages[key](task), name: task.name, on: task.task === me,
+      const tasks = key === 'policy' ? (listing.policies || listing.tasks || []) : (listing.tasks || []);
+      fill(key, tasks.filter(task => key === 'review' || task.pages || task.prepared).map(task => ({
+        href: pages[key](task), name: task.name, on: task.task === currentTask,
         count: key === 'review' ? (task.waitingForHuman || 0) + (task.notRead || 0) : 0})));
     });
   }).catch(() => {});
@@ -1471,6 +1498,8 @@ html{zoom:var(--zoom)}
 .side-nav{display:flex;flex-direction:column;gap:2px}
 .side-link,.side-task{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 12px;border-radius:10px;color:var(--muted);font-size:14.5px;font-weight:500}
 .side-link:hover,.side-task:hover{background:#F1F5F9;color:var(--ink)}
+.side-disabled{opacity:.68;cursor:not-allowed}
+.side-disabled small{margin-left:auto;font-size:10.5px;font-weight:500;line-height:1.2;text-align:right}
 .side{overflow:visible}
 .side-item{position:relative}
 .flyout{display:none;position:absolute;left:calc(100% + 6px);top:0;z-index:20;min-width:220px;padding:6px;border-radius:12px;background:#fff;
@@ -1836,7 +1865,7 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
         reader_html = ((f'<b>{e(_label(field, reading.get("value")))}</b>{low}' if reading.get("value") not in (None, "", [])
                         else "<b>값을 고르지 못했습니다</b>")
                        + (f' — [{evidence}] {e(_ai(reading.get("observation")))}' if reading.get("observation") else ""))
-        reader_html += _citations_html(reading, field, item)
+        reader_html += _observations_html(reading, field) + _citations_html(reading, field, item)
     else:
         reader_html = "(답이 돌아오지 않음)"
     defense_html = (f'<b>{e(defense_text)}</b>' + (f' — [{defense_ids}] {e(_ai(rebuttal.get("why")))}' if rebuttal else "")
@@ -1895,6 +1924,71 @@ def _cell_html(item: dict[str, Any], cell: dict[str, Any], field: dict[str, Any]
   <p class="result"></p>
   <button type="button" class="change">바꾸기</button>
 </div>"""
+
+
+def verdict(reading: dict[str, Any], table: dict[str, Any]) -> dict[str, Any] | None:
+    """관찰 칸의 값이 **왜** 그 값인지 — 값 규칙 표에 관찰 답을 대 보아(`gt_derive.derive`, 판독과 같은 계산) 걸린 줄과,
+    그 줄을 참으로 만든 관찰(이름·근거 문장·근거 사진 번호), 그리고 앞 순위 줄이 왜 안 걸렸는지(그 줄들이 묻는 관찰의 답)를 낸다.
+    사람은 «어느 사진으로 어느 정책을 골랐나»를 이 한 덩이로 읽는다. 관찰이 없거나 표가 없으면 None."""
+    from gt_derive import derive, describe, names
+
+    observations = reading.get("observations") or []
+    if not observations or not table:
+        return None
+    label = {item["id"]: item["name"] for item in table.get("items") or []}
+    answers = {str(obs.get("id")): bool(obs.get("v")) for obs in observations}
+    by_id = {str(obs.get("id")): obs for obs in observations}
+    value, rule_id = derive(table, answers)
+    rule = next((rule for rule in table["rules"] if rule["id"] == rule_id), None)
+
+    def fact(name: str) -> dict[str, Any]:
+        obs = by_id.get(name) or {}
+        why = _ai(str(obs.get("why") or ""))
+        return {"id": name, "name": label.get(name, name), "yes": bool(obs.get("v")), "sure": obs.get("sure") is not False,
+                "why": why, "photos": list(dict.fromkeys(re.findall(r"P\d{2}", why)))}
+
+    deciding = [fact(name) for name in sorted(names(rule["ast"]), key=list(label).index) if name in label] if rule else []
+    before = []
+    for earlier in table["rules"]:  # 걸린 줄이 없으면(«그 밖») 모든 줄이 «앞 순위»다 — 무엇이 부족했는지 보인다
+        if rule and earlier["id"] == rule["id"]:
+            break
+        before += [name for name in sorted(names(earlier["ast"]), key=list(label).index) if name not in before and name in label]
+    decided = {item["id"] for item in deciding}
+    return {"value": value, "ruleId": rule_id or "그 밖",
+            "ruleText": describe(rule["ast"], label) if rule else "어느 값 규칙에도 걸리지 않음",
+            "ruleWhy": (rule or {}).get("근거") or (None if rule else "위 규칙들의 근거가 모두 없을 때의 값"),
+            "deciding": deciding,
+            # 앞 순위 줄이 묻는 관찰 가운데 이번 값을 정한 관찰이 아닌 것 — «그 근거는 없었다»의 목록(예로 답한 것이 있으면 조합이 안 맞은 것)
+            "earlier": [fact(name) for name in before if name not in decided],
+            # 뒷순위라 값을 정하지는 않았지만 «예»로 답한 관찰 — 같은 쪽을 가리키는 추가 근거일 수도, 부딪치는 근거일 수도 있다
+            "alsoTrue": [fact(name) for name in label if answers.get(name) and name not in decided and name not in before],
+            "matchesReading": value == reading.get("value")}
+
+
+def _observations_html(reading: dict[str, Any], field: dict[str, Any]) -> str:
+    """관찰 칸 — AI가 값을 고르지 않고 답한 관찰(예/아니오)을 칩으로. 칩 하나가 사실 하나라 사람이 1초에 맞는지 가른다.
+    다시 본 눈과 갈린 항목은 테두리로 표시하고, 애매하다고 한 항목에는 «?»를 붙인다. 마우스를 올리면 근거 구절."""
+    e = html.escape
+    observations = reading.get("observations") or []
+    if not observations or not field.get("observe"):
+        return ""
+    names = {item["id"]: item["name"] for item in field["observe"]}
+    split = set(reading.get("split") or [])
+    chips = []
+    for obs in observations:
+        classes = ["yes" if obs.get("v") else "no"]
+        if obs.get("id") in split:
+            classes.append("split")
+        elif obs.get("sure") is False:
+            classes.append("unsure")
+        why = str(obs.get("why") or "")
+        second = obs.get("second")
+        if second:
+            why += f" / 다시 본 눈: {'있음' if second.get('v') else '없음'} — {second.get('why') or ''}"
+        chips.append(f'<span class="{" ".join(classes)}" title="{e(_ai(why))}">{e(names.get(obs.get("id"), obs.get("id")))}</span>')
+    note = (f'<br><span class="sub">다시 본 눈과 갈린 항목: {e(", ".join(names.get(i, i) for i in sorted(split)))} — 사진을 직접 봐 주세요.</span>'
+            if split else "")
+    return f'<div class="obs" aria-label="AI가 본 것">{"".join(chips)}</div>{note}'
 
 
 def _citations_html(answer: dict[str, Any], field: dict[str, Any], item: dict[str, Any]) -> str:
@@ -1970,7 +2064,7 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
     upstream = (task.get("gt") or {}).get("upstream")
     clear_ok = not upstream or bool(upstream.get("acceptsEmpty"))
     # 무엇을 누르면 무엇이 되는가 — 버튼은 판정을 기록할 뿐이다. GT가 실제로 바뀌는 순서는 flow_steps가 말한다.
-    name = call_name(profile)
+    name = golden_call(profile)
     where = (upstream or {}).get("note") or "원천"
     record_note = f"GT는 아직 그대로입니다 — {change_moment(profile)}."
     confirm_note = (f"이 확인은 {where}로 가지 않고 판정 기록에만 남습니다 — 다음에 같은 칸을 다시 묻지 않게." if upstream
@@ -1991,6 +2085,14 @@ def render_html(profile: dict[str, Any], review: dict[str, Any], root: Path) -> 
                                        {f["id"]: f.get("cardinality") == "many" for f in fields.values()})
         for field_id, rules in policy_now["rules"].items():
             rule_texts[field_id] = {rule["id"]: rule["text"] for rule in rules}
+        for field_id, table in (policy_now.get("observed") or {}).items():
+            # 값 규칙은 식으로 적혀 있다 — 관찰 이름으로 풀어 보인다(«어깨 아님 & 엉덩이 & 무릎»).
+            names = {item["id"]: item["name"] for item in table["items"]}
+            for rule in table["rules"]:
+                from gt_derive import describe
+                readable = describe(rule["ast"], names)
+                label = (fields.get(field_id) or {}).get("labelNames", {}).get(rule["value"], rule["value"])
+                rule_texts.setdefault(field_id, {})[rule["id"]] = f"{readable} → {label}"
     except (OSError, KeyError, TaskError, NameError):
         rule_texts = {}
     column_names = task.get("columnNames") or {}
@@ -2216,6 +2318,29 @@ PAGE_STYLE = LIST_STYLE + """
 .values strong.vn{display:block;color:var(--ink);font-size:14.5px;margin-bottom:2px}
 .values b{color:var(--ink);font-weight:600}
 .values .n{font-size:11.5px;font-weight:600;color:var(--faint);margin-left:6px}
+.edit-lead{margin:0}
+.edit-name{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin-top:4px}
+.edit-name input,.edit-row input,.edit-row select,.combo select{font:inherit;font-size:13.5px;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;color:var(--ink)}
+details.edit{margin-top:16px;border-top:1px solid #F1F5F9;padding-top:10px}
+details.edit>summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent)}
+.edit-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-top:12px}
+.edit-form{background:var(--paper);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.edit-title{margin:0;font-size:13.5px;font-weight:700;color:var(--ink)}
+.edit-row{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.edit-row input,.edit-row select{min-width:0;width:100%}
+.combo{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.combo label{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--muted)}
+.edit-actions{display:flex;gap:8px}
+.edit-form .btn{font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+.edit-form .btn.ghost{background:#fff;color:var(--muted);border:1px solid #E2E8F0}
+.edit-form .btn:disabled{opacity:.5;cursor:default}
+.edit-result{font-size:13px;line-height:1.55;border-top:1px dashed #E2E8F0;padding-top:8px}
+.edit-result p{margin:4px 0}
+.edit-result .warn{color:var(--bad)}
+.edit-result .ok{color:var(--ok)}
+.edit-result .was{color:var(--muted);text-decoration:line-through}
+.edit-result .will{color:var(--ink);font-weight:600}
+.edit-result .changes,.edit-result .table-lines{margin:4px 0;padding-left:18px}
 details.src > summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent);min-height:36px;display:flex;align-items:center}
 details.src .deftext{font-size:13.5px;line-height:1.65;color:var(--muted);padding:12px 16px;border-radius:12px;background:var(--paper)}
 .rules{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;font-size:14px}
@@ -2252,24 +2377,22 @@ def _page(title: str, profile: dict[str, Any], active: str, inner: str, script: 
     """정책·골든셋 두 장의 틀 — 검수 화면과 같은 사이드바·색."""
     page = head(title).replace("</head>", '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">\n</head>', 1)
     page = page.replace("</style>", THEME_STYLE + SIDEBAR_STYLE + PAGE_STYLE + "</style>", 1)
-    return (page + f'<div class="shell">{sidebar_html(active, profile.get("id"))}<div class="wrap">{inner}</div></div>'
+    return (page + f'<div class="shell">{sidebar_html(active, profile.get("id"), has_gt=bool(profile.get("gtTask")))}<div class="wrap">{inner}</div></div>'
             f'<script>{SIDEBAR_SCRIPT}{script}</script>\n</body></html>\n')
 
 
-def _history_html(history: str) -> str:
-    """`## 변경 이력`의 글머리표 한 줄 = 정책 변경 하나. «근거:» 뒤의 키(쉼표로 구분)는 골든셋 화면의 그 줄로 잇는다 —
-    검수에서 나온 정책이면 어느 골든셋에서 나왔는지 눌러서 볼 수 있어야 한다. 원문을 바꾸지 않고 링크만 단다."""
-    e = html.escape
-    rows = []
-    for line in history.splitlines():
-        match = re.match(r"^[-*]\s+(.*)$", line.strip())
-        if not match:
-            continue
-        text, _, keys = match.group(1).partition("근거:")
-        links = ", ".join(f'<a href="golden.html#q={urllib.parse.quote(key)}">{e(key)}</a>'
-                          for key in (part.strip().strip("`") for part in keys.split(",")) if key)
-        rows.append(f"<li>{e(text.strip().rstrip('—·- '))}" + (f' <span class="sub">— 근거 골든셋: {links}</span>' if links else "") + "</li>")
-    return "".join(rows)
+def _archived_readable(rule: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
+    """보관된 값 규칙(식)을 관찰 이름으로 풀어 보인다 — 칸이 아직 관찰 칸이고 식을 읽을 수 있을 때만. 아니면 그대로."""
+    text = str(rule.get("text") or "")
+    table = (policy.get("observed") or {}).get(rule.get("field"))
+    if not (table and len(text) > 2 and text.startswith("`") and text.endswith("`")):
+        return rule
+    from gt_derive import DeriveError, describe, parse
+
+    try:
+        return {**rule, "text": describe(parse(text[1:-1]), {item["id"]: item["name"] for item in table["items"]})}
+    except DeriveError:
+        return rule
 
 
 def _rule_html(field: dict[str, Any], rule: dict[str, Any], archived: bool = False) -> str:
@@ -2287,44 +2410,293 @@ def _rule_html(field: dict[str, Any], rule: dict[str, Any], archived: bool = Fal
     value = f' → <b>{e(_label(field, rule["value"]))}</b>' if rule.get("value") else ""
     asked = f'<br><span class="sub">물음 — {e(rule["물음"])}</span>' if rule.get("물음") else ""
     label = f'{rule["field"]}/{rule["id"]}' if archived else rule["id"]
-    return (f'<li{" class=\"struck\"" if archived else ""}><code>{e(label)}</code> <span class="rule-text">{e(rule["text"])}</span>{value}'
+    text = rule["text"]
+    # 보관된 값 규칙(V)은 문장 대신 식이다 — 백틱째 보이지 않게 코드로 그린다.
+    shown = f'<code>{e(text[1:-1])}</code>' if len(text) > 2 and text.startswith("`") and text.endswith("`") else e(text)
+    return (f'<li{" class=\"struck\"" if archived else ""}><code>{e(label)}</code> <span class="rule-text">{shown}</span>{value}'
             f'<br><span class="sub">{meta}</span>{asked}</li>')
 
 
-_SECTION_HEAD_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
+def _complete_policy_document(path: Path, field_ids: list[str]) -> str:
+    """Show exact source and the same policy projection used by the SDK agents."""
+    from policy_prompt import render_agent_policy
+    e = html.escape
+    raw = path.read_text(encoding="utf-8")
+    import hashlib
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    from policy_document import load_document
+    document = load_document(path)
+    names = {field["id"]: field["name"] for field in (document or {}).get("fields", [])}
+    panels = []
+    for field_id in field_ids:
+        try:
+            rendered, _ = render_agent_policy(path, field_id)
+        except ValueError as error:
+            panels.append(f'<p role="status">{e(field_id)}: SDK 정책을 구성할 수 없습니다. {e(str(error))}</p>')
+        else:
+            title = "SDK 에이전트에 전달되는 정책"
+            if len(field_ids) > 1:
+                title += " · " + names.get(field_id, field_id)
+            panels.append('<details class="policy-disclosure">'
+                          f'<summary>{e(title)}</summary>'
+                          f'<pre class="complete-policy-text" data-agent-policy="{e(field_id)}">{e(rendered)}</pre></details>')
+    return ('<section class="card policy-transparency" id="policy-document">'
+            '<details class="policy-disclosure"><summary>정책 문서 전체</summary>'
+            '<p>아래는 definitions.md 전체입니다. 문서에 있는 모든 항목을 생략 없이 표시합니다.</p>'
+            f'<p class="sub">원본: {e(str(path))}<br>문서 SHA-256: <code>{digest}</code></p>'
+            f'<pre class="complete-policy-text" id="policy-document-source">{e(raw)}</pre></details>'
+            '<details class="policy-disclosure"><summary>에이전트 전달 정책</summary>'
+            '<p>SDK 판독·검수·판례 에이전트가 사용하는 정책입니다. 같은 변환 함수로 표시합니다. '
+            '역할 지침과 상품 입력은 별도로 전달되며, 아래는 정책 부분입니다.</p>'
+            + ''.join(panels) + '</details></section>'
+            '<style>.complete-policy-text{white-space:pre-wrap;overflow-wrap:anywhere;'
+            'font:13px/1.8 ui-monospace,monospace;background:#f5f6f8;padding:20px;'
+            'border:1px solid #e1e4e8;border-radius:6px;max-height:none}'
+            '.policy-transparency{min-width:0}.policy-transparency code{overflow-wrap:anywhere}'
+            '.policy-disclosure>summary{cursor:pointer;font-weight:600;padding:12px 0}'
+            '.policy-disclosure>summary:focus-visible{outline:2px solid #557da9;outline-offset:3px}'
+            '.policy-transparency>.policy-disclosure+.policy-disclosure{border-top:1px solid #e1e4e8}'
+            '.policy-disclosure .policy-disclosure{margin-left:16px}</style>')
+
+
+def _standard_policy_html(profile: dict[str, Any], path: Path, document: dict[str, Any]) -> str:
+    e = html.escape
+    def rule_card(rule: dict[str, Any], prefix: str) -> str:
+        rank = "공통" if rule["우선순위"] == "공통" else f"{rule['우선순위']}순위"
+        return (f'<article class="policy-rule" id="rule-{e(prefix)}-{e(rule["id"])}">'
+                f'<header class="policy-rule-head"><span class="policy-rank">{e(rank)}</span>'
+                f'<h4>{e(rule["title"])}</h4><span class="policy-rule-id">{e(rule["id"])}</span></header>'
+                f'<div class="deftext">{_md(rule["내용"], {})}</div>'
+                f'<footer class="policy-case">판례 <span>{e(rule["판례"])}</span></footer></article>')
+
+    fields = document.get("fields") or [{"id": document["field"], "name": document["name"],
+                                          "values": document["values"], "rules": document["rules"]}]
+    multi_field = len(fields) > 1
+    vocabulary, groups = "", ""
+    if document.get("commonRules"):
+        groups += ('<div class="policy-rule-group"><h3>속성 간 공통 규칙</h3>'
+                   + "".join(rule_card(rule, "common") for rule in document["commonRules"]) + '</div>')
+    for field in fields:
+        heading = f'<h3 class="policy-field-heading">{e(field["name"])}</h3>' if multi_field else ""
+        values = "".join(f'<div class="policy-value-row"><dt>{e(v["name"])}</dt><dd>{e(v["description"])}</dd></div>'
+                         for v in field["values"])
+        field_purpose = f'<p class="policy-field-purpose">{e(field["purpose"])}</p>' if field.get("purpose") else ""
+        vocabulary += heading + field_purpose + f'<dl class="policy-values-list">{values}</dl>'
+        groups += heading
+        for common, title, description in [(True, "공통 규칙", "모든 판정에 적용"),
+                                           (False, "판정 규칙", "우선순위 순서로 적용")]:
+            rules = [rule for rule in field["rules"] if (rule["우선순위"] == "공통") == common]
+            if rules:
+                groups += (f'<div class="policy-rule-group"><h3>{title} <span>{description}</span></h3>'
+                           + "".join(rule_card(rule, field["id"]) for rule in rules) + '</div>')
+    style = """<style>
+.policy-jump{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 28px}
+.policy-jump a{padding:7px 14px;border:1px solid #d7dfe8;border-radius:6px;color:#29435e;text-decoration:none;background:#fff;font-size:13px}
+.policy-jump a:hover,.policy-jump a:focus-visible{background:#eaf1fa;border-color:#668bb9}
+.policy-zone{margin:28px 0 38px;scroll-margin-top:24px}
+.policy-zone-heading{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.policy-zone-heading .policy-step{font:600 12px ui-monospace,monospace;color:#5279a6}
+.policy-zone-heading h2{margin:0;font-size:22px;color:#182c43}
+.policy-purpose-body{border-left:4px solid #557da9;padding:14px 22px;background:#edf3f9;font-size:17px;line-height:1.8}
+.policy-purpose-body p{margin:0}
+.policy-values-list{margin:0;background:#fff;border-top:2px solid #354b63;border-bottom:1px solid #d8e0e8}
+.policy-value-row{display:grid;grid-template-columns:130px 1fr;gap:22px;padding:15px 18px;border-bottom:1px solid #edf0f3;align-items:baseline}
+.policy-value-row:last-child{border-bottom:0}.policy-value-row dt{font-weight:700;color:#213b58}.policy-value-row dd{margin:0;color:#485769;line-height:1.6}
+.policy-field-heading{margin:28px 0 12px;padding-bottom:8px;border-bottom:2px solid #354b63;font-size:18px}.policy-rule-group{margin-top:24px}.policy-rule-group>h3{font-size:15px;margin:0 0 12px;display:flex;gap:12px;align-items:baseline}
+.policy-rule-group>h3 span{font-size:12px;font-weight:400;color:#637387}
+.policy-rule{background:#fff;border:1px solid #dce3eb;border-radius:8px;padding:20px 22px;margin:12px 0;scroll-margin-top:24px}
+.policy-rule-head{display:flex;gap:12px;align-items:baseline;margin-bottom:14px}.policy-rule-head h4{font-size:17px;line-height:1.5;margin:0;flex:1}
+.policy-rank{background:#edf2f8;color:#31567d;border-radius:4px;padding:4px 8px;font-size:12px;white-space:nowrap;font-weight:600}
+.policy-rule-id{font:11px ui-monospace,monospace;color:#7c8997}.policy-case{border-top:1px solid #edf0f3;padding-top:12px;margin-top:16px;color:#7c8997;font-size:12px}.policy-case span{color:#485769;margin-left:10px}
+@media(max-width:600px){.policy-value-row{grid-template-columns:90px 1fr;gap:12px;padding:12px}.policy-rule{padding:16px}.policy-rule-head{gap:8px}.policy-rule-head h4{font-size:16px}.policy-zone-heading h2{font-size:20px}.policy-purpose-body{padding:12px 16px;font-size:15px}}
+</style>"""
+    body = (f'<header class="page-head"><h1>{e(document["title"])}</h1></header>'
+            '<nav class="policy-jump" aria-label="정책 구역"><a href="#policy-purpose">목적</a>'
+            '<a href="#policy-values">허용값</a><a href="#policy-rules">규칙</a>'
+            '<a href="#policy-document">문서 전체 · 전달 정책</a></nav>'
+            '<section class="policy-zone" id="policy-purpose" aria-labelledby="purpose-title">'
+            '<div class="policy-zone-heading"><span class="policy-step">01</span><h2 id="purpose-title">목적</h2></div>'
+            f'<div class="policy-purpose-body">{_md(document["purpose"], {})}</div></section>'
+            '<section class="policy-zone" id="policy-values" aria-labelledby="values-title">'
+            '<div class="policy-zone-heading"><span class="policy-step">02</span><h2 id="values-title">허용값</h2></div>'
+            f'{vocabulary}</section>'
+            '<section class="policy-zone" id="policy-rules" aria-labelledby="rules-title">'
+            '<div class="policy-zone-heading"><span class="policy-step">03</span><h2 id="rules-title">규칙</h2></div>'
+            + groups + '</section>' + _complete_policy_document(path, [field["id"] for field in fields]) + style)
+    if profile.get("gtTask"):
+        body += ('<section class="policy-zone" id="registered-precedents" data-task="' + e(profile["id"]) + '">'
+                 '<h2>등록한 판례</h2><p class="precedent-state">판례를 불러오는 중입니다.</p><div class="precedent-list"></div></section>')
+        body += r"""<script>
+(() => {
+  const section = document.getElementById('registered-precedents');
+  const state = section.querySelector('.precedent-state');
+  fetch('/gt-qa?task=' + encodeURIComponent(section.dataset.task), {cache:'no-store'})
+    .then(r => { if (!r.ok) throw new Error('판례 조회 실패'); return r.json(); })
+    .then(data => {
+      if (!data.ok) throw new Error(data.error || '판례 조회 실패');
+      const rows = data.answered || [];
+      state.textContent = rows.length ? rows.length + '개 · 사람이 확인한 판단 근거입니다.' : '등록된 판례가 없습니다. 증분 검수에서 값을 확정한 뒤 판례 등록을 누르세요.';
+      for (const row of rows) {
+        const card = document.createElement('details'); card.className = 'policy-rule'; card.id = 'precedent-' + row.decisionId;
+        const title = document.createElement('summary'); title.textContent = row.fieldName + ' · ' + row.answerName + ' · ' + row.key;
+        const reason = document.createElement('p'); reason.textContent = row.here || row.question;
+        const source = document.createElement('small'); source.textContent = row.decisionId + ' · ' + row.reviewer + ' · ' + (row.ruleIds || []).join(', ');
+        card.append(title, reason, source); section.querySelector('.precedent-list').appendChild(card);
+        for (const rule of row.ruleIds || []) {
+          const ruleCard = document.getElementById('rule-' + row.field + '-' + rule) || document.getElementById('rule-common-' + rule);
+          if (!ruleCard) continue;
+          const footer = ruleCard.querySelector('.policy-case span');
+          if (footer.textContent.trim() === '없음' || footer.textContent.trim() === '없음.') footer.textContent = '';
+          const link = document.createElement('a'); link.href = '#precedent-' + row.decisionId; link.textContent = row.decisionId;
+          link.addEventListener('click', () => { card.open = true; }); footer.append(document.createTextNode(' '), link);
+        }
+      }
+    }).catch(error => { state.textContent = error.message; });
+})();
+</script>"""
+    return _page(document["title"], profile, "policy", body)
 
 
 def render_policy_html(profile: dict[str, Any]) -> str:
     """정책 — 이 과제의 정의 문서를 필드마다 한 장씩, 읽기 전용으로. 값 목록과 뜻은 정의 문서(정본)에서 그대로 읽는다."""
+    from policy_document import load_document
+    config = profile.get("policyTask") or profile.get("gtTask") or {}
+    source = resolve(profile, {"path": config["definitions"], "root": config.get("definitionsRoot") or "project"})
+    document = load_document(source)
+    if document is not None:
+        return _standard_policy_html(profile, source, document)
     e = html.escape
     task = load_task(profile)
-    spec = profile.get("gtTask") or {}
+    spec = profile.get("policyTask") or profile.get("gtTask") or {}
     path = resolve(profile, {"path": spec["definitions"], "root": spec.get("definitionsRoot") or "project"})
     texts, notes = definition_texts(path), definition_value_notes(path)
     fields = {field["id"]: field for field in task["fields"]}
     policy = definition_policy(path, {f["id"]: [str(c) for c in f["labels"]] for f in task["fields"]},
                                {f["id"]: f.get("cardinality") == "many" for f in task["fields"]})
-    column_names = spec.get("columnNames") or {}
+    column_names = (profile.get("gtTask") or {}).get("columnNames") or {}
     cards = []
+    edit_fields: list[dict[str, Any]] = []
     for field in task["fields"]:
         names = _names_for_text(fields, field, column_names)
         values = "".join(
             f'<li><strong class="vn">{e((field.get("labelNames") or {}).get(label, label))}</strong>{_inline(notes.get(field["id"], {}).get(label, ""), names)}</li>'
             for label in field.get("labels") or [])
-        source = (f'<details class="src"><summary>정책 원문 보기</summary><div class="deftext">{_md(texts[field["id"]], names)}</div></details>'
-                  if texts.get(field["id"]) else "")
+        # 허용값·관찰·값 규칙은 아래 구조화된 값/카드에 이미 표시된다. 원문 펼침에는 보충 설명만 남겨 같은 정책을 두 번 읽게 하지 않는다.
+        supplemental = re.split(r"(?m)^### (?:허용값|판정 규칙|관찰|값 규칙|규칙)\s*$", texts.get(field["id"], ""), maxsplit=1)[0].strip()
+        source = (f'<details class="src"><summary>추가 판정 기준 보기</summary><div class="deftext">{_md(supplemental, names)}</div></details>'
+                  if supplemental else "")
         rules = "".join(_rule_html(field, rule) for rule in policy["rules"].get(field["id"], []))
         qa = (f'<p class="sub" style="margin-top:14px">규칙</p><ul class="rules policy-rules">{rules}</ul>' if rules else "")
+        table = (policy.get("observed") or {}).get(field["id"])
+        policy_cards_html = ""
+        prompt_rules = decision_rules(path, field["id"])
+        if table:
+            # 관찰 칸 — AI는 값을 고르지 않고 아래 항목에 예/아니오로 답하고, 값은 값 규칙 표가 위에서부터 정한다.
+            obs_names = {item["id"]: item["name"] for item in table["items"]}
+            from gt_derive import describe
+            configured_cards = (profile.get("policyTask") or spec).get("policyCards") or []
+            cards_for_field = (configured_cards.get(field["id"], []) if isinstance(configured_cards, dict)
+                               else configured_cards if isinstance(configured_cards, list) else [])
+            if cards_for_field:
+                item_by_id = {item["id"]: item for item in table["items"]}
+                rule_by_id = {rule["id"]: rule for rule in table["rules"]}
+                prompt_rule_by_id = {rule["id"]: rule for rule in prompt_rules}
+                used_items: set[str] = set()
+                used_rules: set[str] = set()
+                used_decision_rules: set[str] = set()
+
+                def policy_group_html(group: dict[str, Any]) -> str:
+                    item_ids = [key for key in group.get("observations", []) if key in item_by_id]
+                    rule_ids = [key for key in group.get("rules", []) if key in rule_by_id]
+                    decision_ids = [key for key in group.get("decisionRules", []) if key in prompt_rule_by_id]
+                    used_items.update(item_ids)
+                    used_rules.update(rule_ids)
+                    used_decision_rules.update(decision_ids)
+                    group_observations = "".join(
+                        f'<li><strong class="vn">{e(item_by_id[key]["name"])}</strong> {e(item_by_id[key]["desc"])}</li>'
+                        for key in item_ids)
+                    group_rules = "".join(
+                        f'<li><code>{e(rule_by_id[key]["id"])}</code> {e(describe(rule_by_id[key]["ast"], obs_names))} → '
+                        f'<b>{e(_label(field, rule_by_id[key]["value"]))}</b>'
+                        + (f'<br><span class="sub">출처 {e(rule_by_id[key].get("출처") or "")}</span>'
+                           if rule_by_id[key].get("출처") else "") + "</li>" for key in rule_ids)
+                    contents = ""
+                    if group_observations:
+                        contents += '<p class="sub" style="margin-top:14px">확인할 관찰</p><ul class="values">' + group_observations + "</ul>"
+                    if group_rules:
+                        contents += '<details class="rules-audit"><summary>골든셋 검수용 계산 규칙</summary><ol class="rules policy-rules">' + group_rules + "</ol></details>"
+                    if decision_ids:
+                        decision_html = "".join(
+                            f'<li><strong>{e(prompt_rule_by_id[key]["title"])}</strong>'
+                            f'<p>{e(prompt_rule_by_id[key]["내용"])}</p>'
+                            f'<span class="sub">우선순위 {e(prompt_rule_by_id[key]["우선순위"])}'
+                            + (f' · 판례 {e(prompt_rule_by_id[key]["판례"])}' if prompt_rule_by_id[key].get("판례") else "")
+                            + (f' · 출처 {e(prompt_rule_by_id[key]["출처"])}' if prompt_rule_by_id[key].get("출처") else "")
+                            + "</span></li>" for key in decision_ids)
+                        contents = ('<p class="sub" style="margin-top:14px">운영 추론에 전달되는 자연어 판정 규칙</p>'
+                                    '<ol class="rules policy-rules">' + decision_html + "</ol>" + contents)
+                    description = f'<p class="sub">{e(group["description"])}</p>' if group.get("description") else ""
+                    return (f'<section class="card policy-card"><h2>{e(group.get("title") or "정책")}</h2>'
+                            + description + contents + "</section>")
+
+                policy_cards_html = ""
+                policy_cards_html += "".join(policy_group_html(group) for group in cards_for_field)
+                remaining_items = [item for item in table["items"] if item["id"] not in used_items]
+                remaining_rules = [rule for rule in table["rules"] if rule["id"] not in used_rules]
+                remaining_decision_rules = [rule for rule in prompt_rules if rule["id"] not in used_decision_rules]
+                if remaining_items or remaining_rules or remaining_decision_rules:
+                    policy_cards_html += policy_group_html({
+                        "title": "기타 정책 근거",
+                        "observations": [item["id"] for item in remaining_items],
+                        "rules": [rule["id"] for rule in remaining_rules],
+                        "decisionRules": [rule["id"] for rule in remaining_decision_rules],
+                    })
+                end_of_last_card = policy_cards_html.rfind("</section>")
+                if end_of_last_card >= 0:
+                    policy_cards_html = (policy_cards_html[:end_of_last_card]
+                                         + f'<p class="sub">그 밖의 관찰 조합 → <b>{e(_label(field, table["else"]))}</b></p>'
+                                         + policy_cards_html[end_of_last_card:])
+            else:
+                observe_html = "".join(f'<li><strong class="vn">{e(item["name"])}</strong> {e(item["desc"])}</li>' for item in table["items"])
+                derive_html = "".join(
+                    f'<li><code>{e(rule["id"])}</code> {e(describe(rule["ast"], obs_names))} → <b>{e(_label(field, rule["value"]))}</b>'
+                    + (f'<br><span class="sub">출처 {e(rule.get("출처") or "")}</span>' if rule.get("출처") else "") + "</li>"
+                    for rule in table["rules"]) + f'<li>그 밖 → <b>{e(_label(field, table["else"]))}</b></li>'
+                qa = (f'<p class="sub" style="margin-top:14px">AI가 답하는 관찰 — 값을 고르지 않고 이 항목에만 예/아니오로 답합니다</p>'
+                      f'<ul class="values">{observe_html}</ul>'
+                      f'<p class="sub" style="margin-top:14px">값 규칙 — 위에서부터 처음 맞는 줄의 값</p><ol class="rules policy-rules">{derive_html}</ol>') + qa
+        if prompt_rules and not table:
+            decision_html = "".join(
+                f'<li><code>{e(rule["id"])}</code> <strong>{e(rule["title"])}</strong>'
+                f'<p>{e(rule["내용"])}</p><span class="sub">우선순위 {e(rule["우선순위"])}'
+                + (f' · 판례 {e(rule["판례"])}' if rule.get("판례") else "")
+                + "</span></li>" for rule in prompt_rules)
+            policy_cards_html = ('<section class="card policy-card"><h2>운영 추론 규칙</h2>'
+                                 '<p class="sub">정책 정의에서 읽어 프롬프트에 전달되는 문장입니다.</p>'
+                                 f'<ol class="rules policy-rules">{decision_html}</ol></section>')
         # 검수 문답 — 사람이 AI의 물음에 답한 것. 원장이 정본이라 화면이 열릴 때 서버(/gt-qa)에서 읽어 채운다(답하면 곧 보인다).
         qa += (f'<div class="qa-live" data-field="{e(field["id"])}" hidden><p class="sub" style="margin-top:14px">검수 문답</p>'
                '<ul class="rules policy-rules"></ul></div>')
         many = " · 값을 여럿 고를 수 있습니다" if field.get("cardinality") == "many" else ""
+        edit_box = (f'<details class="edit" data-field="{e(field["id"])}"><summary>이 칸 고치기</summary>'
+                    '<div class="edit-body"><p class="sub">서버에서 열었을 때만 고칠 수 있습니다(./serve.sh start).</p></div></details>')
         cards.append(f'<section class="card"><h2>{e(field.get("name") or field["id"])}</h2>'
-                     f'<p class="sub">들어올 수 있는 값 {len(field.get("labels") or [])}개{many}</p><ul class="values">{values}</ul>{qa}{source}</section>')
+                     f'<p class="sub">들어올 수 있는 값 {len(field.get("labels") or [])}개{many}</p><ul class="values">{values}</ul>{qa}{source}{edit_box}</section>'
+                     + policy_cards_html)
+        edit_fields.append({
+            "id": field["id"], "name": field.get("name") or field["id"], "many": field.get("cardinality") == "many",
+            "values": [{"code": str(label), "name": (field.get("labelNames") or {}).get(label, ""), "desc": notes.get(field["id"], {}).get(label, "")}
+                       for label in field.get("labels") or []],
+            "observed": None if not table else {
+                "items": [dict(item) for item in table["items"]],
+                "rules": [{"id": rule["id"], "text": describe(rule["ast"], {i["id"]: i["name"] for i in table["items"]}), "value": rule["value"]}
+                          for rule in table["rules"]],
+                "else": table["else"]}})
     if policy["archive"]:
         cards.append('<section class="card"><h2>보관</h2><p class="sub">다른 규칙으로 대체된 규칙입니다. 판독 AI는 읽지 않습니다.</p>'
                      '<ul class="rules policy-rules archived">'
-                     + "".join(_rule_html(fields.get(rule["field"]) or {}, rule, archived=True) for rule in policy["archive"]) + "</ul></section>")
+                     + "".join(_rule_html(fields.get(rule["field"]) or {}, _archived_readable(rule, policy), archived=True) for rule in policy["archive"])
+                     + "</ul></section>")
     rules = [c.get("text") for c in task.get("constraints") or [] if c.get("text")]
     if rules:
         cards.append('<section class="card"><h2>칸끼리 맞아야 하는 것</h2><p class="sub">한 줄 안의 칸이 서로 이 규칙을 어기면 검수 화면에 «GT 안에서 서로 모순»으로 올라옵니다.</p>'
@@ -2336,39 +2708,16 @@ def render_policy_html(profile: dict[str, Any]) -> str:
                + ("".join(f'<div class="goal-row"><span>{e(part)}</span><div class="deftext">{_md(goal[part], {})}</div></div>' for part in PURPOSE_PARTS)
                   if goal else '<p class="sub">아직 적힌 목적이 없습니다 — 정의 문서에 `## 목적`과 세 소제목(무엇을 가르나 · 어디에 쓰나 · 기대 효과)을 더하면 여기에 나옵니다.</p>')
                + "</section>")
-    # 배경 — 이 정책이 어디서 왔는가. 원래 있던 운영 규칙을 옮긴 것인지, 검수에서 사람이 더한 것인지 모르면 믿을 수도 고칠 수도 없다.
-    # 정의 문서의 머리말(원문 목록·버전)과 첫 `##` 앞 서문이 정본이다. 검수에서 바뀐 것은 `## 변경 이력` 절이 있을 때만 싣는다.
-    raw = path.read_text(encoding="utf-8")
-    meta, sources, intro = {}, [], ""
-    head = re.match(r"^---\n(.*?)\n---\n", raw, re.S)
-    if head:
-        listing = None
-        for line in head.group(1).split("\n"):
-            item = re.match(r"^\s+-\s+(.+)$", line)
-            if item and listing == "seededFrom":
-                sources.append(item.group(1).strip())
-            elif re.match(r"^[A-Za-z]\w*:", line):
-                name, _, value = line.partition(":")
-                listing = name.strip()
-                meta[listing] = value.strip()
-        body = raw[head.end():]
-        first = _SECTION_HEAD_RE.search(body)
-        intro = re.sub(r"^#\s.*\n", "", (body[:first.start()] if first else body).strip(), count=1).strip()
-    history = texts.get("변경 이력")
-    facts = " · ".join(part for part in (
-        f'버전 {e(meta["version"])}' if meta.get("version") else "",
-        f'마지막 수정 {e(meta["updatedAt"])}' if meta.get("updatedAt") else "",
-        f'담당 {e(meta["owner"])}' if meta.get("owner") else "") if part)
-    background = ('<section class="card background"><h2>배경</h2>'
-                  + (f'<p class="sub">{facts}</p>' if facts else "")
-                  + (f'<div class="deftext">{_md(intro, {})}</div>' if intro else "")
-                  + (f'<p class="sub" style="margin-top:12px">골든셋 검수에서 나온 정책</p><ul class="rules history">{_history_html(history)}</ul>' if history else
-                     '<p class="sub" style="margin-top:12px">골든셋 검수에서 나온 정책 — 아직 없습니다. 검수하다 정책을 고치면 정의 문서의 '
-                     '«## 변경 이력» 절에 «근거:» 골든셋 키와 함께 적고, 여기서 그 골든셋으로 이어집니다.</p>')
-                  + "</section>")
-    purpose = purpose + background
     inner = (f'<header class="page-head"><p class="kicker crumbs"><a href="/">홈</a> / {e(call_name(profile))}</p><h1>정책</h1>'
-             '</header>' + purpose + "".join(cards))
+             '<label class="edit-name">고치는 사람 <input id="editor" placeholder="이름" autocomplete="off"></label>'
+             '<p><a href="#policy-document">정책 문서 전체 · 에이전트 전달 정책</a></p>'
+             '</header>' + purpose + "".join(cards)
+             + _complete_policy_document(path, list(fields)))
+    from gt_policy_edit import policy_stamp
+
+    edit_data = {"task": profile["id"], "call": call_name(profile), "stamp": policy_stamp(path), "fields": edit_fields}
+    inner += ('<script id="policy-edit-data" type="application/json">'
+              + json.dumps(edit_data, ensure_ascii=False).replace("<", "\\u003c") + "</script>")
     script = """<script>
 (async () => {
   if (location.protocol === 'file:') return;
@@ -2387,7 +2736,186 @@ def render_policy_html(profile: dict[str, Any]) -> str:
   } catch (e) {}
 })();
 </script>""".replace("TASK", json.dumps(profile["id"]))
-    return _page(f"정책 · {call_name(profile)}", profile, "policy", inner + script)
+    return _page(f"정책 · {call_name(profile)}", profile, "policy", inner + script + "<script>" + POLICY_EDIT_SCRIPT + "</script>")
+
+
+def render_policy_only_html(profile: dict[str, Any]) -> str:
+    """Read-only policy page for a policyTask that intentionally has no GT worklist."""
+    from policy_document import load_document
+    config = profile.get("policyTask") or profile.get("gtTask") or {}
+    source = resolve(profile, {"path": config["definitions"], "root": config.get("definitionsRoot") or "project"})
+    document = load_document(source)
+    if document is not None:
+        return _standard_policy_html(profile, source, document)
+    e = html.escape
+    spec = profile.get("policyTask") or {}
+    path = resolve(profile, {"path": spec["definitions"], "root": spec.get("definitionsRoot") or "project"})
+    from policy_prompt import allowed_values, render_inference_rules
+    definition_by_field = definition_texts(path)
+    cards: list[str] = []
+    for field in spec.get("fields") or []:
+        field_id = field["id"]
+        values = allowed_values(path, field_id)
+        rules = decision_rules(path, field_id)
+        body = definition_by_field.get(field_id, "")
+        supplemental = re.split(r"(?m)^### (?:허용값|판정 규칙|관찰|값 규칙|규칙)\s*$", body, maxsplit=1)[0].strip()
+        supplemental_html = (f'<details><summary>추가 정책 설명</summary>{_md(supplemental, {})}</details>'
+                             if supplemental else "")
+        value_html = "".join(f'<li><code>{e(row["code"])}</code> {e(row["name"])} — {e(row["description"])}</li>'
+                             for row in values)
+        rule_html = "".join(f'<li><b>{e(rule["우선순위"])}. {e(rule["title"])}</b><p>{e(rule["내용"])}</p>'
+                            f'<small>출처 {e(rule.get("출처") or "미기재")}</small></li>'
+                            for rule in rules)
+        rendered = render_inference_rules(path, field_id)
+        cards.append(f'<section><h2>{e(field.get("name") or field_id)}</h2>'
+                     f'{supplemental_html}<h3>허용값</h3><ul>{value_html}</ul>'
+                     f'<h3>운영 추론에 전달되는 판정 규칙</h3><ol>{rule_html}</ol>'
+                     f'<details><summary>운영 프롬프트에 전달하는 규칙 발췌</summary><pre>{e(rendered)}</pre></details></section>')
+    title = profile.get("displayName") or profile.get("id") or "정책"
+    return ('<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+            f'<title>{e(title)} · 정책</title><style>body{{font:16px/1.65 system-ui;max-width:900px;margin:36px auto;padding:0 20px;color:#18202a}}'
+            'section{border:1px solid #d8dee7;border-radius:12px;padding:20px;margin:18px 0}h1,h2{line-height:1.3}li{margin:10px 0}pre{white-space:pre-wrap;background:#f3f5f8;padding:16px;border-radius:8px}</style>'
+            f'<h1>{e(title)}</h1><p>아래 규칙은 우선순위 순서로 운영 추론 프롬프트에 전달됩니다.</p>'
+            + "".join(cards) + _complete_policy_document(path, [f["id"] for f in spec.get("fields") or []]) + "</html>")
+
+
+# 정책 화면의 편집 — 서버(`POST /gt-policy` → gt_policy_edit.edit_policy)가 미리 보기와 넣기를 한다. 화면은 모양을 고르지 않는다:
+# 무엇이 옳은 줄인지는 서버의 함수(로더·가림 검사)가 정하고, 화면은 그 답을 그대로 보인다.
+POLICY_EDIT_SCRIPT = r"""
+(() => {
+  const dataNode = document.getElementById('policy-edit-data');
+  if (!dataNode || location.protocol === 'file:') return;
+  const DATA = JSON.parse(dataNode.textContent);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const editor = document.getElementById('editor');
+  try { editor.value = sessionStorage.getItem('gt-review-reviewer') || ''; } catch (e) {}
+  editor.addEventListener('change', () => { try { sessionStorage.setItem('gt-review-reviewer', editor.value.trim()); } catch (e) {} });
+  const byField = Object.fromEntries(DATA.fields.map(f => [f.id, f]));
+  const valueName = (f, code) => { const v = f.values.find(x => x.code === code); return v && v.name ? v.name : code; };
+  const opt = (value, label, selected) => `<option value="${esc(value)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
+  const valueSelect = f => f.values.map(v => opt(v.code, `${v.name || v.code} (${v.code})`)).join('');
+  const combo = (items, extra) => '<div class="combo">' + [...items, ...(extra ? [extra] : [])].map(it =>
+      `<label><span>${esc(it.name)}</span><select data-obs="${esc(it.id)}">${opt('', '상관없음')}${opt('yes', '예')}${opt('no', '아니오')}</select></label>`).join('') + '</div>';
+  // 넣을 자리 — 표는 위에서부터 처음 맞는 줄이 이긴다. 기본은 «그 밖» 바로 앞(다른 줄을 덮지 않는다). 위로 올릴수록 먼저 적용된다.
+  const positions = (f, obs) => `<select name="before">${opt('end', '맨 아래 — «그 밖» 바로 앞', true)}`
+      + obs.rules.map(r => opt(r.id, `${r.id} 앞 — ${r.text} → ${valueName(f, r.value)}`)).join('') + `</select>`;
+  const positionHelp = '<p class="sub">표는 위에서부터 처음 맞는 줄의 값을 씁니다 — 위에 넣을수록 먼저 적용되어 아래 줄을 덮습니다.</p>';
+  const exprOf = (form, newId) => {
+    const parts = [...form.querySelectorAll('select[data-obs]')].filter(s => s.value).map(s => {
+      const id = s.dataset.obs === '__NEW__' ? newId : s.dataset.obs;
+      return (s.value === 'no' ? '!' : '') + id;
+    });
+    return parts.join(' & ');
+  };
+  const section = (title, body, op) => `<form class="edit-form" data-op="${op}"><p class="edit-title">${esc(title)}</p>${body}`
+      + `<div class="edit-actions"><button type="submit" class="btn">미리 보기</button></div><div class="edit-result" hidden></div></form>`;
+  const input = (name, label, ph) => `<label class="edit-row"><span>${esc(label)}</span><input name="${name}" placeholder="${esc(ph || '')}" autocomplete="off"></label>`;
+  const selectRow = (name, label, options) => `<label class="edit-row"><span>${esc(label)}</span><select name="${name}">${options}</select></label>`;
+
+  document.querySelectorAll('details.edit').forEach(box => {
+    const f = byField[box.dataset.field];
+    if (!f) return;
+    let html = section('값 더하기', input('code', '코드', '영문 대문자·숫자·밑줄 (예: NEW_VALUE)') + input('name', '이름', '짧게 — 화면에 보일 이름')
+        + input('desc', '설명', '무엇이 이 값인가 — 한 문장'), 'value-add');
+    html += section('값 이름·설명 고치기', selectRow('code', '값', valueSelect(f)) + input('name', '새 이름', '그대로면 비워 두기')
+        + input('desc', '새 설명', '그대로면 비워 두기'), 'value-edit');
+    html += section('값 빼기', selectRow('code', '값', valueSelect(f)), 'value-remove');
+    if (f.observed) {
+      const o = f.observed;
+      html += section('값 규칙 더하기 — 관찰 조합이 이러면 이 값', combo(o.items) + selectRow('value', '값', valueSelect(f))
+          + `<label class="edit-row"><span>넣을 자리</span>${positions(f, o)}</label>` + positionHelp, 'derive-add');
+      html += section('값 규칙 빼기', selectRow('id', '줄', o.rules.map(r => opt(r.id, `${r.id} — ${r.text} → ${valueName(f, r.value)}`)).join(''))
+          + input('reason', '이유', '보관에 남습니다'), 'derive-retire');
+      html += section('관찰 항목 더하기 — 그 항목을 쓰는 값 규칙 한 줄과 함께',
+          input('id', 'ID', '영문 대문자 (예: NEW_MARK)') + input('name', '이름', '짧게 — 화면에 보일 이름') + input('desc', '뜻', '무엇이 «예»인가 — 한 문장')
+          + '<p class="sub">아래 조합에서 «새 항목»을 예나 아니오로 고르세요.</p>'
+          + combo(o.items, {id: '__NEW__', name: '새 항목'}) + selectRow('value', '값', valueSelect(f))
+          + `<label class="edit-row"><span>넣을 자리</span>${positions(f, o)}</label>` + positionHelp, 'observe-add');
+      html += section('관찰 뜻 고치기', selectRow('id', '항목', o.items.map(i => opt(i.id, `${i.name} (${i.id})`)).join(''))
+          + input('name', '이름', '') + input('desc', '뜻', ''), 'observe-edit');
+    }
+    const ask = `${DATA.call} ${f.name} 규칙 추가해줘`;
+    html += `<div class="edit-form"><p class="edit-title">문장 규칙 더하기·고치기</p><p class="sub">Claude에게 이렇게 말해 주세요 — 겹침·충돌을 AI가 먼저 가린 뒤 넣습니다.</p>`
+        + `<p><code>${esc(ask)}</code> <button type="button" class="btn ghost copy" data-copy="${esc(ask)}">복사</button></p></div>`;
+    box.querySelector('.edit-body').innerHTML = html;
+    // 관찰 뜻 고치기 — 고를 때 지금 이름·뜻을 채운다
+    box.querySelectorAll('form[data-op="observe-edit"]').forEach(form => {
+      const fill = () => { const it = f.observed.items.find(i => i.id === form.id.value); form.name.value = it ? it.name : ''; form.desc.value = it ? it.desc : ''; };
+      form.id.addEventListener('change', fill); fill();
+    });
+  });
+
+  document.addEventListener('click', event => {
+    const copy = event.target.closest('button.copy');
+    if (copy) { navigator.clipboard && navigator.clipboard.writeText(copy.dataset.copy); copy.textContent = '✓ 복사했습니다'; }
+  });
+
+  const paramsOf = form => {
+    const op = form.dataset.op, get = n => (form.elements[n] ? form.elements[n].value.trim() : '');
+    const p = {};
+    ['code', 'name', 'desc', 'id', 'value', 'reason', 'before'].forEach(n => { if (form.elements[n]) p[n] = get(n); });
+    if (op === 'derive-add') p.when = exprOf(form);
+    if (op === 'observe-add') p.when = exprOf(form, get('id'));
+    return p;
+  };
+  const describePlan = (f, plan) => {
+    const rows = [];
+    // 정책 문서의 줄(«- `CODE` 이름 — 설명»)을 사람 말로 — 글머리표·백틱을 떼고 코드는 괄호로.
+    const clean = t => esc(String(t || '').replace(/^- /, '').replace(/^`([^`]+)`\s*/, '($1) ').replace(/`/g, ''));
+    if (plan.before) rows.push(`<p class="was">${plan.after ? '지금' : '빼는 값'}: ${clean(plan.before)}</p>`);
+    if (plan.impact) rows.push(`<p>이 값을 가진 GT 칸 ${plan.impact.gtCells || 0}개 · 이 값으로 고친 판정 ${plan.impact.correctedTo || 0}개 · 유지한 판정 ${plan.impact.keptAs || 0}개</p>`);
+    if (plan.after) rows.push(`<p class="will">${plan.before ? '바뀜' : '더함'}: ${clean(plan.after)}</p>`);
+    if (plan.rule && plan.rule.length) rows.push(`<p class="will">값 규칙: ${esc(plan.readable || clean(plan.rule[0]))}</p>`);
+    if (plan.archive && plan.archive.length) rows.push(`<p class="was">보관으로: ${esc(!(plan.rule && plan.rule.length) && plan.readable ? plan.readable : clean(plan.archive[0]))}</p>`);
+    if (plan.changes) {
+      const names = Object.assign(Object.fromEntries(((f.observed || {}).items || []).map(i => [i.id, i.name])), plan.names || {});
+      rows.push(`<p>관찰 조합 ${plan.changes.total}개 가운데 <b>${plan.changes.changed}개</b>의 값이 바뀝니다.</p>`);
+      if (plan.changes.examples.length) rows.push('<ul class="changes">' + plan.changes.examples.map(x =>
+        `<li>${(Object.entries(x.answers).filter(([, v]) => v).map(([k]) => esc(names[k] || k)).join(' · ') || '모두 아니오') + (Object.values(x.answers).some(v => v) ? ' (나머지 아니오)' : '')}: `
+        + `${esc(valueName(f, x.before))} → <b>${esc(valueName(f, x.after))}</b></li>`).join('') + '</ul>');
+    }
+    if (plan.table) rows.push('<details><summary>바뀐 뒤 값 규칙 표</summary><ol class="table-lines">' + plan.table.map(t => `<li><code>${esc(t)}</code></li>`).join('') + '</ol></details>');
+    (plan.warnings || []).forEach(w => rows.push(`<p class="warn">${esc(w)}</p>`));
+    if (plan.history) rows.push(`<p class="sub">변경 이력에 남는 줄: ${esc(String(plan.history).replace(/^- /, '').replace(/`/g, ''))}</p>`);
+    rows.push('<p class="sub">넣은 뒤 되돌리려면 같은 칸에서 반대로 고치거나(값 빼기·값 규칙 빼기), Claude에게 «정책 마지막 변경 되돌려줘»라고 말해 주세요.</p>');
+    return rows.join('');
+  };
+  document.addEventListener('submit', async event => {
+    const form = event.target.closest('form.edit-form');
+    if (!form) return;
+    event.preventDefault();
+    const out = form.querySelector('.edit-result');
+    const field = form.closest('details.edit').dataset.field, f = byField[field];
+    // 넣기는 미리 본 그대로를 보낸다 — 미리 본 뒤 칸을 고쳤으면 그 고친 것은 미리 보지 않은 것이다.
+    const previewed = {params: paramsOf(form), reviewer: editor.value.trim()};
+    const send = async confirm => {
+      const reviewer = previewed.reviewer;
+      if (!reviewer) { out.hidden = false; out.innerHTML = '<p class="warn">맨 위 «고치는 사람»에 이름을 적어 주세요.</p>'; editor.focus(); return null; }
+      const response = await fetch('/gt-policy', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({task: DATA.task, field, op: form.dataset.op, reviewer, confirm, expectedStamp: DATA.stamp, params: previewed.params})});
+      return response.json().catch(() => ({ok: false, error: '서버 답을 읽지 못했습니다.'}));
+    };
+    const lock = on => form.querySelectorAll('input, select').forEach(el => { el.disabled = on; });
+    out.hidden = false; out.innerHTML = '<p class="sub">확인하는 중…</p>';
+    const preview = await send(false);
+    if (!preview) return;
+    if (!preview.ok) { out.innerHTML = `<p class="warn">${esc(preview.error)}</p>`; return; }
+    out.innerHTML = describePlan(f, preview.plan) + '<div class="edit-actions"><button type="button" class="btn apply">넣기</button>'
+      + '<button type="button" class="btn ghost cancel">그만두기</button></div>';
+    lock(true);  // 미리 본 동안은 칸을 잠근다 — 보이는 것과 넣는 것이 같게
+    out.querySelector('.cancel').onclick = () => { out.hidden = true; out.innerHTML = ''; lock(false); };
+    out.querySelector('.apply').onclick = async () => {
+      out.querySelector('.apply').disabled = true;
+      const done = await send(true);
+      if (!done) return;
+      if (!done.ok) { out.insertAdjacentHTML('beforeend', `<p class="warn">${esc(done.error)}</p>`); return; }
+      out.innerHTML = '<p class="ok">넣었습니다 — 정책이 새 버전이 됐습니다. 새로 읽습니다…</p>'
+        + (done.plan && done.plan.pagesError ? `<p class="warn">${esc(done.plan.pagesError)}</p>` : '');
+      setTimeout(() => location.reload(), 700);
+    };
+  });
+})();
+"""
 
 
 GOLDEN_SCRIPT = r"""

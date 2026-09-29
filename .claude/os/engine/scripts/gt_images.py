@@ -407,7 +407,13 @@ def prepare(index: ImageIndex, gt_row: dict[str, Any], key: str, out_dir: Path, 
         if not images:
             missing.append({"imageId": wanted, "reason": "GT 줄이 가리키는 사진(또는 조각)이 색인에 없습니다"})
     limit = int(spec.get("maxImages") or DEFAULT_MAX_IMAGES)
-    kept = evenly(images, limit)
+    # 늘 싣는 역할(`alwaysKeepRoles` — 예: 썸네일 전부)은 상한에서 빼지 않고, 남은 자리만 나머지에서 고르게 뽑는다. 순서는 색인 그대로.
+    always = {str(role) for role in spec.get("alwaysKeepRoles") or []}
+    fixed = [image for image in images if image.get("role") in always]
+    room = limit - len(fixed)
+    rest = [image for image in images if image.get("role") not in always]
+    sampled = {id(image) for image in (evenly(rest, room) if room > 0 else [])}
+    kept = [image for image in images if image.get("role") in always or id(image) in sampled]
     # 같은지는 자리(id)로 본다 — 사전 비교(==)는 사진 픽셀까지 대 보아, 픽셀이 같은 빈 조각 둘을 하나로 보고 뺀 쪽을 놓친다.
     kept_ids = {id(image) for image in kept}
     omitted = [image["imageId"] for image in images if id(image) not in kept_ids]

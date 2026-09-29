@@ -167,7 +167,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     <div class="side-item" data-menu="policy"><a class="side-link" aria-haspopup="true" id="nav-policy" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"></path></svg>정책</a><div class="flyout" role="menu" aria-label="정책 — 고르기"></div></div>
     <div class="side-item" data-menu="golden"><a class="side-link" aria-haspopup="true" id="nav-golden" href="#" aria-disabled="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M3 12h18M3 19h18M8 5v14"></path></svg>골든셋</a><div class="flyout" role="menu" aria-label="골든셋 — 고르기"></div></div>
   </nav>
-  <details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 정답 편 AI)이 다시 보고, 고칠 만한 칸만 올린 것.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>
+  <details class="side-help"><summary>도움말 · 용어</summary><p><b>Claude는 어디에?</b> 이 도구가 설치된 컴퓨터의 Claude 앱(Claude Code) 채팅 창입니다. 화면이 «Claude에게 ○○라고 말해 주세요»라고 하면 그 문장을 그 창에 적으세요. 앱이 없거나 답이 없으면 그 문장을 담당 개발자에게 보내 주세요.</p><dl><dt>골든셋 · GT</dt><dd>정답으로 쓰는 라벨 모음. AI를 채점하는 기준이라 틀리면 고칩니다.</dd><dt>골든셋 검수</dt><dd>있는 정답을 AI 둘(정답을 모르는 AI · 기존 정답과 판독이 다를 때 정책·근거로 다시 확인하는 AI)이 검토하고, 고칠 만한 칸만 올립니다.</dd><dt>증분 검수 · 묶음</dt><dd>새로 들어온 상품에 AI가 먼저 값을 붙이면 사람이 확정합니다. 한 번에 넣은 상품들이 묶음 하나.</dd><dt>AI 제안 · AI 의견</dt><dd>제안은 AI가 확신한 값, 의견은 확신하지 못한 값 — 의견 칸(«직접 봐 주세요»)은 사진을 보고 직접 고릅니다.</dd><dt>관찰 · 값 규칙</dt><dd>어떤 칸은 AI가 값을 고르지 않고 사진의 사실(예/아니오)에만 답합니다 — 화면의 «AI가 본 것». 값은 정책의 값 규칙 표가 정합니다. 두 번 본 AI의 답이 갈린 항목은 «갈림»으로 표시되고 사람이 봅니다.</dd><dt>보류</dt><dd>지금 못 정한 칸. 답으로 세지만 나중에 값을 누르면 바뀝니다.</dd><dt>빈칸이 맞다 · 비워야 한다</dt><dd>앞은 비어 있던 칸이 비어 있는 게 맞다, 뒤는 값이 있지만 지워야 한다.</dd><dt>반영하기</dt><dd>답한 값을 결과(GT 파일 또는 증분 결과 파일)에 넣습니다. 잘못 넣었으면 Claude에게 «되돌려줘».</dd></dl></details>
 </aside>
 <main class="wrap">
   <header>
@@ -215,11 +215,11 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
                 left: left, say: null, sayNext: null};
     if (task.problem) return Object.assign(base, {kind: "problem"});
     if (task.preparing) return Object.assign(base, {kind: "wait"});
-    if (!task.prepared || task.failed) return Object.assign(base, {kind: "empty", say: task.name + " 개선해줘"});
+    if (!task.prepared || task.failed) return Object.assign(base, {kind: "empty", say: (task.callName || task.name) + " 개선해줘"});
     if (waiting || holds || unread) return Object.assign(base, {kind: "todo", started: n(task.answeredOnPage) > 0});
     return Object.assign(base, {kind: "done",
-            say: n(task.toHandOff) ? task.name + " 반영해줘" : (left ? task.name + " 다음 거" : null),
-            sayNext: n(task.toHandOff) && left ? task.name + " 다음 거" : null});
+            say: n(task.toHandOff) ? (task.callName || task.name) + " 반영해줘" : (left ? (task.callName || task.name) + " 다음 거" : null),
+            sayNext: n(task.toHandOff) && left ? (task.callName || task.name) + " 다음 거" : null});
   }
 
   function where(task) {
@@ -309,7 +309,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
       words.appendChild(document.createTextNode("이 아직 GT에 들어가지 않았습니다 — " + (state.kind === "done" ? "" : "이 화면을 마친 뒤 ")
         + (task.gtHome === "upstream" ? "Claude에게" : "검수 화면 위의 «반영하기»를 누르시거나 Claude에게")));
       hand.appendChild(words);
-      hand.appendChild(phrase(task.name + " 반영해줘"));
+      hand.appendChild(phrase((task.callName || task.name) + " 반영해줘"));
       box.appendChild(hand);
     } else if (state.say) {
       var say = el("p", "say");
@@ -338,7 +338,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     var foot = el("div", "foot");
     var meta = el("p", "meta");
     if (state.history) meta.appendChild(el("span", null, state.history));
-    if (state.left) meta.appendChild(el("span", null, "이 화면 뒤 후보 " + state.left + "건 — Claude에게 «" + task.name + " 다음 거»"));
+    if (state.left) meta.appendChild(el("span", null, "이 화면 뒤 후보 " + state.left + "건 — Claude에게 «" + (task.callName || task.name) + " 다음 거»"));
     if (task.preparedAt) meta.appendChild(el("span", null, "화면 만든 시각 " + when(task.preparedAt)));
     meta.appendChild(el("span", null, where(task)));
     foot.appendChild(meta);
@@ -353,7 +353,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     return box;
   }
 
-  function side(tasks, others) {
+  function side(tasks, others, policies) {
     // 첫 화면의 정책·골든셋은 가장 최근에 준비된 과제의 것 — 과제마다의 두 장은 카드 아래 고리로 간다.
     var ready = tasks.filter(function (task) { return task.prepared; })
       .sort(function (a, b) { return String(b.preparedAt || "").localeCompare(String(a.preparedAt || "")); })[0];
@@ -366,13 +366,14 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     });
     // 홈·정책·골든셋에 마우스를 올리면 과제를 고르는 목록이 펼쳐진다.
     var paths = {review: function (task) { return task.page || ("/gt/" + encodeURIComponent(task.task)); },
-                 policy: function (task) { return folder(task) + "policy.html"; },
+                 policy: function (task) { return task.policyPage || folder(task) + "policy.html"; },
                  golden: function (task) { return folder(task) + "golden.html"; }};
     var reviewLeft = 0;  // 부모 줄의 수 — 자식 수의 합(렌더된 화면의 사이드바와 같은 규칙)
     document.querySelectorAll(".side-item[data-menu]").forEach(function (item) {
       if (!paths[item.dataset.menu]) return;  // 증분 검수의 목록은 incrMenu가 /incr-tasks에서 채운다
       var menu = item.querySelector(".flyout"); menu.textContent = "";
-      tasks.filter(function (task) { return item.dataset.menu === "review" || task.pages || task.prepared; }).forEach(function (task) {
+      var entries = item.dataset.menu === "policy" ? (policies || tasks) : tasks;
+      entries.filter(function (task) { return item.dataset.menu === "review" || task.pages || task.prepared; }).forEach(function (task) {
         var a = el("a", "flyout-link"); a.href = paths[item.dataset.menu](task); a.setAttribute("role", "menuitem");
         a.appendChild(el("span", null, task.name));
         var left = n(task.waitingForHuman) + n(task.notRead);
@@ -426,7 +427,7 @@ header .lead{color:var(--faint);max-width:64ch;margin-top:6px}
     column.style.display = "flex"; column.style.flexDirection = "column"; column.style.gap = "20px";
     tasks.forEach(function (task) { column.appendChild(row(task)); });
     list.appendChild(column);
-    side(tasks, data.otherDoors || []);
+    side(tasks, data.otherDoors || [], data.policies);
     today(tasks);
     return tasks.some(function (task) { return task.preparing; });
   }

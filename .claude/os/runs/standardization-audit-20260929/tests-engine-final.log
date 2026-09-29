@@ -1,0 +1,161 @@
+................................................................/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/suite.py:107: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..../Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_next.py:87: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  self.holder = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='UTF-8'>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........................................./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:315: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54139), raddr=('127.0.0.1', 54136)>
+  status, answer = self.post(self.body(confirm=False))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:321: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54140), raddr=('127.0.0.1', 54136)>
+  status, answer = self.post(self.body(confirm=True, expectedStamp=policy_stamp(self.definitions)))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:333: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54144), raddr=('127.0.0.1', 54141)>
+  status, answer = self.post(self.body(**change))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:333: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54145), raddr=('127.0.0.1', 54141)>
+  status, answer = self.post(self.body(**change))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:333: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54146), raddr=('127.0.0.1', 54141)>
+  status, answer = self.post(self.body(**change))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:333: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54147), raddr=('127.0.0.1', 54141)>
+  status, answer = self.post(self.body(**change))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_policy_edit.py:336: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54148), raddr=('127.0.0.1', 54141)>
+  status, answer = self.post(self.body(confirm=True), {"Origin": "http://localhost:3000"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.........../Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2918: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54156), raddr=('127.0.0.1', 54153)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 54157), raddr=('127.0.0.1', 54153)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+........................................................................................................................................................................................................../Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56067), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2857: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56068), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({"task": "fixture-color-sheen", "key": "B", "field": "color", "reviewer": "민준",
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py:796: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56069), raddr=('127.0.0.1', 56064)>
+  self._sock = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py:796: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56070), raddr=('127.0.0.1', 56064)>
+  self._sock = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56071), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2864: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56072), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({"task": "fixture-color-sheen", "key": "B", "field": "color", "reviewer": "민준",
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56073), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2742: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56074), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({"task": "fixture-color-sheen", "key": "B", "field": "color", "reviewer": "민준",
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56075), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2818: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56076), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({**base, "decision": "CONFIRM"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56077), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2820: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56078), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({**base, "decision": "CONFIRM", "expectedBefore": "RED"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56079), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2822: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56080), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({**base, "decision": "CONFIRM", "expectedBefore": "BLUE"}, {"Origin": "http://evil.example"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56081), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2824: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56082), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({**base, "decision": "CONFIRM", "expectedBefore": "BLUE"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56083), raddr=('127.0.0.1', 56064)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56084), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2802: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56085), raddr=('127.0.0.1', 56064)>
+  status, first = self.post({**base, "decision": "CONFIRM"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56086), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2810: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56087), raddr=('127.0.0.1', 56064)>
+  status, second = self.post({**base, "decision": "HOLD"})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py:796: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56088), raddr=('127.0.0.1', 56064)>
+  self._sock = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py:796: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56089), raddr=('127.0.0.1', 56064)>
+  self._sock = None
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2785: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56091), raddr=('127.0.0.1', 56064)>
+  status, answer = self.post({**base, "reviewer": "민준"}, as_screen=False)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56092), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2787: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56093), raddr=('127.0.0.1', 56064)>
+  status, first = self.post({**base, "reviewer": "민준"})  # 화면처럼 — 지금 본 마지막 판정과 함께
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2792: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56094), raddr=('127.0.0.1', 56064)>
+  status, second = self.post({**base, "reviewer": "지은", "decision": "HOLD", "expectedLatest": seen_before})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56095), raddr=('127.0.0.1', 56064)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56096), raddr=('127.0.0.1', 56064)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2777: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=6, laddr=('127.0.0.1', 56098), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2842: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=6, laddr=('127.0.0.1', 56099), raddr=('127.0.0.1', 56064)>
+  status, refused = self.post({"task": "fixture-color-sheen", "key": "B", "field": "color", "reviewer": "민준",
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/mj/musinsa/dev/my-claude-code-os/.claude/os/engine/tests/test_gt_review.py:2846: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56097), raddr=('127.0.0.1', 56064)>
+  connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/case.py:615: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=6, laddr=('127.0.0.1', 56100), raddr=('127.0.0.1', 56064)>
+  result = method()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............................................................13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 400: 'Bad Request'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 200 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 400 -
+13:32:42 127.0.0.1 "POST /incr-decide HTTP/1.1" 200 -
+13:32:42 127.0.0.1 "POST /incr-run HTTP/1.1" 409 -
+/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 409: 'Conflict'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+13:32:42 127.0.0.1 "POST /incr-export HTTP/1.1" 200 -
+13:32:42 127.0.0.1 "GET /incr-tasks HTTP/1.1" 200 -
+13:32:42 127.0.0.1 "GET /incr-data?task=fixture-color-sheen&batch=20260929-043242-%EC%B2%AB-%EC%A6%9D%EB%B6%84 HTTP/1.1" 200 -
+........................................................................................./opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tempfile.py:484: ResourceWarning: Implicitly cleaning up <HTTPError 302: 'Found'>
+  _warnings.warn(self.warn_message, ResourceWarning)
+.
+----------------------------------------------------------------------
+Ran 484 tests in 194.357s
+
+OK
+다릅니다 — python3 incr_render.py로 다시 쓰세요
+/var/folders/bt/y4kpc1y9443g7x4k8vcn112h0000gn/T/tmp576j23z9/incr.html
+같습니다

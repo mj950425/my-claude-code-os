@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "catalog-data-profile-v1",
+  "id": "clothing-thumbnail-model-gender",
+  "displayName": "의류 썸네일 모델 성별",
+  "attributeName": "썸네일 속 모델 성별 표현",
+  "subjectName": "의류 썸네일 이미지",
+  "outputRoot": ".claude/os/runs/clothing-thumbnail-model-gender",
+  "source": {
+    "repository": "../core-catalog-platfom"
+  },
+  "policyTask": {
+    "schemaVersion": "policy-task-v1",
+    "definitions": ".claude/os/attributes/clothing-thumbnail-model-gender/definitions.md",
+    "documentFormat": "policy-document-v2",
+    "fields": [
+      {
+        "id": "modelGender",
+        "name": "썸네일 속 모델 성별 표현",
+        "valueCodes": {
+          "남성": "MALE",
+          "여성": "FEMALE",
+          "남녀 모두": "UNISEX",
+          "알 수 없음": "UNKNOWN"
+        }
+      }
+    ],
+    "legacyResponseProjection": {
+      "personPresenceField": "personPresence",
+      "unknownGenderValue": "UNKNOWN",
+      "absentPersonValue": "NO_PERSON",
+      "unclearPersonValue": "PERSON_UNCLEAR",
+      "legacyOnly": true
+    },
+    "promptDelivery": {
+      "resource": "core/src/main/resources/prompts/image-gender/v106/common-en.txt",
+      "adapter": "core/src/main/java/com/musinsa/ccp/core/platform/gender/application/support/GenderInferenceExecutionContract.java",
+      "field": "modelGender",
+      "root": "source",
+      "adapterTargets": [
+        {
+          "name": "grouped-prompt-version",
+          "pattern": "(public static final String GROUPED_PROMPT_VERSION\\s*=\\s*)[\\s\\S]*?;",
+          "valueTemplate": "thumbnail-apparent-gender-grouped-v106+policy-{hash12}"
+        }
+      ],
+      "beginMarker": "<!-- BEGIN POLICY_RULES: clothing-thumbnail-model-gender/modelGender -->",
+      "endMarker": "<!-- END POLICY_RULES: clothing-thumbnail-model-gender/modelGender -->"
+    }
+  }
+}

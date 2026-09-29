@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-29",
+  "policy": "accessories-category-gender",
+  "summary": "Legacy signal scoring was rewritten as ordered natural-language decisions preserving direct wording, independent design groups, wearer evidence, and abstention boundaries. No linked precedent cases were available.",
+  "files": {
+    "definitions.md": {
+      "snapshotSha256": "b98a365fd57d128b631ff52b17aa473497d13ec7e40c3824f5f1c0621478f78e",
+      "currentSha256": "9a35468aeabf8f6b83a9d764c575a027f5e10b0ac54e7af7ecb6923b6368d15f"
+    },
+    "profile.json": {
+      "snapshotSha256": "9ea57d1fb8135be1829cbf95e6e993ebba84a7a7db8f74bdca051ccdee2db78e",
+      "currentSha256": "88c7fa888ae1fd28ccbeb19d851f4790cfcac8f5e11928c8f757ad3d034517f2"
+    }
+  }
+}

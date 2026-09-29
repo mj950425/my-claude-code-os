@@ -252,7 +252,8 @@ def rule_links(policy: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
     """사례 → 그 사례가 된 규칙. 규칙의 `출처:`에 적힌 판정 ID(문답 여럿을 한 규칙으로 올리면 모두 적힌다)와 `물음:`으로 잇는다.
     물음 글자로만 이으면 여러 사례를 한 규칙으로 올렸을 때 첫 사례 하나만 규칙이 되고 나머지는 «규칙 아닌 사례»로 남는다."""
     links: dict[tuple[str, str], dict[str, Any]] = {}
-    for rules in policy["rules"].values():
+    observed_rules = [[{**rule, "field": field_id} for rule in table["rules"]] for field_id, table in (policy.get("observed") or {}).items()]
+    for rules in [*policy["rules"].values(), *observed_rules]:
         for rule in rules:
             for decision in re.findall(r"GTD-\d+(?:-[0-9a-f]{4})?", str(rule.get("출처") or "")):
                 links[(rule["field"], decision)] = rule
@@ -324,9 +325,16 @@ def check_audit(audit: dict[str, Any], audit_file: str | None, accept_risk: str 
 
 def health(profile: dict[str, Any], task: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
     """«얼마나 남았어»에 곁들이는 정책의 건강 — 가볍게(사진 색인을 읽지 않는다)."""
-    counts = {fid: len(policy["rules"].get(fid, [])) for fid in field_map(task)}
+    from gt_derive import reachable_values
+
+    fields = field_map(task)
+    counts = {fid: len(policy["rules"].get(fid, [])) for fid in fields}
+    # 관찰 칸에서 값 규칙 표가 영영 내지 못하는 허용값 — 값을 더하고 표에 줄을 안 더하면 AI는 그 값을 낼 수 없다(사람은 고를 수 있다).
+    unreachable = {fid: sorted(str(code) for code in fields[fid]["labels"] if str(code) not in reachable_values(table))
+                   for fid, table in (policy.get("observed") or {}).items() if fid in fields}
     return {"rulesByField": counts, "fieldsOverLimit": [fid for fid, n in counts.items() if n > RULES_PER_FIELD_LIMIT],
-            "casesNotStandard": len(lint_cases(profile)), "ruleLimit": RULES_PER_FIELD_LIMIT}
+            "casesNotStandard": len(lint_cases(profile)), "ruleLimit": RULES_PER_FIELD_LIMIT,
+            "valuesNoRuleGives": {fid: codes for fid, codes in unreachable.items() if codes}}
 
 
 def review_input(profile: dict[str, Any], task: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:

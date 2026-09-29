@@ -5,6 +5,8 @@
 # claude-agent-sdk — «다음 후보 받기»의 판독 세션. CLI를 싣고 오며 구독(OAuth)으로만 돈다(engine/scripts/gt_agent.py).
 #   모델이 CLI 판을 요구하므로 새 모델로 올릴 때는 이것도 올린다(pip install -U claude-agent-sdk).
 claude-agent-sdk>=0.2.160
+# jsonschema — policy multi-agent evaluation output contracts
+jsonschema>=4.21
 # Pillow — 사진 타일·접촉 시트
 Pillow>=12
 # pytest — 테스트

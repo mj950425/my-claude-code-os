@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "incr-review-v1",
+  "profileId": "clothing-thumbnail-observation",
+  "batchId": "20260928-073814-prod-20260928-b",
+  "pushedAt": "2026-09-28T07:38:14+00:00",
+  "source": ".claude/os/runs/clothing-thumbnail-observation/incr/_inbox/prod-20260928-b/input.jsonl",
+  "rows": 50,
+  "ownImages": true
+}

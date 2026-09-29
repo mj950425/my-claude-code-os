@@ -46,3 +46,7 @@ __pycache__/
 
 # 파이썬 가상 환경(requirements.txt). 이 머신의 설치물이다.
 .venv/
+
+# macOS 폴더 표시 설정과 실험에서 내려받은 원본·분할 이미지.
+.DS_Store
+.claude/os/runs/*/incremental-review-*/images/

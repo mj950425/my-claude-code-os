@@ -10,6 +10,7 @@
 | [engine](engine/package.md) | `.claude/os/engine/` | 속성이 무엇인지 모른 채 사이클을 돌리는 공통 코어 |
 | [bag-category-gender](attributes/bag-category-gender/package.md) | `.claude/os/attributes/bag-category-gender/` | 가방 상품의 대상 고객 성별만 아는 **속성 팩의 첫 인스턴스** |
 | [accessories-category-gender](attributes/accessories-category-gender/package.md) | `.claude/os/attributes/accessories-category-gender/` | 잡화 상품의 대상 고객 성별 골든셋과 근거 이미지만 아는 속성 팩. 가져오기와 GT 개선 과제(`gtTask`)가 있다 |
+| [clothing-category-gender](attributes/clothing-category-gender/package.md) | `.claude/os/attributes/clothing-category-gender/` | 의류 상품의 대상 고객 성별만 아는 속성 팩. GT 개선 과제(`gtTask`)와 증분 검수의 운영 수집(`incremental`) 선언만 있다 |
 | [review](review/package.md) | `.claude/os/review/` | 엔진이 낸 run 하나를 심사한다 — 이 결과로 사람이 판정을 시작해도 되는가 |
 | [interview](interview/package.md) | `.claude/os/interview/` | 모호한 요구를 판정 가능한 문장으로 바꾸는 절차 |
 | [dev-workflow](dev-workflow/package.md) | `.claude/os/dev-workflow/` | 엔진·속성·인터뷰와 무관한 개발 워크플로우 — GitHub 절차와 요청 횟수 훅 |
@@ -24,13 +25,24 @@
 - **공유** — `common`. 역할도 인스턴스도 아니다. 두 역할이 **같은 계산**을 해야 하지만 서로를 import하면
   안 될 때(심사는 엔진을 import하지 않는다) 그 계산만 둘 다 모르는 자리로 뺀다. 저장소의 어느 패키지도 import하지 않는다.
 
+## 자연어 정책 실행 역할
+
+네 역할은 `engine/scripts/policy_multi_agent_eval.py`가 Claude Agent SDK로 구성한다.
+오케스트레이터가 판독·검수·판례 에이전트에 일을 나누고, 스크립트가 응답 검사·정답 비교·재시도를 관리한다.
+공통 SDK 설정은 `policy_sdk_runtime.py`, 정책 문서 로딩은 `policy_document.py`,
+프롬프트 정책 렌더링은 `policy_prompt.py`, 확정 판례 조회는 `policy_precedents.py`가 소유한다.
+
+속성별 목적·허용값·규칙은 프로필이 연결한 문서에서 실행 시 읽는다.
+문서 형식은 [표준 정책 계약](engine/contracts/policy-document.md)을 따른다.
+기존 감사 사이클과 ‘다음 후보 받기’의 `gt-review.js`는 별도 진입점이다.
+
 ## 의존 방향
 
 ```
 bag-category-gender  ──▶  engine        (속성은 엔진을 안다)
 bag-category-gender  ──▶  review        (run.sh가 사이클 뒤에 심사를 잇는다)
 bag-category-gender  ──▶  common        (가져오기가 갤러리에 타일 규칙 판을 적는다)
-accessories-category-gender · clothing-thumbnail-observation  ──▶  engine   (gtTask 선언과 어댑터만. 엔진이 읽는다)
+accessories-category-gender · clothing-category-gender · clothing-thumbnail-observation  ──▶  engine   (gtTask 선언과 어댑터만. 엔진이 읽는다)
 accessories-category-gender  ··▶  bag-category-gender   (정의 문서를 옮겨 온 원문. 해시만 대 본다 — import 없음)
 interview   ──▶  engine        (프로필 해석기를 그대로 쓴다)
 review      ──▶  runs/<프로필ID>/run-summary.json   (엔진 코드가 아니라 산출물만 안다)
@@ -142,6 +154,9 @@ Claude Code 하네스는 스킬을 `.claude/skills/<이름>/SKILL.md`에서, 에
 | engine | `gt-defender` | 판독이 GT와 갈린 칸에서 **GT를 지킬 근거**를 찾는다. 못 찾으면 그렇다고 답한다 |
 | engine | `policy-auditor` | 정책 규칙·사례의 **후보 쌍 하나**가 같은 경계에 같은 값(중복)인가 다른 값(충돌)인가. 정책은 고치지 않는다 |
 | engine | `case-normalizer` | 표준이 아닌 **사례 물음 하나**를 경계 물음 하나로 다듬은 초안. 답은 바꾸지 않는다 |
+| engine | `policy-contract-reviewer` | 정책의 허용값·규칙·필드 범위가 서로 맞는지 독립 검수한다 |
+| engine | `policy-counterexample-reviewer` | 예외·충돌·경계 사례에서 규칙이 모호해지지 않는지 검수한다 |
+| engine | `policy-prompt-reviewer` | 정책 문구가 실제 프롬프트에 올바르게 전달되고 다른 지시와 충돌하지 않는지 검수한다 |
 | review | `catalog-run-reviewer` | run **하나**가 사람 판정의 근거가 될 수 있는가. 상품은 판정하지 않는다 |
 | review | `catalog-scene-cast-tagger` | 이 장면이 **어떤 종류**이고 여기 나온 사람은 **누구**인가. 값은 정하지 않는다 |
 | review | `catalog-target-match-reader` | **사람 없는 컷**의 물건이 파는 그 물건인가 |

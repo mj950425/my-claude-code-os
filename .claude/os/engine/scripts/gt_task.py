@@ -123,8 +123,9 @@ def missing_input(task: dict[str, Any], what: str, path: Path) -> TaskError:
     runs/ 아래의 파생 입력은 지워질 수 있고, 지워졌을 때 할 일은 «개발자에게»가 아니라 «다시 가져오기»다."""
     prerequisite = task.get("prerequisite") or {}
     if prerequisite.get("adapter"):
-        return TaskError(f"{what}이 없습니다: {path}. 가져오기를 다시 돌리면 생깁니다 — "
-                         f"python3 {prerequisite['adapter']} (그다음 다시 준비)")
+        note = f" 준비 조건: {prerequisite['note']}" if prerequisite.get("note") else ""
+        return TaskError(f"{what}이 없습니다: {path}. 다음 가져오기 명령의 입력을 준비한 뒤 실행하세요 — "
+                         f"python3 {prerequisite['adapter']} (그다음 다시 준비){note}")
     return TaskError(f"{what}이 없습니다: {path}")
 
 
@@ -263,13 +264,26 @@ def definition_value_notes(path: Path) -> dict[str, dict[str, str]]:
     return notes
 
 
+from policy_document import legacy_text, load_document
+
 def definition_sections(path: Path) -> set[str]:
-    return {match.group(1).strip() for match in _SECTION_HEAD.finditer(path.read_text(encoding="utf-8"))}
+    return {match.group(1).strip() for match in _SECTION_HEAD.finditer(legacy_text(path))}
+
+
+def definition_body(path: Path) -> str:
+    """정의 문서에서 머리(`---` … `---`)를 뺀 글."""
+    raw = legacy_text(path)
+    head = re.match(r"^---\n.*?\n---\n", raw, re.S)
+    return raw[head.end():] if head else raw
+
+
+def _codes_in(text: str, codes: Any) -> list[str]:
+    return sorted({code for code in codes if re.search(rf"(?<![A-Za-z0-9_]){re.escape(code)}(?![A-Za-z0-9_])", text)})
 
 
 def definition_texts(path: Path) -> dict[str, str]:
     """필드마다 정의 문서의 그 절(`## <필드ID>`부터 다음 `## `까지) 글. 사람 화면이 판독자와 같은 기준을 보이게 한다."""
-    text = path.read_text(encoding="utf-8")
+    text = legacy_text(path)
     heads = list(_SECTION_HEAD.finditer(text))
     names = [head.group(1).strip() for head in heads]
     twice = sorted({name for name in names if names.count(name) > 1})
@@ -314,7 +328,7 @@ def derive_condition(text: str) -> str | None:
         return text[:match.end()].strip()
     return None
 RULE_LINE_SHAPE = "- `R1` 규칙 문장 → `코드`"
-_RULE_LINE = re.compile(r"^- `(?:([A-Za-z][\w-]*)/)?(R\d+)` (.+?)(?: → `([^`\s]+)`)?$")
+_RULE_LINE = re.compile(r"^- `(?:([A-Za-z][\w-]*)/)?([RV]\d+)` (.+?)(?: → `([^`\s]+)`)?$")
 _RULE_SUB = re.compile(r"^\s{2,}- ([^:：]+): (.+)$")
 
 
@@ -346,6 +360,8 @@ def _rule_block(where: str, lines: list[str], labels: dict[str, list[str]], many
             raise TaskError(f"정의 문서 {where}의 규칙은 칸을 붙여 적습니다(`칸ID/R1`): «{line.strip()}»")
         if not archive and match.group(1):
             raise TaskError(f"정의 문서 {where}의 규칙 ID에 칸을 붙이지 않습니다(칸 절 안이라 이미 압니다): «{line.strip()}»")
+        if not archive and match.group(2).startswith("V"):
+            raise TaskError(f"정의 문서 {where}에 값 규칙(V…)이 있습니다: «{line.strip()}» — 값 규칙은 `### 값 규칙`에 적습니다.")
         if owner not in labels:
             raise TaskError(f"정의 문서 {where}의 규칙이 없는 칸을 가리킵니다: {owner}")
         value = match.group(4)
@@ -372,13 +388,195 @@ def _rule_block(where: str, lines: list[str], labels: dict[str, list[str]], many
     return rules
 
 
+# 관찰 칸 — 칸 절에 `### 관찰`과 `### 값 규칙`이 있으면 판독자는 값을 고르지 않고 관찰 항목에 예/아니오로 답하고,
+# 값은 값 규칙 표가 정한다(gt_derive). 두 절은 함께 있거나 함께 없다. 모양은 허용값처럼 엄격하게 읽는다.
+#   ### 관찰
+#   - `MARK_A` 표지 A — 그 표지가 사진 틀 안에 조금이라도 보인다. 비슷한 다른 것은 아니다.
+#   ### 값 규칙
+#   - `V1` `!MARK_A & MARK_B` → `VALUE_1`
+#     - 출처: 정의 문서 · 날짜 · 사람             (반드시 — 규칙과 같다. 물음·근거 줄도 쓸 수 있다)
+#   - 그 밖 → `VALUE_2`                             (반드시 마지막 한 줄)
+OBSERVE_HEAD = "### 관찰"
+DERIVE_HEAD = "### 값 규칙"
+OBSERVE_LINE_SHAPE = "- `ID` 이름 — 뜻"
+DERIVE_LINE_SHAPE = "- `V1` `식` → `코드`"
+_OBSERVE_LINE = re.compile(r"^- `([A-Z][A-Z0-9_]*)` ([^`—]+?) — (\S.*)$")
+_DERIVE_LINE = re.compile(r"^- `(V\d+)` `([^`]+)` → `([^`\s]+)`$")
+_DERIVE_ELSE = re.compile(r"^- 그 밖 → `([^`\s]+)`$")
+DERIVE_KEYS = ("출처", "물음", "근거")
+
+
+def _subsection(body: str, head: str) -> tuple[str | None, int, int]:
+    heads = list(re.finditer(rf"^{re.escape(head)}\s*$", body, re.M))
+    if len(heads) > 1:
+        raise TaskError(f"`{head}`이 둘 있습니다 — 하나로 합쳐 주세요.")
+    if not heads:
+        return None, -1, -1
+    rest = body[heads[0].end():]
+    cut = re.search(r"^###\s", rest, re.M)
+    end = heads[0].end() + (cut.start() if cut else len(rest))
+    return body[heads[0].end():end], heads[0].start(), end
+
+
+def _field_intro(body: str) -> str:
+    first = re.search(r"^###\s", body, re.M)
+    return (body[:first.start()] if first else body).strip()
+
+
+def _check_value(field_id: str, value: str, labels: dict[str, list[str]], many: dict[str, bool], where: str) -> str:
+    parts = [part for part in value.split(MANY_SEPARATOR) if part] if many.get(field_id) else [value]
+    if not parts or any(part not in labels[field_id] for part in parts):
+        raise TaskError(f"정의 문서 {where}가 허용값이 아닌 값을 가리킵니다: {value}")
+    return value
+
+
+def observed_fields(path: Path, labels: dict[str, list[str]], many: dict[str, bool] | None = None) -> dict[str, dict[str, Any]]:
+    """칸마다 관찰 항목과 값 규칙 표. 관찰 칸이 아니면 빠진다. 모양이 틀리면 멈춘다 — 조용히 빠진 관찰은 판독자가 모른다."""
+    from gt_derive import DeriveError, else_reachable, names, parse, prefixes, shadowed, why_shadowed
+
+    many = many or {}
+    texts = definition_texts(path)
+    found: dict[str, dict[str, Any]] = {}
+    for field_id in labels:
+        body = texts.get(field_id) or ""
+        where = f"`## {field_id}`"
+        try:
+            observe_text, _, _ = _subsection(body, OBSERVE_HEAD)
+            derive_text, _, _ = _subsection(body, DERIVE_HEAD)
+        except TaskError as error:
+            raise TaskError(f"정의 문서 {where}: {error}") from error
+        if observe_text is None and derive_text is None:
+            continue
+        if observe_text is None or derive_text is None:
+            raise TaskError(f"정의 문서 {where}에 `{OBSERVE_HEAD}`과 `{DERIVE_HEAD}`은 함께 있어야 합니다 — "
+                            "관찰만 있으면 값을 정할 표가 없고, 표만 있으면 판독자가 무엇에 답할지 모릅니다.")
+        observe: list[dict[str, str]] = []
+        for raw in observe_text.split("\n"):
+            line = raw.rstrip()
+            if not line.strip():
+                continue
+            if line.startswith((" ", "\t")) and observe:
+                observe[-1]["desc"] += " " + line.strip()
+                continue
+            match = _OBSERVE_LINE.match(line)
+            if not match:
+                raise TaskError(f"정의 문서 {where}의 `{OBSERVE_HEAD}` 줄이 `{OBSERVE_LINE_SHAPE}` 모양이 아닙니다: «{line.strip()}» "
+                                "(ID는 영문 대문자로 시작하고 대문자·숫자·밑줄만)")
+            observe.append({"id": match.group(1), "name": match.group(2).strip(), "desc": match.group(3).strip()})
+        ids = [item["id"] for item in observe]
+        twice = sorted({item for item in ids if ids.count(item) > 1})
+        if twice:
+            raise TaskError(f"정의 문서 {where}의 관찰 ID가 겹칩니다: {', '.join(twice)}")
+        if not observe:
+            raise TaskError(f"정의 문서 {where}의 `{OBSERVE_HEAD}`이 비어 있습니다.")
+        # 관찰 ID는 판독자에게 가는 이름이다 — 값 코드와 같으면 그 자체가 답을 알려 준다.
+        codes = {code for field_codes in labels.values() for code in field_codes}
+        as_code = sorted(item for item in ids if item in codes)
+        if as_code:
+            raise TaskError(f"정의 문서 {where}의 관찰 ID가 허용값 코드와 같습니다: {', '.join(as_code)} — 판독자가 ID에서 값을 읽습니다. 사실을 가리키는 다른 ID로 바꿔 주세요.")
+        shown = [item["name"] for item in observe]
+        same_name = sorted({name for name in shown if shown.count(name) > 1})
+        if same_name:
+            raise TaskError(f"정의 문서 {where}의 관찰 이름이 겹칩니다: {', '.join(same_name)} — 화면과 판독자가 두 항목을 가르지 못합니다.")
+        rules: list[dict[str, Any]] = []
+        otherwise = None
+        for raw in derive_text.split("\n"):
+            line = raw.rstrip()
+            if not line.strip():
+                continue
+            sub = _RULE_SUB.match(line)
+            if sub:
+                if not rules or otherwise is not None:
+                    raise TaskError(f"정의 문서 {where}의 `{DERIVE_HEAD}`에서 딸린 줄이 값 규칙 줄 아래에 있지 않습니다: «{line.strip()}»")
+                key, value = sub.group(1).strip(), sub.group(2).strip()
+                if key not in DERIVE_KEYS:
+                    raise TaskError(f"정의 문서 {where}의 값 규칙 {rules[-1]['id']}에 모르는 줄이 있습니다: «{key}» — {' · '.join(DERIVE_KEYS)} 중 하나")
+                if key in rules[-1]:
+                    raise TaskError(f"정의 문서 {where}의 값 규칙 {rules[-1]['id']}에 «{key}» 줄이 둘 있습니다.")
+                rules[-1][key] = value
+                continue
+            if otherwise is not None:
+                raise TaskError(f"정의 문서 {where}의 «그 밖» 줄은 `{DERIVE_HEAD}`의 마지막 줄이어야 합니다: «{line.strip()}»")
+            other = _DERIVE_ELSE.match(line)
+            if other:
+                otherwise = _check_value(field_id, other.group(1), labels, many, f"{where}의 «그 밖» 줄")
+                continue
+            match = _DERIVE_LINE.match(line)
+            if not match:
+                raise TaskError(f"정의 문서 {where}의 `{DERIVE_HEAD}` 줄이 `{DERIVE_LINE_SHAPE}` 모양이 아닙니다: «{line.strip()}»")
+            try:
+                ast = parse(match.group(2))
+            except DeriveError as error:
+                raise TaskError(f"정의 문서 {where}의 값 규칙 {match.group(1)}: {error}") from error
+            unknown = sorted(names(ast) - set(ids))
+            if unknown:
+                raise TaskError(f"정의 문서 {where}의 값 규칙 {match.group(1)}이 `{OBSERVE_HEAD}`에 없는 항목을 씁니다: {', '.join(unknown)}")
+            empty = sorted(prefix for prefix in prefixes(ast) if not any(item.startswith(prefix) for item in ids))
+            if empty:
+                raise TaskError(f"정의 문서 {where}의 값 규칙 {match.group(1)}의 COUNT가 세는 관찰이 없습니다: {', '.join(p + '*' for p in empty)}")
+            rules.append({"field": field_id, "id": match.group(1), "expr": match.group(2).strip(), "ast": ast,
+                          "value": _check_value(field_id, match.group(3), labels, many, f"{where}의 값 규칙 {match.group(1)}")})
+        if otherwise is None:
+            raise TaskError(f"정의 문서 {where}의 `{DERIVE_HEAD}` 마지막에 «- 그 밖 → `값`» 줄이 있어야 합니다 — 어느 줄에도 안 걸리는 사진의 값입니다.")
+        rule_ids = [rule["id"] for rule in rules]
+        twice = sorted({item for item in rule_ids if rule_ids.count(item) > 1})
+        if twice:
+            raise TaskError(f"정의 문서 {where}의 값 규칙 ID가 겹칩니다: {', '.join(twice)}")
+        for rule in rules:
+            if not rule.get("출처"):
+                raise TaskError(f"정의 문서 {where}의 값 규칙 {rule['id']}에 «출처» 줄이 없습니다 — 어디서 온 규칙인지 모르면 되짚을 수 없습니다.")
+        used = set().union(*(names(rule["ast"]) for rule in rules)) if rules else set()
+        used |= {item for item in ids for rule in rules for prefix in prefixes(rule["ast"]) if item.startswith(prefix)}
+        idle = [item for item in ids if item not in used]
+        if idle:
+            raise TaskError(f"정의 문서 {where}의 관찰 {', '.join(idle)}을 어느 값 규칙도 쓰지 않습니다 — 값에 쓰이지 않는 관찰은 판독자만 헷갈리게 합니다.")
+        table = {"observe": ids, "rules": rules, "else": otherwise}
+        try:
+            hidden = shadowed(table)
+        except DeriveError as error:
+            raise TaskError(f"정의 문서 {where}: {error}") from error
+        if hidden:
+            raise TaskError(f"정의 문서 {where}의 값 규칙 {', '.join(hidden)}은 앞줄에 가려 어떤 사진에서도 쓰이지 않습니다 — "
+                            f"{why_shadowed(table, hidden[0])}. 앞줄과 중복이거나 충돌입니다. 줄을 빼거나, 앞줄에 «& !항목»을 더해 좁혀 주세요.")
+        # 판독자에게 가는 글(도입 문단·관찰 뜻)에 값 코드가 있으면 판독자가 값을 알게 된다 — 값을 모르게 하려는 칸의 뜻이 없어진다.
+        visible = _field_intro(body) + "\n" + "\n".join(f"{item['name']} {item['desc']}" for item in observe)
+        leaks = sorted(code for code in labels[field_id] if re.search(rf"(?<![A-Za-z0-9_]){re.escape(code)}(?![A-Za-z0-9_])", visible))
+        if leaks:
+            raise TaskError(f"정의 문서 {where}의 도입 문단이나 관찰 뜻에 값 코드가 있습니다: {', '.join(leaks)} — 관찰 칸의 판독자는 값을 모르고 "
+                            "사실에만 답합니다. 값 이야기는 `### 허용값` 아래로 옮겨 주세요.")
+        # observe는 ID 목록(표 계산용), items는 ID·이름·뜻(판독자 글·화면용).
+        found[field_id] = {**table, "items": observe, "else_reachable": else_reachable(table)}
+    # 같은 관찰 ID가 여러 칸에 있으면 같은 사실이다 — 뜻이 다르면 두 칸의 답이 갈리고, 갈림은 사람 눈으로 간다(가짜 경보).
+    seen: dict[str, tuple[str, dict[str, str]]] = {}
+    for field_id, table in found.items():
+        for item in table["items"]:
+            other = seen.get(item["id"])
+            if other and (other[1]["name"], other[1]["desc"]) != (item["name"], item["desc"]):
+                raise TaskError(f"관찰 {item['id']}이 `## {other[0]}`과 `## {field_id}`에서 뜻이 다릅니다 — 같은 ID는 같은 사실이라 "
+                                "이름과 뜻을 글자 그대로 같게 적어 주세요(다른 사실이면 ID를 달리합니다).")
+            seen.setdefault(item["id"], (field_id, item))
+    # 서문과 칸 밖의 절도 판독자에게 간다 — 관찰 칸의 값 코드가 있으면 판독자가 값을 알게 된다.
+    if found:
+        raw = definition_body(path)
+        first = _SECTION_HEAD.search(raw)
+        preface = raw[:first.start()] if first else raw
+        codes = _codes_in(preface, {code for field_id in found for code in labels[field_id]})
+        if codes:
+            raise TaskError(f"정의 문서의 서문(첫 `##` 앞)에 관찰 칸의 값 코드가 있습니다: {', '.join(codes)} — 서문은 판독자에게 갑니다. "
+                            "값 이야기는 그 칸의 `### 허용값` 아래로 옮겨 주세요.")
+    return found
+
+
 def definition_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool] | None = None) -> dict[str, Any]:
     """정책의 목적·규칙·보관을 읽는다. 허용값처럼 엄격하다 — 모양이 다른 줄, 없는 값, 같은 ID가 둘이면 멈춘다.
     조용히 빠진 규칙은 판독자에게도 화면에도 가지 않는데, 사람은 넣은 줄 안다."""
     many = many or {}
     texts = definition_texts(path)
     purpose = None
-    if PURPOSE_SECTION in texts:
+    standard = load_document(path)
+    if standard is not None:
+        purpose = {"note": "", "무엇을 가르나": standard["purpose"], "어디에 쓰나": "", "기대 효과": ""}
+    elif PURPOSE_SECTION in texts:
         parts = {m.group(1).strip(): m for m in re.finditer(r"^###\s+(.+?)\s*$", texts[PURPOSE_SECTION], re.M)}
         odd = sorted(set(parts) - set(PURPOSE_PARTS))
         lacking = [name for name in PURPOSE_PARTS if name not in parts]
@@ -406,12 +604,34 @@ def definition_policy(path: Path, labels: dict[str, list[str]], many: dict[str, 
         rules[field_id] = _rule_block(f"`## {field_id}`의 `{RULES_HEAD}`", (rest[:cut.start()] if cut else rest).split("\n"),
                                       labels, many, field_id, archive=False)
     archive = _rule_block(f"`## {ARCHIVE_SECTION}`", (texts.get(ARCHIVE_SECTION) or "").split("\n"), labels, many, None, archive=True)
+    observed = observed_fields(path, labels, many)
+    from policy_prompt import PolicyPromptError, decision_rules
+
+    decisions: dict[str, list[dict[str, Any]]] = {}
+    for field_id in labels:
+        try:
+            decisions[field_id] = decision_rules(path, field_id)
+        except PolicyPromptError as error:
+            raise TaskError(f"정의 문서 `## {field_id}`의 판정 규칙: {error}") from error
+    for field_id, table in observed.items():
+        valued = [rule["id"] for rule in rules.get(field_id, []) if rule.get("value")]
+        if valued:
+            raise TaskError(f"정의 문서 `## {field_id}`는 관찰 칸이라 값은 `{DERIVE_HEAD}`만 정합니다 — `### 규칙`의 {', '.join(valued)}에서 "
+                            "«→ 값»을 빼고 관찰의 뜻을 다듬는 안내로 쓰거나, 값 규칙 줄로 옮겨 주세요.")
+        texts_for_reader = "\n".join(rule["text"] for rule in rules.get(field_id, []))
+        leaks = sorted(code for code in labels[field_id]
+                       if re.search(rf"(?<![A-Za-z0-9_]){re.escape(code)}(?![A-Za-z0-9_])", texts_for_reader))
+        if leaks:
+            raise TaskError(f"정의 문서 `## {field_id}`의 `### 규칙`에 값 코드가 있습니다: {', '.join(leaks)} — 관찰 칸의 안내 규칙은 판독자에게 가므로 값을 말하지 않습니다.")
     for field_id in labels:
         ids = [rule["id"] for rule in rules.get(field_id, [])] + [rule["id"] for rule in archive if rule["field"] == field_id]
+        ids += [rule["id"] for rule in (observed.get(field_id) or {}).get("rules", [])]
+        ids += [rule["id"] for rule in decisions.get(field_id, [])]
         twice = sorted({rule_id for rule_id in ids if ids.count(rule_id) > 1})
         if twice:
             raise TaskError(f"정의 문서 `## {field_id}`의 규칙 ID가 겹칩니다(보관 포함): {', '.join(twice)} — ID는 한 번만 씁니다.")
-    return {"purpose": purpose, "rules": rules, "archive": archive}
+    return {"purpose": purpose, "rules": rules, "archive": archive, "observed": observed,
+            "decisionRules": decisions}
 
 
 # 판독자에게 가는 정책 — 필수층. 판독자는 원래 정의 문서를 열지 않고, 코드가 이 상품에 걸리는 것만 잘라 쓴 파일 하나를 읽는다.
@@ -437,6 +657,8 @@ def rule_scope(rule: dict[str, Any]) -> list[str]:
 
 
 def rule_line(rule: dict[str, Any]) -> str:
+    if "expr" in rule:  # 값 규칙(V) — 문장이 없고 식이 있다. 사람 쪽 화면·기록에만 쓴다(판독자에게는 가지 않는다)
+        return f"- `{rule['id']}` `{rule['expr']}` → `{rule['value']}`"
     return f"- `{rule['id']}` {rule['text']}" + (f" → `{rule['value']}`" if rule.get("value") else "")
 
 
@@ -446,14 +668,35 @@ def reader_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool
 
     카테고리를 모르면(맥락이 없는 과제) 범위가 있는 규칙도 싣고 `범위:` 줄을 남긴다 — 빼면 걸리는 규칙을 잃고,
     판독자는 예전처럼 범위를 보고 따른다. 규칙 ID는 그대로 둔다 — 판독자가 `rulesApplied`로 인용하는 이름이다."""
+    standard = load_document(path)
+    if standard is not None:
+        from policy_prompt import render_agent_policy
+        configured = {item["id"] for item in standard["fields"]}
+        if set(labels) != configured:
+            raise TaskError("표준 정책 문서의 연결 속성과 판독 속성이 다릅니다")
+        rendered_fields = []
+        selected_rules: dict[str, list[str]] = {}
+        for field_id in labels:
+            text, _ = render_agent_policy(path, field_id)
+            rendered_fields.append(text)
+            field_doc = next(item for item in standard["fields"] if item["id"] == field_id)
+            selected_rules[field_id] = [rule["id"] for rule in field_doc["rules"]]
+        common_ids = [rule["id"] for rule in standard.get("commonRules", [])]
+        return ("\n".join(rendered_fields),
+                {"source": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()[:16],
+                 "rules": selected_rules,
+                 "commonRules": common_ids,
+                 "dropped": {}, "categoryKnown": bool(category_parts(context)), "observed": {}})
     policy = definition_policy(path, labels, many)
     raw = path.read_text(encoding="utf-8")
-    head = re.match(r"^---\n.*?\n---\n", raw, re.S)
-    body = raw[head.end():] if head else raw
+    body = definition_body(path)
+    # 관찰 칸의 값 코드 — 판독자 글 어디에도 있으면 안 된다(칸 밖의 절에 있으면 그 절을 빼고, 끝에서 한 번 더 확인한다).
+    hidden = {code for field_id in policy["observed"] for code in labels[field_id]}
     parts = category_parts(context)
     known = bool(parts)
     kept: dict[str, list[str]] = {}
     dropped: dict[str, list[str]] = {}
+    observed_meta: dict[str, list[str]] = {}
     out: list[str] = []
     heads = list(_SECTION_HEAD.finditer(body))
     out.append((body[:heads[0].start()] if heads else body).strip())
@@ -462,6 +705,35 @@ def reader_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool
         if name in READER_DROPPED_SECTIONS:
             continue
         text = body[match.end():(heads[n + 1].start() if n + 1 < len(heads) else len(body))].strip("\n")
+        if name not in labels and _codes_in(text, hidden):
+            # 칸 밖의 절(필드끼리의 제약 같은)이 관찰 칸의 값을 말한다 — 값을 고르지 않는 판독자에게는 필요 없고, 싣으면 값이 샌다.
+            dropped.setdefault("(절)", []).append(name)
+            continue
+        if name in policy["observed"]:
+            # 관찰 칸 — 판독자는 값을 모른다. 도입 문단·관찰 항목·안내 규칙만 싣고, 허용값·값 규칙·나머지 소절(값 이야기)은 뺀다.
+            table = policy["observed"][name]
+            lines = []
+            for rule in policy["rules"].get(name, []):
+                scope = rule_scope(rule)
+                if scope and known and not (set(scope) & parts):
+                    dropped.setdefault(name, []).append(rule["id"])
+                    continue
+                kept.setdefault(name, []).append(rule["id"])
+                lines.append(rule_line(rule))
+                if scope and not known:
+                    lines.append(f"  - 범위: {', '.join(scope)}")
+            # 값 규칙 ID는 판독자에게 가지 않지만, 워크플로우가 값을 계산하며 «따른 규칙»으로 적는다 — 받은 규칙으로 센다.
+            kept.setdefault(name, []).extend(rule["id"] for rule in table["rules"])
+            observe = "\n".join(f"- `{item['id']}` {item['name']} — {item['desc']}" for item in table["items"])
+            parts_out = [f"## {name}",
+                         "**관찰 칸이다 — 값을 고르지 않는다.** 아래 관찰 항목마다 사진에서 참인지(예/아니오)만 답한다. "
+                         "값은 이 답들로 정해진다. 항목의 뜻에 적힌 조건을 사진이 채우면 «예», 아니면 «아니오»다 — 확실하지 않으면 그렇다고 적는다.",
+                         _field_intro(text), f"{OBSERVE_HEAD}\n\n{observe}"]
+            if lines:
+                parts_out.append("### 규칙\n\n" + "\n".join(lines))
+            observed_meta.setdefault(name, list(table["observe"]))
+            out.append("\n\n".join(part for part in parts_out if part))
+            continue
         if name in labels:
             rules_head = re.search(r"^###\s+규칙\s*$", text, re.M)
             if rules_head:
@@ -483,14 +755,23 @@ def reader_policy(path: Path, labels: dict[str, list[str]], many: dict[str, bool
         out.append(f"## {name}\n\n{text.strip()}")
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
     meta = {"source": str(path.name), "sha256": digest, "rules": kept, "dropped": dropped,
-            "categoryKnown": known}
-    return "\n\n".join(part for part in out if part) + "\n", meta
+            "categoryKnown": known, "observed": observed_meta}
+    text = "\n\n".join(part for part in out if part) + "\n"
+    # 관찰 칸이 아닌 칸의 절은 그 칸의 허용값을 싣는다 — 두 칸이 같은 코드를 쓰면 그 코드는 셀 수 없다(샌 것이 아니다).
+    shared = {code for field_id in labels if field_id not in policy["observed"] for code in labels[field_id]}
+    leaks = _codes_in(text, hidden - shared)
+    if leaks:
+        raise TaskError(f"판독자에게 갈 정책 글에 관찰 칸의 값 코드가 있습니다: {', '.join(leaks)} — 관찰 칸의 판독자는 값을 모르고 사실에만 답합니다. "
+                        "그 코드를 쓴 문장을 `### 허용값` 아래로 옮겨 주세요.")
+    return text, meta
 
 
-def next_rule_id(policy: dict[str, Any], field_id: str) -> str:
-    used = [int(rule["id"][1:]) for rule in policy["rules"].get(field_id, [])] + \
-           [int(rule["id"][1:]) for rule in policy["archive"] if rule["field"] == field_id]
-    return f"R{max(used, default=0) + 1}"
+def next_rule_id(policy: dict[str, Any], field_id: str, prefix: str = "R") -> str:
+    """칸 안에서 쓰지 않은 다음 ID(보관 포함). 안내·값 규칙은 R, 값 규칙 표는 V로 따로 센다."""
+    every = [*policy["rules"].get(field_id, []), *((policy.get("observed") or {}).get(field_id) or {}).get("rules", []),
+             *(rule for rule in policy["archive"] if rule["field"] == field_id)]
+    used = [int(rule["id"][1:]) for rule in every if rule["id"].startswith(prefix)]
+    return f"{prefix}{max(used, default=0) + 1}"
 
 
 def gt_path(profile: dict[str, Any]) -> Path | None:
@@ -867,6 +1148,12 @@ def load_task(profile: dict[str, Any]) -> dict[str, Any]:
     for column, field_id in columns.items():
         if column in reserved:
             raise TaskError(f"{pid}: 필드 {field_id}의 GT 열({column})이 {reserved[column]}과 같습니다.")
+    # 정책은 GT 검수 작업의 공통 계약이다. 둘이 다른 필드나 정의 문서를 보면
+    # 프롬프트와 검수 화면이 서로 다른 기준을 쓰므로 모든 GT 진입점에서 함께 검증한다.
+    if isinstance(profile.get("policyTask"), dict):
+        from gt_review import load_policy_task
+
+        load_policy_task(profile)
     return task
 
 

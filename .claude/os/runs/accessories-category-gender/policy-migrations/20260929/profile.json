@@ -1,0 +1,171 @@
+{
+  "schemaVersion": "catalog-data-profile-v1",
+  "id": "accessories-category-gender",
+  "displayName": "잡화 대상 고객 성별",
+  "attributeName": "대상 고객 성별",
+  "subjectName": "잡화 상품",
+  "outputRoot": ".claude/os/runs/accessories-category-gender",
+  "source": {
+    "repository": "../core-catalog-platfom"
+  },
+  "adapters": {
+    "import": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py"
+  },
+  "gtTask": {
+    "schemaVersion": "gt-task-v1",
+    "unit": "상품",
+    "keyField": "productKey",
+    "groupField": "standardCategory",
+    "titleField": "productName",
+    "definitions": ".claude/os/attributes/accessories-category-gender/definitions.md",
+    "gt": {
+      "path": "tool/image-gender/gt-harness/data/accessories-product-gt-20260903.jsonl",
+      "root": "source",
+      "sourceField": "goldLabelSource",
+      "upstream": {
+        "kind": "sheet",
+        "note": "D/O 검수 시트의 «최종 검수 GT» 열",
+        "refresh": "refresh_product_gt_from_google_sheet.py가 시트에서 이 파일을 다시 만든다(개발자가 돌린다)",
+        "acceptsEmpty": false,
+        "mirrorFields": [
+          "finalReviewLabel"
+        ],
+        "locatorFields": [
+          "sourceSheet",
+          "sheetRow",
+          "sourceCell"
+        ],
+        "rowCheck": {
+          "row": "sheetRow",
+          "cell": "sourceCell",
+          "sheet": "sourceSheet",
+          "rowSheet": "9/1 의류/잡화/가방/스포츠"
+        },
+        "columns": {
+          "targetGender": "최종 검수 GT"
+        },
+        "headerNames": {
+          "productKey": "상품 키",
+          "sourceSheet": "시트 탭",
+          "sheetRow": "시트 행",
+          "sourceCell": "시트 칸",
+          "reviewer": "이름",
+          "reason": "검수 근거"
+        }
+      },
+      "supersededBy": {
+        "glob": "*.provenance.json",
+        "baseField": "baseGt",
+        "markerSuffix": ".provenance.json"
+      }
+    },
+    "authority": {
+      "trusted": [
+        "^FINAL_",
+        "^USER_",
+        "_MANUAL_REVIEW"
+      ],
+      "reference": [
+        "FALLBACK"
+      ]
+    },
+    "correctionSourcePrefix": "USER_GT_REVIEW",
+    "fields": [
+      {
+        "id": "targetGender",
+        "name": "대상 고객 성별",
+        "gtField": "goldLabel",
+        "fillMissing": false,
+        "unknownLabel": "UNDETERMINED"
+      }
+    ],
+    "images": {
+      "path": ".claude/os/runs/accessories-category-gender/golden/accessories-image-index.jsonl",
+      "root": "project",
+      "keyField": "goodsNo",
+      "joinField": "goodsNo",
+      "listField": "images",
+      "fileField": "file",
+      "fileRoot": "output",
+      "idField": "imageId",
+      "roleField": "role",
+      "roles": [
+        "THUMBNAIL",
+        "THUMBNAIL_EXTRA",
+        "DETAIL_TILE"
+      ],
+      "maxImages": 16,
+      "preTiledRoles": [
+        "DETAIL_TILE"
+      ],
+      "preTiledRule": {
+        "name": "ccp-batch-image-composer-tile-ranges",
+        "version": "v0-fixed",
+        "by": "gt-harness collect_product_detail_images.py (work/current-detail-accessories-20260831)",
+        "decoder": "harness-pillow"
+      },
+      "contextFields": [
+        "standardCategory"
+      ],
+      "roleNames": {
+        "THUMBNAIL": "대표 썸네일",
+        "DETAIL_TILE": "상세 조각",
+        "THUMBNAIL_EXTRA": "추가 썸네일"
+      },
+      "alwaysKeepRoles": [
+        "THUMBNAIL",
+        "THUMBNAIL_EXTRA"
+      ]
+    },
+    "limit": 60,
+    "prerequisite": {
+      "adapter": ".claude/os/attributes/accessories-category-gender/adapters/import_accessories_category_gender_sources.py",
+      "note": "사진 색인·실행 결과·사진 사본(runs/ 아래)은 이 가져오기가 만든다. 지워졌으면 다시 돌린다."
+    },
+    "evidence": {
+      "textFields": [
+        "productName"
+      ]
+    },
+    "titleAsEvidence": true,
+    "columnNames": {
+      "standardCategory": "표준 카테고리",
+      "productName": "상품명"
+    },
+    "linkField": "pdpUrl"
+  },
+  "incremental": {
+    "schemaVersion": "incr-source-v1",
+    "note": "증분 검수의 새 데이터를 운영에서 모으는 법 — engine/scripts/incr_collect.py가 읽는다. 조회는 읽기 전용 mysql-query 스킬로",
+    "platforms": [
+      "MUSINSA",
+      "EGOOCM"
+    ],
+    "categoryPrefix": "잡화>",
+    "key": "{platform}:{goodsNo}",
+    "hosts": {
+      "MUSINSA": "https://image.msscdn.net/thumbnails",
+      "EGOOCM": "https://img.29cm.co.kr"
+    },
+    "pdp": {
+      "MUSINSA": "https://www.musinsa.com/products/{goodsNo}",
+      "EGOOCM": "https://www.29cm.co.kr/products/{goodsNo}"
+    },
+    "detail": true,
+    "maxDetailImages": 0,
+    "tileRule": {
+      "name": "ccp-batch-image-composer-tile-ranges",
+      "version": "v2-band-then-seam",
+      "decoder": "java-imageio",
+      "by": "core-catalog-platfom BatchImageComposer.tileRanges (prd 344ca53b) — 운영이 지금 자르는 규칙. 골든셋 색인의 preTiledRule은 옛 번호의 선언이라 새 상품에 쓰지 않는다"
+    },
+    "ledgerFallbackPlatforms": [
+      "EGOOCM"
+    ],
+    "thumbnailSource": "ledger",
+    "extraThumbnailRole": "THUMBNAIL_EXTRA",
+    "productStatuses": [
+      "ONSALE"
+    ]
+  }
+}

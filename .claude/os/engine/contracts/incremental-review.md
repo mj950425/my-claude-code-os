@@ -33,11 +33,28 @@
 상세 사진이 필요한가). 코드는 엔진의 `incr_collect.py` 하나다 — 과제를 모른다. 순서는 셋이다.
 
 1. `incr_collect.py sql --task <id>` → 읽기 전용 `mysql-query` 스킬로 돌린다(`--json`). 최근에 표준 카테고리가 정해진 상품만, 플랫폼마다 묶어서.
+   `productStatuses`가 있으면 그 상태의 상품만(`seller_product.platform_product_status` — 예: `ONSALE`). 판매 전(`PENDING` 등) 상품은 무신사·29CM
+   상품 페이지가 열리지 않아 사람이 확인할 수 없다. 링크의 번호는 `seller_product.platform_product_id`(상품 번호)이고 `spid`(`seller_product.id`)는 조회에만 쓴다.
 2. (상세 사진이 필요한 과제) `incr_collect.py detail-sql --task <id> --rows <1의 결과>` → 같은 스킬로. **고른 건의** CUVE 상세 설명만 —
-   후보 전체에 설명(HTML)을 붙이면 조회가 도구의 제한 시간(30초)을 넘는다. 고르는 규칙이 같아 두 조회가 같은 건을 본다.
+   후보 전체에 설명(HTML)을 붙이면 조회가 도구의 제한 시간(30초)을 넘는다. 고르는 규칙이 같아 두 조회가 같은 건을 보되, 고를 수의 `--spare`배(기본 3)를
+   넉넉히 읽는다 — 3이 상세 사진 있는 건을 먼저 고르기 때문이다. 제한 시간을 넘으면 플랫폼마다 따로 돌린다.
+2′. (`ledgerFallbackPlatforms`나 `thumbnailSource: "ledger"`가 있는 과제) `incr_collect.py detail-mongo --task <id> --rows <1의 결과>` → 읽기 전용 `mongo-query` 스킬의 `aggregate`로.
+   **썸네일**(`thumbnailSource: "ledger"`)은 운영처럼 Mongo `seller_product_images`의 `THUMBNAIL` **전부**다(`MongoGenderImageInventoryAdapter.allThumbnails` —
+   지워지지 않은 것, 빈 주소 빼고, `position` 오름차순, 겹친 주소 한 번). 주소는 `UrlGeneratorUtil.getThumbnailImageUrl`과 같게 `hosts`(운영 썸네일 CDN)를 잇는다.
+   첫 장이 대표(판정의 `TARGET_REFERENCE`), 둘째부터는 `extraThumbnailRole`(«추가 썸네일»)이다. 원장에 썸네일이 없으면 `seller_product.image` 한 장.
+   사진 색인의 `alwaysKeepRoles`에 둔 역할(썸네일)은 판독자에게 주는 사진 상한(`maxImages`)에서 빼지 않고, 남은 자리만 조각에서 고르게 뽑는다.
+   상세는:
+   운영이 상세 사진을 고르는 자리(`SellerProductDetailImageSourceAdapter`)와 같게 — **상세 설명(CUVE) HTML의 사진이 먼저**이고, 거기 사진이 없을 때만
+   프로필이 적은 플랫폼에 한해 Mongo `seller_product_images`의 `DETAIL`(지워지지 않은 것, `position` 순)로 채운다. 다른 플랫폼의 그 원장은 상세가 아니라
+   갤러리 썸네일이라 쓰지 않는다. 그 뒤 대표 썸네일과 같은 사진·겹친 주소를 뺀다(`effectiveDetailUrls`). HTML 추출도 운영(`ProductContentsImageUrlExtractor`)과
+   같다 — `data-src` → `srcset` 첫 주소 → `src`, 탭·줄바꿈 지움, «https:/x» 고침, 호스트 없는 상대 경로는 버린다.
 3. `incr_collect.py build --task <id> --rows … [--details …] --name <이름> --push [--split K]` — GT·사진 색인·지난 묶음에 이미 있는 키와 시험 등록 상품(상품명의 «테스트 상품»·«구매금지» 등, `incr_review.NOT_FOR_SALE`)은 빼고 뺀 목록(`skippedNotForSale`)을 돌려주며 — 파일로 밀어넣을 때는 빼지 않고 `rowsLookLikeTests`로 알린다 —
-   표준 카테고리 둘째 마디마다 돌아가며 고른 뒤, 대표 사진(EXIF 회전 적용)과 상세 설명의 사진(운영 추출과 같은 순서: `data-src` → `srcset` →
-   `src`)을 하네스와 같은 함수(`gt_images.fetch`)로 받고, 상세는 사진 색인의 `preTiledRule`로 `common/tile_rule`이 잘라 `DxxTyy`로 둔다.
+   표준 카테고리 둘째 마디마다 돌아가며 고른다. 상세 사진이 필요한 과제는 **설명에 사진이 있는 건을 먼저** 고르고 모자랄 때만 나머지로 채운다 —
+   가장 새 상품은 설명이 «상세정보 참고» 같은 글뿐인 경우가 많아, 그대로 고르면 대표 사진 한 장짜리 건(판단 근거도 화면도 빈약하다)이 된다. 그런 뒤 대표 사진(EXIF 회전 적용)과 상세 설명의 사진(운영 추출과 같은 순서: `data-src` → `srcset` →
+   `src`)을 하네스와 같은 함수(`gt_images.fetch`)로 받고, 상세는 **운영이 지금 자르는 규칙**으로 `common/tile_rule`이 잘라 `DxxTyy`로 둔다 —
+   `incremental.tileRule`(판·디코더), 없으면 운영 기본값(`tile_rule.CURRENT` · `java-imageio`). 골든셋 사진 색인의 `preTiledRule`은 그 색인의 번호를 매긴
+   옛 실행(평가 하네스·옛 판)의 선언이라 새 상품에 쓰지 않는다 — 쓰면 운영과 다른 조각이 된다. 상세 사진 수는 `maxDetailImages`(없거나 0이면 전부 — 운영처럼).
+   운영 디코드와 맞춰 보지 않은 파일(WebP·맞춰 보지 않은 ICC·CMYK)은 자르지 않고 `failed`에 이유와 함께 남긴다.
    입력 두 장은 과제의 사진 색인과 같은 모양이다(목록형이면 건마다 한 줄, 아니면 사진마다 한 줄). 받은 사진은 `runs/<id>/incr/_inbox/`(지워도 되는 자리).
 
 엔진·팩에 운영 접속 정보를 두지 않는다 — 조회는 스킬이 하고, 무엇을 모을지는 사람이 그때 정한다.

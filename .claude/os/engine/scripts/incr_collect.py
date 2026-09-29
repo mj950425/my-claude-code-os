@@ -16,7 +16,12 @@
   "hosts": {"MUSINSA": "https://…", "EGOOCM": "https://…"},   // 대표 사진 경로(/images/…) 앞에 붙일 주소
   "pdp": {"MUSINSA": "https://…/{goodsNo}"},   // 상품 페이지 주소 틀(화면의 «상품 페이지»)
   "detail": true,                              // 상세 설명의 사진도 받아 조각으로 자른다(사진 색인이 조각 역할을 선언해야 한다)
-  "maxDetailImages": 6                         // (선택) 상세 사진은 앞에서부터 이만큼만
+  "maxDetailImages": 0,                        // (선택) 상세 사진은 앞에서부터 이만큼만 — 없거나 0이면 전부(운영과 같다)
+  "tileRule": {"version": "v2-band-then-seam", "decoder": "java-imageio"},  // (선택) 조각 규칙 — 없으면 운영의 지금 규칙(tile_rule.CURRENT · java-imageio)
+  "ledgerFallbackPlatforms": ["EGOOCM"],        // (선택) 상세 설명에 사진이 없을 때 Mongo seller_product_images의 DETAIL로 채우는 플랫폼(운영과 같게)
+  "thumbnailSource": "ledger",                  // (선택) 썸네일을 운영처럼 Mongo의 THUMBNAIL 전부로(첫 장이 대표). 없으면 seller_product.image 한 장
+  "extraThumbnailRole": "THUMBNAIL_EXTRA",      // (선택) 둘째 장부터의 썸네일 역할(사진 색인 roles에 있어야 한다)
+  "productStatuses": ["ONSALE"]                 // (선택) 뽑을 상품 상태(seller_product.platform_product_status) — 판매 전 상품은 상품 페이지가 열리지 않는다
 }
 ```
 
@@ -32,8 +37,11 @@
 
 ## 조각 — 운영과 같은 규칙으로
 
-상세 사진은 긴 원본이라 그대로 주면 판독자가 못 읽는다. 사진 색인의 `preTiledRule`(판·디코더)로 `common/tile_rule`이 자르고
-`DxxTyy`로 이름 붙인다 — 운영 `BatchImageComposer.tileRanges`의 이식이라 같은 번호가 같은 조각을 가리킨다. 따로 자르지 않는다.
+상세 사진은 긴 원본이라 그대로 주면 판독자가 못 읽는다. **운영이 지금 자르는 규칙**(`incremental.tileRule`, 없으면
+`tile_rule.CURRENT` · `java-imageio`)으로 `common/tile_rule`이 자르고 `DxxTyy`로 이름 붙인다 — 운영 `BatchImageComposer.tileRanges`의
+이식이라 같은 번호가 같은 조각을 가리킨다. 골든셋 사진 색인의 `preTiledRule`은 그 색인을 만든 옛 실행의 선언이라 여기서 쓰지 않는다.
+상세 사진은 운영(`SellerProductDetailImageSourceAdapter`)과 같은 순서로 고른다 — 상세 설명(CUVE) HTML의 사진이 먼저, 없으면
+`ledgerFallbackPlatforms` 플랫폼만 Mongo `seller_product_images`의 DETAIL. 수는 `maxDetailImages`(없거나 0이면 전부 — 운영처럼).
 대표 사진은 EXIF 회전을 적용해 저장한다(평가 하네스가 모은 사진과 같은 조건).
 
 ## 이미 있는 건은 빼고, 고르게
@@ -91,6 +99,9 @@ def sql(profile: dict[str, Any], per_platform: int = 200, window: int = 400_000)
     """① 후보 조회문 — 플랫폼마다 최근에 표준 카테고리가 정해진 상품(상세 설명 없이 가볍게). 상세는 고른 뒤 ②로 따로 읽는다 —
     설명(HTML)을 후보 전체에 붙이면 조회가 도구의 제한 시간(30초)을 넘는다."""
     block = source_of(profile)
+    # 뽑을 상품 상태 — 판매 전(PENDING 등) 상품은 상품 페이지가 열리지 않아 사람이 확인할 수 없다
+    statuses = (" AND sp.platform_product_status IN (" + ", ".join(_literal(s) for s in block["productStatuses"]) + ")"
+                if block.get("productStatuses") else "")
     parts = []
     for platform in block["platforms"]:
         parts.append(
@@ -101,17 +112,18 @@ def sql(profile: dict[str, Any], per_platform: int = 200, window: int = 400_000)
             " JOIN standard_category sc ON sc.category_code = spc.standard_category_code AND sc.dt IS NULL"
             f" WHERE spc.id > (SELECT MAX(id) - {int(window)} FROM seller_product_standard_category)"
             " AND spc.dt IS NULL AND sp.dt IS NULL AND sp.image IS NOT NULL"
-            f" AND sp.platform_code = {_literal(platform)} AND sc.full_name LIKE {_literal(block['categoryPrefix'] + '%')}"
+            f"{statuses} AND sp.platform_code = {_literal(platform)} AND sc.full_name LIKE {_literal(block['categoryPrefix'] + '%')}"
             f" ORDER BY spc.id DESC LIMIT {int(per_platform)})")
     return "SELECT * FROM (" + " UNION ALL ".join(parts) + ") picked"  # 읽기 전용 도구는 SELECT로 시작하는 문만 받는다
 
 
-def detail_sql(profile: dict[str, Any], rows: list[dict[str, Any]], limit: int) -> str | None:
-    """② 상세 설명 조회문 — 고른 건(`pick`과 같은 규칙)의 CUVE 설명만, 등록된 객체만(평가 하네스와 같은 조건). 고를 건이 없으면 None."""
+def detail_sql(profile: dict[str, Any], rows: list[dict[str, Any]], limit: int, spare: int = 1) -> str | None:
+    """② 상세 설명 조회문 — 고를 건(`pick`과 같은 규칙)의 CUVE 설명만, 등록된 객체만(평가 하네스와 같은 조건). 고를 건이 없으면 None.
+    `spare`배만큼 넉넉히 읽는다 — `build`가 상세 사진이 있는 건을 먼저 고르므로, 설명이 글뿐인 건을 대신할 후보가 있어야 한다."""
     block = source_of(profile)
     if not block.get("detail"):
         return None
-    chosen = pick(rows, block, known_keys(profile, load_task(profile)), limit)
+    chosen = pick(rows, block, known_keys(profile, load_task(profile)), limit * max(1, spare))
     parts = []
     for platform in block["platforms"]:
         ids = [str(row["spid"]) for row in chosen if row.get("platform") == platform and row.get("spid") is not None]
@@ -147,6 +159,10 @@ def detail_urls(html: str | None, host: str) -> list[str]:
     base = re.match(r"^(https?://[^/]+)", host)
     out = []
     for url in parser.urls:
+        # 운영 추출(`ProductContentsImageUrlExtractor.normalizeImageUrl`)과 같게 — 탭·줄바꿈을 지우고, «https:/x»를 고치고,
+        # «//»는 https로. 호스트 없는 상대 경로는 운영이 버린다(host를 넘긴 옛 호출만 앞에 붙인다).
+        url = re.sub(r"[\t\r\n]", "", url).strip()
+        url = re.sub(r"(?i)^(https?):/([^/])", r"\1://\2", url)
         if url.startswith("//"):
             url = "https:" + url
         elif url.startswith("/") and base:
@@ -158,6 +174,80 @@ def detail_urls(html: str | None, host: str) -> list[str]:
                               quote(parts.query, safe="=&%:@!$'()*+,;/?~"), parts.fragment))
         if url.startswith(("http://", "https://", "file://")) and url not in out:
             out.append(url)
+    return out
+
+
+# 운영이 상세 사진을 고르는 자리는 하나다(`SellerProductDetailImageSourceAdapter`) — 상세 설명(CUVE) HTML의 사진이 먼저이고,
+# 거기 사진이 없을 때만, 프로필이 `ledgerFallbackPlatforms`로 적은 플랫폼에 한해 Mongo `seller_product_images`의 DETAIL로 채운다.
+# 그 뒤 판정 입력에서 대표 썸네일과 같은 사진·겹친 주소를 뺀다(`GenderDetailInputPolicy.effectiveDetailUrls`).
+
+
+def mongo_pipeline(profile: dict[str, Any], rows: list[dict[str, Any]], limit: int, spare: int = 3) -> str:
+    """②′ 운영의 보완 사진 조회 — Mongo `seller_product_images`에서 고를 건(`pick`과 같은 규칙, `spare`배) 가운데
+    `ledgerFallbackPlatforms` 플랫폼의 사진 목록만. 읽기 전용 mongo-query 스킬의 `aggregate`에 그대로 넘기는 JSON이다."""
+    block = source_of(profile)
+    fallback = set(block.get("ledgerFallbackPlatforms") or [])
+    everyone = block.get("thumbnailSource") == "ledger"  # 썸네일을 원장에서 읽는 과제는 후보 전부의 문서가 필요하다
+    chosen = [row for row in pick(rows, block, known_keys(profile, load_task(profile)), limit * max(1, spare))
+              if everyone or row.get("platform") in fallback]
+    ids = sorted({int(row["spid"]) for row in chosen if str(row.get("spid") or "").isdigit()})
+    return json.dumps([{"$match": {"seller_product_id": {"$in": ids}, "dt": None}},
+                       {"$project": {"_id": 0, "seller_product_id": 1, "platform_code": 1, "images": 1}}])
+
+
+def platform_image_url(url: str, host: str) -> str | None:
+    """운영 `UrlGeneratorUtil.getThumbnailImageUrl`과 같다 — 앞뒤 공백을 떼고, 절대 주소는 그대로, «//»는 https로,
+    상대 경로는 플랫폼 사진 주소(프로필 `hosts` — 운영의 썸네일 CDN)를 슬래시 하나로 잇는다. 빈 주소는 None."""
+    url = str(url or "").strip()
+    if not url:
+        return None
+    if url.startswith(("http://", "https://", "file://")):
+        return url
+    if url.startswith("//"):
+        return "https:" + url
+    if not host:
+        return url
+    return host.rstrip("/") + (url if url.startswith("/") else "/" + url)
+
+
+def ledger_thumbnails(document: dict[str, Any] | None, host: str) -> list[str]:
+    """운영 판정이 쓰는 썸네일 전부(`MongoGenderImageInventoryAdapter.allThumbnails`) — `THUMBNAIL`만, 지워지지 않은 것,
+    빈 주소 빼고, `position` 오름차순, 겹친 주소 한 번. 첫 장이 대표(판정의 `TARGET_REFERENCE`)다."""
+    images = [image for image in (document or {}).get("images") or [] if isinstance(image, dict) and not image.get("dt")]
+    ordered = sorted((image for image in images if image.get("type") == "THUMBNAIL" and str(image.get("image_url") or "").strip()),
+                     key=lambda image: int(image.get("position") or 0))
+    out: list[str] = []
+    for image in ordered:
+        url = platform_image_url(str(image["image_url"]), host)
+        if url and url not in out:
+            out.append(url)
+    return out
+
+
+def effective_detail_urls(document: dict[str, Any], host: str) -> list[str]:
+    """Mongo 문서 하나의 보완 상세 사진 — `DETAIL`만, 지워지지 않은 것, 빈 주소 빼고, `position` 오름차순, 겹친 주소 한 번
+    (`SellerProductDetailImageSourceAdapter.detailUrls`). 대표 썸네일과 같은 사진은 빼고(`effectiveDetailUrls`), 상대 경로는 플랫폼 사진 주소를 앞에 붙인다."""
+    images = [image for image in document.get("images") or [] if isinstance(image, dict) and not image.get("dt")]
+
+    def ordered(kind: str) -> list[str]:
+        return [str(image["image_url"]).strip() for image in sorted(
+            (image for image in images if image.get("type") == kind and str(image.get("image_url") or "").strip()),
+            key=lambda image: int(image.get("position") or 0))]
+
+    def absolute(url: str) -> str:
+        return url if url.startswith(("http://", "https://", "file://")) else (host.rstrip("/") + "/" + url.lstrip("/"))
+
+    def same_photo(url: str) -> str:  # 같은 사진을 크기 접미사만 바꿔 올리는 플랫폼이 있다 — 경로의 이름 부분으로 대 본다
+        return re.sub(r"(_\d+x\d+|_\d+)?(\.[a-z]+)$", r"\2", urlsplit(url).path.lower())
+
+    thumbnails = ordered("THUMBNAIL")
+    out: list[str] = []
+    for url in ordered("DETAIL"):
+        if thumbnails and (url == thumbnails[0] or same_photo(url) in {same_photo(t) for t in thumbnails}):
+            continue
+        full = absolute(url)
+        if full not in out:
+            out.append(full)
     return out
 
 
@@ -242,7 +332,8 @@ def _roles(task: dict[str, Any]) -> tuple[str | None, str | None, dict[str, Any]
 
 
 def build(profile: dict[str, Any], rows: list[dict[str, Any]], out: Path, limit: int,
-          details: dict[str, str] | None = None) -> dict[str, Any]:
+          details: dict[str, str] | None = None, detail_lists: dict[str, list[str]] | None = None,
+          ledger: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """사진을 받고(상세는 조각으로) 건·사진 색인 두 장을 쓴다. 대표 사진을 못 받은 건은 뺀다 — 사진 없는 건은 AI가 못 읽는다."""
     from PIL import Image
 
@@ -252,8 +343,55 @@ def build(profile: dict[str, Any], rows: list[dict[str, Any]], out: Path, limit:
     if not spec.get("path"):
         raise IncrCollectError(f"{profile['id']}: 과제가 사진 색인을 선언하지 않았습니다.")
     not_for_sale: list[dict[str, Any]] = []
-    chosen = pick(rows, block, known_keys(profile, task), limit, not_for_sale)
+    known = known_keys(profile, task)
+    fallback = set(block.get("ledgerFallbackPlatforms") or [])
+    hosts = block.get("hosts") or {}
+    if ledger is not None and detail_lists is None:
+        detail_lists = {spid: effective_detail_urls(doc, str(hosts.get(doc.get("platform_code")) or "")) for spid, doc in ledger.items()}
+
+    def thumbs_for(row: dict[str, Any]) -> list[str]:
+        # 썸네일 — 원장에서 읽는 과제면 운영처럼 `THUMBNAIL` 전부(첫 장이 대표), 원장에 없으면(또는 옛 과제면) 상품의 대표 사진 한 장
+        host = str(hosts.get(row.get("platform")) or "")
+        if block.get("thumbnailSource") == "ledger":
+            found = ledger_thumbnails((ledger or {}).get(str(row.get("spid"))), host)
+            if found:
+                return found
+        own = platform_image_url(str(row.get("image") or ""), host)
+        return [own] if own else []
+
+    def urls_for(row: dict[str, Any]) -> list[str]:
+        # 운영과 같은 순서 — 상세 설명(CUVE) HTML의 사진이 먼저, 없으면(보완 플랫폼만) Mongo DETAIL. 그 뒤 대표 썸네일과 같은 사진을 뺀다.
+        html = (details or {}).get(str(row.get("spid"))) or row.get("description") or ""
+        urls = detail_urls(html, "")
+        if not urls and row.get("platform") in fallback:
+            urls = (detail_lists or {}).get(str(row.get("spid"))) or []
+        # 운영 `effectiveDetailUrls` — 대표 썸네일과 같은 사진, 보완 플랫폼은 썸네일과 같은 사진을 뺀다
+        thumbs = thumbs_for(row)
+        first = thumbs[0] if thumbs else ""
+        own = str(row.get("image") or "")
+        return [url for url in urls if url != first and not (own and url.endswith(own))
+                and not (row.get("platform") in fallback and url in thumbs)]
+
+    if block.get("detail") and (details is not None or detail_lists is not None):
+        # 상세 사진이 있는 건을 먼저 고른다 — 설명이 «상세정보 참고» 같은 글뿐인 새 상품은 대표 사진 한 장만 남아, 과제의 판단 근거
+        # (사이즈표·착용 사진)가 없고 화면도 사진 한 장짜리 카드가 된다. 모자라면 나머지로 채운다(숫자는 그대로 limit).
+        def has_detail(row: dict[str, Any]) -> bool:
+            return bool(urls_for(row))
+        rich = [row for row in rows if has_detail(row)]
+        chosen = pick(rich, block, known, limit, not_for_sale)
+        if len(chosen) < limit:
+            taken = {row["key"] for row in chosen}
+            chosen += [row for row in pick([row for row in rows if not has_detail(row)], block, known, limit, not_for_sale)
+                       if row["key"] not in taken][: limit - len(chosen)]
+    else:
+        chosen = pick(rows, block, known, limit, not_for_sale)
     thumb_role, tile_role, tile_spec = _roles(task)
+    # 새 상품의 조각은 **운영이 지금 자르는 규칙**으로 자른다 — 골든셋 사진 색인의 `preTiledRule`은 그 색인의 번호를 매긴 옛 실행
+    # (하네스·옛 판)의 선언이라 새 상품에 쓰면 운영과 다른 조각이 된다. 판·디코더는 `incremental.tileRule`, 없으면 운영 기본값.
+    tiling = block.get("tileRule") or {"version": tile_rule.CURRENT, "decoder": tile_rule.JAVA_IMAGEIO}
+    version, decoder = tile_rule.rule_named(tiling), tile_rule.decoder_named(tiling)
+    # 상세 사진 수 — 운영은 상한이 없다(`maxDetailImages`를 적지 않거나 0이면 전부). 적으면 앞에서부터 그만큼만.
+    cap = int(block.get("maxDetailImages") or 0) or None
     if block.get("detail") and not tile_role:
         raise IncrCollectError(f"{profile['id']}: incremental.detail인데 사진 색인에 조각 역할(preTiledRoles)이 없습니다.")
     file_field, id_field, role_field = spec.get("fileField") or "file", spec.get("idField") or "id", spec.get("roleField") or "role"
@@ -270,21 +408,31 @@ def build(profile: dict[str, Any], rows: list[dict[str, Any]], out: Path, limit:
     inputs, index, failed = [], [], []
     for row in chosen:
         platform, goods = str(row["platform"]), str(row["goodsNo"])
-        host = block["hosts"].get(platform) or ""
-        thumb_url = row["image"] if str(row["image"]).startswith(("http", "file:")) else host + str(row["image"])
-        try:
-            body = _upright(_fetch(thumb_url))
-        except (OSError, ValueError) as error:
-            failed.append({"key": row["key"], "reason": f"대표 사진을 받지 못했습니다: {error}"})
+        entries = []
+        seen_photos: set[str] = set()
+        for number, thumb_url in enumerate(thumbs_for(row), 1):
+            try:
+                body = _upright(_fetch(thumb_url))
+            except (OSError, ValueError) as error:
+                failed.append({"key": row["key"], "reason": f"{'대표' if number == 1 else f'추가 썸네일 {number - 1}'} 사진을 받지 못했습니다: {error}"})
+                if number == 1:
+                    break  # 대표 사진이 없으면 그 건은 뺀다 — 무엇을 파는지 모르는 채로 읽게 하지 않는다
+                continue
+            digest = hashlib.sha256(body).hexdigest()
+            if digest in seen_photos:
+                continue  # 주소만 다른 같은 사진(예: global_images와 goods_img 사본) — 사람에게 같은 사진을 두 번 보이지 않는다
+            seen_photos.add(digest)
+            thumb = img_dir / f"{digest}.img"
+            thumb.write_bytes(body)
+            role = thumb_role if number == 1 else (block.get("extraThumbnailRole") or thumb_role)
+            entries.append({file_field: str(thumb), id_field: f"T{number:02d}" if list_field else row["key"], "order": number,
+                            "sourceUrl": thumb_url, **({role_field: role} if role else {})})
+            if not list_field:
+                break  # 사진마다 한 줄인 색인(과제가 대표 사진 하나를 보는 모양)은 대표 한 장만
+        if not entries:
             continue
-        thumb = img_dir / f"{hashlib.sha256(body).hexdigest()}.img"
-        thumb.write_bytes(body)
-        entries = [{file_field: str(thumb), id_field: "T01" if list_field else row["key"], "order": 1, "sourceUrl": thumb_url,
-                    **({role_field: thumb_role} if thumb_role else {})}]
         if block.get("detail"):
-            version, decoder = tile_rule.rule_named(tile_spec), tile_rule.decoder_named(tile_spec)
-            html = (details or {}).get(str(row.get("spid"))) or row.get("description")
-            for number, url in enumerate(detail_urls(html, host)[: int(block.get("maxDetailImages") or 6)], 1):
+            for number, url in enumerate(urls_for(row)[:cap], 1):
                 try:
                     raw = _fetch(url)
                     source = img_dir / f"{hashlib.sha256(raw).hexdigest()}.src"
@@ -314,7 +462,10 @@ def build(profile: dict[str, Any], rows: list[dict[str, Any]], out: Path, limit:
     (out / "input.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in inputs), encoding="utf-8")
     (out / "images.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in index), encoding="utf-8")
     tiles = sum(1 for row in index for entry in (row.get(list_field) or [row] if list_field else [row]) if entry.get(role_field) == tile_role)
-    return {"candidates": len(rows), "picked": len(chosen), "written": len(inputs), "skippedNotForSale": not_for_sale, "detailTiles": tiles, "failed": failed,
+    return {"candidates": len(rows), "picked": len(chosen), "written": len(inputs), "skippedNotForSale": not_for_sale,
+            "detailSource": "cuve-then-ledger" if fallback else "cuve-description",
+            "itemsWithDetail": sum(1 for row in chosen if urls_for(row)),
+            "tileRule": {"version": version, "decoder": decoder}, "detailTiles": tiles, "failed": failed,
             "input": str(out / "input.jsonl"), "images": str(out / "images.jsonl")}
 
 
@@ -358,10 +509,17 @@ def main() -> int:
     dq.add_argument("--task", required=True)
     dq.add_argument("--rows", required=True)
     dq.add_argument("--limit", type=int, default=100)
+    dq.add_argument("--spare", type=int, default=3, help="고를 수의 몇 배까지 설명을 읽나 — 상세 사진이 있는 건을 먼저 고르기 위해(기본 3)")
+    mq = sub.add_parser("detail-mongo", help="②′ 고를 건의 보완 상세 사진 조회(Mongo aggregate 파이프라인) — ledgerFallbackPlatforms가 있는 과제")
+    mq.add_argument("--task", required=True)
+    mq.add_argument("--rows", required=True)
+    mq.add_argument("--limit", type=int, default=100)
+    mq.add_argument("--spare", type=int, default=3)
     b = sub.add_parser("build")
     b.add_argument("--task", required=True)
     b.add_argument("--rows", required=True, help="① 후보 조회 결과(mysql-query --json — 앞의 «(N rows)» 줄은 괜찮다)")
-    b.add_argument("--details", help="② 상세 설명 조회 결과(상세가 필요한 과제)")
+    b.add_argument("--details", help="② 상세 설명 조회 결과(상세가 필요한 과제 — 옛 방식)")
+    b.add_argument("--mongo-images", help="②′ detail-mongo 조회 결과(mongo-query aggregate) — 운영과 같은 상세 사진")
     b.add_argument("--name", required=True, help="묶음 이름(영문·숫자·-)")
     b.add_argument("--limit", type=int, default=100)
     b.add_argument("--split", type=int, default=1, help="이만큼의 묶음으로 나눠 넣는다")
@@ -374,13 +532,22 @@ def main() -> int:
             return 0
         rows = _load(args.rows)
         if args.command == "detail-sql":
-            print(detail_sql(profile, rows, args.limit) or "")
+            print(detail_sql(profile, rows, args.limit, args.spare) or "")
             return 0
+        if args.command == "detail-mongo":
+            print(mongo_pipeline(profile, rows, args.limit, args.spare))
+            return 0
+        block = source_of(profile)
         details = {str(r["spid"]): r.get("description") or "" for r in _load(args.details)} if args.details else None
+        ledger_docs = {str(doc.get("seller_product_id")): doc for doc in _load(args.mongo_images)} if args.mongo_images else None
+        if block.get("thumbnailSource") == "ledger" and ledger_docs is None:
+            raise IncrCollectError("이 과제는 운영처럼 Mongo의 썸네일 전부를 씁니다 — detail-mongo로 조회해 --mongo-images로 넘겨 주세요.")
         out = output_root(profile) / "incr" / "_inbox" / args.name
-        if source_of(profile).get("detail") and details is None:
+        if block.get("detail") and block.get("ledgerFallbackPlatforms") and ledger_docs is None:
+            raise IncrCollectError("이 과제는 운영처럼 상세 설명에 사진이 없으면 Mongo의 DETAIL로 채웁니다 — detail-mongo로 조회해 --mongo-images로 넘겨 주세요.")
+        if block.get("detail") and details is None:
             raise IncrCollectError("이 과제는 상세 사진이 필요합니다 — detail-sql로 상세 설명을 조회해 --details로 넘겨 주세요.")
-        result: dict[str, Any] = build(profile, rows, out, args.limit, details)
+        result: dict[str, Any] = build(profile, rows, out, args.limit, details, ledger=ledger_docs)
         if args.push and result["written"]:
             folders = _split(profile, out, args.split) if args.split > 1 else [out]
             result["batches"] = []

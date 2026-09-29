@@ -1,8 +1,8 @@
 {
   "schemaVersion": "catalog-label-preconditions-v2",
-  "encodes": "policy.md § 판정 불가 조건 — 「근거 부족을 UNISEX로 대신하지 않는다」",
+  "encodes": "../definitions.md § 판정 불가 조건 — 「근거 부족을 UNISEX로 대신하지 않는다」",
   "why": "지금까지 감사는 «실행이 낸 값 ↔ GT»만 비교했다. 그래서 실행이 GT와 같은 값을 내면 둘 다 정책을 어겨도 조용하고, 그 자리가 그대로 지나갔다. 이 파일은 실행을 거치지 않고 **GT를 정책과 직접** 대조하는 술어다.",
-  "caution": "손으로 쓴 정책 문장을 기계가 훑을 수 있게 옮긴 것이다. **이 파일이 정책을 이기지 않는다** — 다투면 policy.md가 정본이다.",
+  "caution": "손으로 쓴 정책 문장을 기계가 훑을 수 있게 옮긴 것이다. **이 파일이 정책을 이기지 않는다** — 다투면 definitions.md가 정본이다.",
   "rules": [
     {
       "label": "UNISEX",

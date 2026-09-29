@@ -1,0 +1,118 @@
+{
+  "completedAt": "2026-09-29T03:41:32.499212+00:00",
+  "cases": 100,
+  "statuses": {
+    "MATCH": 87,
+    "MATCH_AFTER_RETRY": 4,
+    "POLICY_GAP": 3,
+    "GT_SUSPECT": 5,
+    "HUMAN_REVIEW": 1
+  },
+  "firstReadMatches": 87,
+  "finalMatches": 91,
+  "finalMismatches": 9,
+  "scriptTriggeredReviews": 13,
+  "scriptTriggeredRereads": 5,
+  "executionRecoveries": 6,
+  "unresolvedExecutionErrors": 0,
+  "providedImages": 1678,
+  "casesWithAllProvidedImagesRead": 100,
+  "casesWithUnavailableSourceImages": 7,
+  "unavailableSourceImages": 11,
+  "comparisonIsGold": false,
+  "productionWrites": false,
+  "humanGoldWrites": false,
+  "sampling": "Latest completed incremental clothing targets, not a balanced or random sample",
+  "mismatches": [
+    {
+      "id": "MUSINSA:6455780",
+      "productName": "윈드 자수 시스루 오버핏 바람막이 연그레이",
+      "productionValue": "MALE",
+      "extractedValue": "UNDETERMINED",
+      "status": "POLICY_GAP",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "P1, P3, P4에 대한 판독은 맞다. 상품을 직접 수식하는 성별 문구는 없다(image-06은 SIZE FREE와 상품 설명뿐이다). image-13의 \"180cm 55kg M size / Free 착용\"은 G2에 따라 제외하는 모델 정보다. 사이즈는 FREE 한 가지뿐이고, 실측표도 항목이 하나라 여성 실측 근거가 되지 않는다. 코치 재킷은 성별 전용 종류가 아니다.\n결론이 갈리는 곳은 P2 하나다. image-01·02·03·06·07(하단)·09(하단)·10(하단)에서 얼굴과 헤어가 보이는 같은 모델이 대상 상품을 입고 있다. 후드, 비대칭 투웨이 지퍼, 긴소매, 밑단 셔링이 모두 일치해 G3의 '입었다' 요건은 충족한다.\n이 모델의 인상은 양쪽으로 읽힌다. 남성 쪽 단서는 평평한 흉곽, 마른 직선형 상체, 크고 마디가 드러난 손, 180cm/55kg의 체격이다. 여성 쪽으로 읽힐 수 있는 단서는 턱선까지 오는 머리, 부드러운 얼굴선, 귀걸이, 헌팅캡이다. 즉 중성적으로 연출한 모델이다.\nG3는 '얼굴·헤어·그루밍·체형·전체 표현이 함께 명확할 때만' 성별을 세라고 한다. 그런데 이런 중성적인 스타일링에서 '명확'의 기준이 정해져 있지 않다. 그래서 얼굴과 헤어가 모두 보이는데도 판독은 UNDETERMINED, 생산 예측은 MALE로 갈렸다. 판독 쪽이 증거를 잘못 읽었거나 비교값이 명백히 틀렸다기보다는, 규칙의 판정 문턱이 모호해서 생긴 불일치다.",
+      "reportAnchor": "case-MUSINSA:6455780"
+    },
+    {
+      "id": "MUSINSA:7187029",
+      "productName": "Brown Matrix Grid Shirt",
+      "productionValue": "MALE",
+      "extractedValue": "UNDETERMINED",
+      "status": "POLICY_GAP",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "판독 결과 UNDETERMINED와 비교값 MALE이 갈린 곳은 P2 하나이고, 원인은 G3 문구가 두 가지로 읽히는 데 있다. image-01~05에서 같은 모델이 재킷 안에 대상 셔츠로 보이는 옷을 입고 있다. 보이는 정의적 구조(셔츠 카라, 앞 단추 여밈)는 대상 상품과 맞지만, 소매 길이(반팔, 소매기장 22.5~24cm)는 모든 컷에서 재킷에 가려 확인할 수 없다. G3 첫 문장은 '그 사진에서 보이는 것이 모두 일치하면 입었다로 센다'고 해서 이 경우를 착용자로 셀 수 있다. 반면 같은 항목의 '가려져 확인할 수 없으면 세지 않는다'는 착용자에서 빼라는 뜻으로도 읽힌다. 정의적 구조 일부만 가려진 경우를 어느 쪽으로 처리할지 정책에 기준이 없다. 착용자로 센다 해도 성별 판단이 한 번 더 필요하다. 모델은 이목구비와 골격이 남성적인 편이지만 어깨 길이 헤어와 중성적 스타일링이 섞여 있다. 이것이 '얼굴·헤어·표현이 함께 명확'한 경우인지 정책 기준만으로 딱 가르기 어렵다. 판독이 어느 규칙을 누락하거나 원본을 잘못 읽은 곳은 없다. image-06~08은 긴팔 더블브레스트 재킷 세트이고 셔츠는 목 부분만 보이며, image-09는 바지 밑단 조각이다. P1 문구 없음, P3에서 모델 정보 제외, P4 미해당도 원본과 맞다. 따라서 판독 오류가 아니라 정책의 모호함으로 판단한다.",
+      "reportAnchor": "case-MUSINSA:7187029"
+    },
+    {
+      "id": "MUSINSA:6834498",
+      "productName": "SMPC 코튼린넨 클래식 셔츠",
+      "productionValue": "MALE",
+      "extractedValue": "UNISEX",
+      "status": "GT_SUSPECT",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "P1: 상품을 직접 설명하는 성별 문구가 없다. image-02는 브랜드 소개이므로 G2에 따라 근거에서 빠진다. image-09·11은 상품 설명이지만 성별 표현이 없다. P2: 같은 상품 페이지의 룩북인 image-03 위·아래 컷에 긴 머리 여성이 얼굴·헤어·체형이 모두 명확하게 나온다. 이 여성은 셔츠 칼라, 긴소매, 커프스, 앞 전체 단추 여밈 셔츠를 입었고, 가슴 포켓은 없으며 밑단이 바지 밖으로 나와 있다. 사진에서 보이는 정의적 구조가 대상 셔츠와 모두 일치하고 반대되는 구조는 없다. 핑크 색상이 판매 옵션에 없다는 점과 자수가 보이지 않는다는 점은 G3상 색상·작은 장식 차이라 제외 근거가 되지 않는다. 같은 사진의 남성도 같은 구조의 셔츠를 입었다. 남성과 여성이 모두 확인되므로 P2에 따라 UNISEX다. 사이즈 95~115 실측표에는 성별 헤더가 없어 P3·P4는 적용되지 않는다. 생산 예측 MALE은 여성 착용자를 색상 차이로 뺀 것으로 보이며, 정책과 어긋날 가능성이 크다.",
+      "reportAnchor": "case-MUSINSA:6834498"
+    },
+    {
+      "id": "MUSINSA:6464408",
+      "productName": "스터드 벨트 백포켓 와이드 롱팬츠  블랙",
+      "productionValue": "MALE",
+      "extractedValue": "UNDETERMINED",
+      "status": "HUMAN_REVIEW",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "P1, P3, P4에 대한 판독은 맞습니다. 상품을 직접 수식하는 성별 문구가 없고, 사이즈는 FREE 단일 구간이며, 스웨트 팬츠는 성별 전용 종류가 아닙니다. 13의 모델 정보는 G2에 따라 제외한 것도 맞습니다. 문제는 P2입니다. 11은 전신 정면 사진으로 얼굴, 헤어, 체형, 전체 표현이 모두 보입니다. 옷도 대상 상품과 맞습니다. 블랙 와이드 롱기장 스웨트 팬츠에 드로스트링이 있고, 정면에서는 뒤쪽 스터드 벨트가 안 보일 뿐 반대되는 구조가 없습니다. 이 착용자는 가슴이 평평하고, 허리·골반 곡선이 없는 직선 체형입니다. 어깨와 팔뚝의 골격, 문신, 메이크업이 없는 얼굴, 굵고 곧은 눈썹, 턱선까지 모두 남성으로 읽힙니다. 같은 사람의 뒷모습인 05·12(백포켓과 스터드 벨트로 대상 상품 확인)도 모순 없이 이어집니다. 단발 헤어와 귀걸이는 스타일링 요소일 뿐입니다. G3의 '명확' 기준을 과하게 적용해 착용자를 0명으로 본 것은 판독 오류로 봅니다. 남성 착용자만 확인되므로 P2에 따라 MALE이 맞습니다. 이는 생산 예측값과도 같습니다.",
+      "reportAnchor": "case-MUSINSA:6464408"
+    },
+    {
+      "id": "MUSINSA:6834492",
+      "productName": "SMPC 코튼린넨 클래식 셔츠",
+      "productionValue": "MALE",
+      "extractedValue": "UNISEX",
+      "status": "POLICY_GAP",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "P1에 해당하는 문구가 없다는 판독은 맞다. image-02는 브랜드 소개, image-11은 성별 헤더 없는 상품정보·사이즈표다. 남성 착용자도 image-01과 image-03에서 확인되며 정책과 맞는다. 판정은 image-03의 여성을 셀지에서 갈린다. 여성의 핑크 셔츠는 칼라·긴소매·단추 여밈·힙 기장·포켓 없음으로 큰 외곽 구조가 대상 상품과 겹친다. 사진에는 캠페인 문구 없이 로고만 있다. 그래서 G3의 '같은 상품 페이지 룩북, 색상 옵션 차이 무시'를 문자 그대로 적용하면 UNISEX가 나온다. 반면 image-11은 상품명이 '셔츠 3종'이고 색상이 네이비·그린샴브레이·블루 스트라이프로 한정된다. 핑크는 옵션 목록에 아예 없으므로, 핑크 셔츠는 색상 옵션 차이라기보다 별도 상품(여성 라인)이거나 브랜드 공통 룩북일 수 있다. 이 해석을 따르면 G3의 '공통 캠페인·다른 상품'에 해당해 MALE이 된다. 정책은 '옵션 목록에 없는 색'이 '색상 옵션 차이'에 드는지, 로고만 있는 브랜드 룩북이 '일반 룩북'인지 '공통 캠페인'인지를 정하지 않는다. 판독 규칙 적용 오류라기보다 정책의 모호함에서 오는 불일치다.",
+      "reportAnchor": "case-MUSINSA:6834492"
+    },
+    {
+      "id": "MUSINSA:6850371",
+      "productName": "SMPC 면 20수 반팔 티셔츠 그레이",
+      "productionValue": "UNISEX",
+      "extractedValue": "MALE",
+      "status": "GT_SUSPECT",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "MALE is correct under P2, and the production value UNISEX is most likely wrong. P1 does not apply: nothing on the page states a gender for this product. image-02 and image-09 are brand introduction and slogan, and the image-11 versatility bullet names no gender, so G2 excludes them. In image-01 (thumbnail) and images 05 to 08, the wearer has a round crew neck and short sleeves, which matches the product shots in image-04 and image-11. In each image the face, hair, grooming and build are all clear and the wearer reads as male. The medium-length hair alone is ambiguous, but G3 judges gender from all features together. The woman in image-03 wears a long-sleeved collared shirt, a different product, so G3 does not count her. That leaves only male wearers, so P2 gives MALE. The 95 to 115 sizes are numbers without gender headers, so P3 cannot give UNISEX. The production UNISEX likely came from the image-03 woman or the basic tee design, and G2 and G3 exclude both.",
+      "reportAnchor": "case-MUSINSA:6850371"
+    },
+    {
+      "id": "MUSINSA:6877199",
+      "productName": "레귤러 핏 스트라이프 케이블 니트 폴로 티셔츠 (T32G6KTO11TMT1YBH)",
+      "productionValue": "UNISEX",
+      "extractedValue": "MALE",
+      "status": "GT_SUSPECT",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "21장을 모두 다시 확인했고 판독값 MALE이 정책에 맞다. 따라서 비교값 UNISEX를 오류로 의심한다.\n- P1: 대상 상품을 직접 설명하는 성별 문구가 없다. image-04~06은 캠페인·브랜드·판매처 문구, 설명문의 Model Size는 모델 정보라서 G2에 따라 근거에서 뺀다.\n- P2: image-01·02·07·08·10에서 대상 상품(케이블 폴로 니트)을 입은 사람이 확인된다. 모두 얼굴·헤어가 명확한 남성이고, 카라·쓰리버튼 여밈·긴소매 리브 커프스·골반 기장 리브 밑단이 대상 상품과 같다. 대상 상품을 입은 여성은 한 명도 없다. image-04의 여성들은 공통 캠페인 사진이고 데님 셔츠·스웨트셔츠를 입고 있어 G3에 따라 세지 않는다.\n- 남성 착용자만 확인되므로 P2 결과는 MALE이다.\n- 비교값 UNISEX는 image-14~18의 사이즈안내(남성)와 사이즈안내(여성)를 합쳐 읽었을 가능성이 크다. 하지만 이 표는 OUTER·DRESS·SKIRT 등이 함께 든 브랜드 공통 가이드라 이 상품의 사이즈표가 아니다. 게다가 P3는 P2보다 우선순위가 낮아 판정을 바꿀 수 없다.",
+      "reportAnchor": "case-MUSINSA:6877199"
+    },
+    {
+      "id": "MUSINSA:7272917",
+      "productName": "모헤어 타이거 가디건 / 오렌지",
+      "productionValue": "UNISEX",
+      "extractedValue": "MALE",
+      "status": "GT_SUSPECT",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "18장을 모두 직접 확인했고, 판독 결과 MALE이 정책에 맞다. 비교값 UNISEX는 근거가 부족해 비교값 오류로 의심된다. P1: 상품명 '모헤어 타이거 가디건 / 오렌지'와 image-18 상품 정보(MOHAIR TIGER CARDIGAN)에는 성별 문구가 없다. 'UNALLOYED 2026 FALL WINTER COLLECTION'(image-04)과 'UNALLOYED / Made in Korea'는 브랜드·컬렉션 정보라 G2에 따라 근거에서 뺀다. P2: image-01, 02, 06, 07, 08, 14, 15에서 같은 남성 모델이 대상 카디건(V넥, 단추 여밈, 긴소매, 크롭 기장)을 입고 있고 얼굴과 헤어가 명확하게 보인다. image-03, 10, 16은 뒷모습이고 image-11은 얼굴 윗부분이 잘렸다. image-04, 05는 컬렉션 공통 캠페인·룩북이다. image-05의 타이거 카디건 착용자도 같은 남성으로 보인다. image-18의 여성 두 명은 G2에 따라 모델 정보이고, 입은 옷도 레오파드 상의와 빨간 니트라서 대상 상품이 아니다. 대상 상품을 입은 여성은 없으므로 P2에 따라 남성만 확인되어 MALE이다. P3·P4는 적용되지 않는다. 사이즈표가 M/L 실측뿐이고 성별 구간이 없다. UNISEX가 되려면 여성 착용자나 공용 문구가 있어야 하는데 둘 다 없다. 모델 정보에 여성이 있다는 점이나 중성적 스타일만으로 공용이라고 한 것으로 보인다. 판독에서 image-05를 '너무 작아서' 제외했다고 한 부분은 G3의 공통 캠페인 제외 사유로 적는 편이 더 정확하다. 결론은 달라지지 않는다.",
+      "reportAnchor": "case-MUSINSA:7272917"
+    },
+    {
+      "id": "MUSINSA:7030356",
+      "productName": "Teach Selvedge Jeans (Deep Navy)",
+      "productionValue": "UNISEX",
+      "extractedValue": "UNDETERMINED",
+      "status": "GT_SUSPECT",
+      "productionSource": "DETAIL_IMAGE",
+      "reviewOpinion": "18장을 모두 다시 확인했고, 판독 결과 UNDETERMINED가 정책에 맞다. 반면 생산 예측값 UNISEX는 어떤 증거로도 뒷받침되지 않는다.\n- P1(성별 문구): descriptionText가 비어 있다. 이미지 속 글자는 color/deep navy/detail, 브랜드·YKK 태그, 공통 배송·교환·하자 안내(image-16~18)뿐이다. 남녀 공용 문구도, 단일 성별 문구도 없다.\n- P2(착용자 성별): image-01~05의 착용 컷은 대상 청바지(스트레이트, 5포켓, 셀비지 롤업)와 구조가 맞는다. 그러나 모든 컷이 목이나 턱 아래에서 잘려 있다. image-05 윗컷도 긴 흑발과 입술·턱 끝만 보이고 얼굴은 명확하지 않다. G3의 '얼굴·헤어·체형이 함께 명확' 요건을 채우지 못하므로 성별을 셀 수 있는 착용자는 0명이다.\n- 남성으로 보이는 착용자는 어느 컷에도 없다. 설령 image-05를 여성으로 센다 해도 결론은 FEMALE이지 UNISEX가 아니다.\n- P3(사이즈 구간): 사이즈표도 성별 구간도 없다. 라벨의 'S'는 G2에 따라 성별 헤더가 아니다.\n- P4(성별 전용 종류·실측): 스트레이트 데님은 성별 전용 종류가 아니고, 실측표도 없다.\n따라서 P5에 따라 판단 불가다. 생산값 UNISEX는 핏이나 상식에 기댄 추정으로 보이며, 비교값이 틀렸을 가능성이 높다.",
+      "reportAnchor": "case-MUSINSA:7030356"
+    }
+  ]
+}

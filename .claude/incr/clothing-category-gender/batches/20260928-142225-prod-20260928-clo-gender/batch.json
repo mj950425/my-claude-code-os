@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "incr-review-v1",
+  "profileId": "clothing-category-gender",
+  "batchId": "20260928-142225-prod-20260928-clo-gender",
+  "pushedAt": "2026-09-28T14:22:25+00:00",
+  "source": ".claude/os/runs/clothing-category-gender/incr/_inbox/prod-20260928-clo-gender/input.jsonl",
+  "rows": 100,
+  "ownImages": true
+}

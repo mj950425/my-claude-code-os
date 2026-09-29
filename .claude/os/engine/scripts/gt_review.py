@@ -47,7 +47,7 @@ from gt_decisions import (DECISIONS, SETTLED, DecisionRejected, answered_on_page
 from gt_next import gate, lock_dir
 from gt_policy import check_audit
 from gt_images import ImageIndex, prepare as prepare_evidence, require_pillow
-from gt_review_render import call_name, change_moment, flow_steps, legacy_ask
+from gt_review_render import call_name, change_moment, flow_steps, golden_call, legacy_ask
 from gt_task import (
     AGENTS,
     definition_texts,
@@ -125,6 +125,77 @@ def find_profile(value: str) -> dict[str, Any]:
         raise TaskError(f"GT 과제 {value}의 프로필을 읽지 못했습니다 — 설정이 덜 됐습니다: {broken['reason']}")
     known = ", ".join(profile["id"] for profile in task_profiles()) or "(없음)"
     raise TaskError(f"그런 GT 과제가 없습니다: {value}. 있는 과제: {known}")
+
+
+def find_policy_profile(value: str) -> dict[str, Any]:
+    """정책 프롬프트 작업은 GT 원장 없이 정의 문서와 전달 설정만으로 찾는다."""
+    path = Path(value)
+    if path.suffix == ".json" and path.exists():
+        profile = load_profile(path)
+        if isinstance(profile.get("policyTask"), dict) or isinstance(profile.get("gtTask"), dict):
+            return profile
+    for profile in all_profiles():
+        if profile.get("id") == value and (isinstance(profile.get("policyTask"), dict)
+                                           or isinstance(profile.get("gtTask"), dict)):
+            return profile
+    raise TaskError(f"그런 정책 과제가 없습니다: {value}")
+
+
+def load_policy_task(profile: dict[str, Any]) -> dict[str, Any]:
+    """Validate a policyTask without requiring a GT file, key field, or worklist."""
+    spec = profile.get("policyTask")
+    if not isinstance(spec, dict) or spec.get("schemaVersion") != "policy-task-v1":
+        raise TaskError(f"{profile.get('id')}: policyTask.schemaVersion은 policy-task-v1이어야 합니다")
+    fields = spec.get("fields")
+    if not isinstance(fields, list) or not fields or not all(isinstance(field, dict) and field.get("id") for field in fields):
+        raise TaskError(f"{profile.get('id')}: policyTask.fields는 id가 있는 객체 목록이어야 합니다")
+    ids = [str(field["id"]) for field in fields]
+    if len(ids) != len(set(ids)):
+        raise TaskError(f"{profile.get('id')}: policyTask.fields의 id가 중복됐습니다")
+    gt_spec = profile.get("gtTask")
+    if isinstance(gt_spec, dict):
+        gt_fields = [field for field in gt_spec.get("fields") or [] if isinstance(field, dict) and field.get("id")]
+        gt_ids = [str(field.get("id")) for field in gt_fields]
+        if gt_ids != ids:
+            raise TaskError(f"{profile.get('id')}: policyTask.fields와 gtTask.fields의 필드 순서·ID가 같아야 합니다")
+        for policy_field, gt_field in zip(fields, gt_fields):
+            if policy_field.get("name") and gt_field.get("name") and policy_field["name"] != gt_field["name"]:
+                raise TaskError(f"{profile.get('id')}: policyTask.fields와 gtTask.fields의 필드 이름이 같아야 합니다")
+    definitions = _definitions_path(profile)
+    if isinstance(gt_spec, dict):
+        legacy_definitions = resolve(profile, {"path": gt_spec.get("definitions"),
+                                               "root": gt_spec.get("definitionsRoot") or "project"})
+        if legacy_definitions.resolve() != definitions.resolve():
+            raise TaskError(f"{profile.get('id')}: policyTask.definitions와 gtTask.definitions는 같은 정책 문서를 가리켜야 합니다")
+    if not definitions.is_file():
+        raise TaskError(f"정의 문서가 없습니다: {definitions}")
+    from policy_prompt import PolicyPromptError, allowed_values, decision_rules
+
+    summary = []
+    try:
+        for field in fields:
+            field_id = str(field["id"])
+            values = allowed_values(definitions, field_id)
+            rules = decision_rules(definitions, field_id)
+            if not rules:
+                raise TaskError(f"{field_id}: 정책 전용 필드는 판정 규칙이 하나 이상 있어야 합니다")
+            summary.append({"field": field_id, "allowedValues": len(values), "decisionRules": len(rules)})
+    except PolicyPromptError as error:
+        raise TaskError(str(error)) from error
+    delivery = spec.get("promptDelivery")
+    if delivery:
+        if not isinstance(delivery, dict) or delivery.get("field") not in ids:
+            raise TaskError(f"{profile.get('id')}: promptDelivery.field는 policyTask.fields에 선언된 id여야 합니다")
+        from policy_prompt import sync_declared_prompt
+        try:
+            prompt_plan = sync_declared_prompt(profile, definitions)
+        except (ValueError, OSError) as error:
+            raise TaskError(f"{profile.get('id')}: 프롬프트 전달 설정이 유효하지 않습니다: {error}") from error
+    else:
+        prompt_plan = None
+    return {"definitions": str(definitions), "fields": summary, "promptDelivery": bool(delivery),
+            "promptInSync": None if prompt_plan is None else not prompt_plan["changed"],
+            "promptSha256": None if prompt_plan is None else prompt_plan["sha256"]}
 
 
 def review_root(profile: dict[str, Any]) -> Path:
@@ -394,6 +465,7 @@ def _prepare_batch(args: argparse.Namespace, profile: dict[str, Any], task: dict
         for signal in cell["signals"]:
             by_signal[signal] += 1
     definitions = resolve(profile, {"path": task["definitions"], "root": task.get("definitionsRoot") or "project"})
+    observed = _policy(profile, task)["observed"]
     worklist = {
         "schemaVersion": WORKLIST_SCHEMA,
         "profileId": profile["id"],
@@ -403,7 +475,9 @@ def _prepare_batch(args: argparse.Namespace, profile: dict[str, Any], task: dict
         "generatedAt": generated,
         "sources": {"gt": portable(resolve(profile, task["gt"])), "definitions": relative_or_absolute(definitions)},
         "fields": [{"id": field["id"], "name": field.get("name") or field["id"], "labels": field["labels"],
-                    "labelNames": field.get("labelNames") or {}, "cardinality": field.get("cardinality", "one")}
+                    "labelNames": field.get("labelNames") or {}, "cardinality": field.get("cardinality", "one"),
+                    **({"observe": [{"id": item["id"], "name": item["name"]} for item in observed[field["id"]]["items"]]}
+                       if field["id"] in observed else {})}
                    for field in fields.values()],
         "signals": SIGNALS,
         "counts": {"cells": len(found), "items": len(items), "selectedItems": len(prepared),
@@ -531,6 +605,8 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
     views: dict[str, str] = {}
     labels = {fid: [str(label) for label in spec["labels"]] for fid, spec in fields.items()}
     many = {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()}
+    # 관찰 칸 — 판독자는 값 이름을 받지 않고 관찰 항목만 받는다. 값 규칙 표는 워크플로우 인자로만 간다(판독자 파일에는 없다).
+    observed = definition_policy(definitions, labels, many)["observed"]
     # 사례(조회층) — 사람이 AI의 물음에 답한 기록. 규칙이 된 것은 정책 파일에 이미 있고, 여기에는 물음·답·그 사진의 사정이 있다.
     cases = reader_cases(profile, task, definitions)
     given = read_json(root / "policy-given.json") or {}
@@ -569,9 +645,7 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
             **({"cases": relative_or_absolute(cases_index)} if cases_index else {}),
             # 필드는 **과제가 선언한 순서로 전부** 준다. 후보 칸만 신호 순서대로 주면, 어느 칸이 다투는 칸이고
             # 어느 칸이 이미 끝났는지가 목록 모양으로 새어 나간다. 판독이 쓰이는 것은 후보 칸뿐이다.
-            "fields": [{"id": field["id"], "name": field.get("name") or field["id"], "labels": field["labels"],
-                        "labelNames": field.get("labelNames") or {},
-                        "cardinality": field.get("cardinality", "one")} for field in fields.values()],
+            "fields": [reader_field(field, observed.get(field["id"])) for field in fields.values()],
             # 사진 경로는 프로젝트 루트 기준이다.
             "images": pictures,
             "context": item.get("context") or {},
@@ -604,6 +678,11 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
             # 허용값 — 허용값 밖의 판독(화면에서는 «AI가 확신 못 함»)에는 반론을 부르지 않는다.
             "labels": {fid: [str(label) for label in spec["labels"]] for fid, spec in fields.items()},
             "many": {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()},
+            # 관찰 칸의 값 규칙 표(식 트리) — 워크플로우가 관찰 답으로 값을 계산한다. 파서는 파이썬(gt_derive) 하나다.
+            "derive": {fid: {"observe": table["observe"], "else": table["else"],
+                             "rules": [{"id": rule["id"], "ast": rule["ast"], "value": rule["value"]} for rule in table["rules"]]}
+                       for fid, table in observed.items()},
+            "observeNames": {fid: {item["id"]: item["name"] for item in table["items"]} for fid, table in observed.items()},
         },
         "worklist": relative_or_absolute(root / "worklist.json"),
     }
@@ -621,6 +700,24 @@ def emit_workflow_args(profile: dict[str, Any], task: dict[str, Any], root: Path
     return 0
 
 
+def reader_field(field: dict[str, Any], table: dict[str, Any] | None) -> dict[str, Any]:
+    """판독 파일의 칸 하나. 관찰 칸은 허용값·이름표 대신 관찰 항목(ID·이름)만 준다 — 판독자가 값을 모르게."""
+    base = {"id": field["id"], "name": field.get("name") or field["id"], "cardinality": field.get("cardinality", "one")}
+    if table:
+        return {**base, "observe": [{"id": item["id"], "name": item["name"]} for item in table["items"]]}
+    return {**base, "labels": field["labels"], "labelNames": field.get("labelNames") or {}}
+
+
+def observed_case(row: dict[str, Any], table: dict[str, Any]) -> tuple[str, str] | None:
+    """관찰 칸에서 사람이 답한 물음 → («항목=예/아니오», 사람이 읽는 이름). 물음이 어느 관찰을 가르는지 모르거나(옛 답),
+    사람이 선택지 밖의 값을 골랐으면 None — 그 답은 관찰의 예/아니오로 옮길 수 없다."""
+    items = {item["id"]: item["name"] for item in table["items"]}
+    said = next((option.get("answer") for option in row.get("options") or [] if option.get("value") == row["answer"]), None)
+    if row.get("observe") not in items or said not in ("예", "아니오"):
+        return None
+    return f"{row['observe']}={said}", f"관찰 «{items[row['observe']]}»: {said}"
+
+
 def reader_cases(profile: dict[str, Any], task: dict[str, Any], definitions: Path) -> list[dict[str, Any]]:
     """판독자가 조회할 사례 — 사람이 AI의 물음에 답한 판정마다 하나. 규칙으로 옮겨졌으면 그 규칙 ID를 붙인다.
     키는 사람 쪽 대조(자기 상품 빼기)에만 쓰고 사례 파일에는 적지 않는다."""
@@ -629,12 +726,23 @@ def reader_cases(profile: dict[str, Any], task: dict[str, Any], definitions: Pat
                                {fid: spec.get("cardinality") == "many" for fid, spec in fields.items()})
     from gt_policy import rule_links
     links = rule_links(policy)
+    observed = policy.get("observed") or {}
     cases = []
     for row in answered_questions(profile, task):
         rule = links.get((row["field"], row["decisionId"])) or links.get((row["field"], row["question"]))
+        answer, answer_name = row["answer"], row["answerName"]
+        # 값 규칙(V)은 판독자의 정책 파일에 없다 — 사례가 그 줄을 가리키면 «정책 파일의 그 규칙을 따르라»가 찾을 수 없는 말이 된다.
+        shown_rule = rule if rule and "expr" not in rule else None
+        if row["field"] in observed:
+            # 관찰 칸의 판독자는 값을 모른다 — 사람의 답을 «그 관찰 항목 예/아니오»로 되돌려서만 준다. 되돌릴 수 없으면 사례로 주지 않는다
+            # (사람 쪽 정책 페이지의 «검수 문답»에는 그대로 있고, `qa`가 «판독자에게 못 간 답»으로 알린다).
+            mapped = observed_case(row, observed[row["field"]])
+            if mapped is None:
+                continue
+            answer, answer_name = mapped
         cases.append({"key": row["key"], "decisionId": row["decisionId"], "field": row["field"], "fieldName": row["fieldName"], "question": row["question"],
-                      "here": row.get("here") or "", "answer": row["answer"], "answerName": row["answerName"],
-                      "rule": rule["id"] if rule else None, "ruleText": rule_line(rule) if rule else None,
+                      "here": row.get("here") or "", "answer": answer, "answerName": answer_name,
+                      "rule": shown_rule["id"] if shown_rule else None, "ruleText": rule_line(shown_rule) if shown_rule else None,
                       "decidedAt": row.get("decidedAt")})
     return cases
 
@@ -890,16 +998,23 @@ def cmd_finish(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
+    written = render_current(find_profile(args.task), args.sweep)
+    for path in written:
+        print(relative_or_absolute(path))
+    return 0
+
+
+def render_current(profile: dict[str, Any], sweep_file: str | None = None, record: bool = True) -> list[Path]:
+    """지금 배치의 검수 화면을 다시 그린다. CLI `render`와 정책 화면의 편집(`gt_policy_edit.refresh_pages`)이 같이 쓴다."""
     from gt_review_render import render
 
-    profile = find_profile(args.task)
     root = review_root(profile)
     worklist = read_json(root / "worklist.json")
     if not worklist:
         raise TaskError("준비된 작업 목록이 없습니다. 준비부터 다시 합니다.")
-    sweep_path = Path(args.sweep) if args.sweep else root / "sweep-raw.json"
+    sweep_path = Path(sweep_file) if sweep_file else root / "sweep-raw.json"
     sweep = read_json(sweep_path) if sweep_path.is_file() else None
-    if sweep is not None and not args.sweep and sweep.get("batchId") != worklist.get("batchId"):
+    if sweep is not None and not sweep_file and sweep.get("batchId") != worklist.get("batchId"):
         # 폴더에 남은 다른 배치의 판독은 없는 것으로 본다 — 멈추면 «못 읽음» 화면조차 못 그린다.
         sweep = None
     if sweep is not None and (sweep.get("schemaVersion") != SWEEP_SCHEMA or sweep.get("batchId") != worklist.get("batchId")):
@@ -909,25 +1024,43 @@ def cmd_render(args: argparse.Namespace) -> int:
     written = render(profile, worklist, sweep, list(current_answers(profile).values()), root)
     if not written:
         raise TaskError("새 배치가 준비돼 이 결과는 화면에 올리지 않았습니다 — 새 배치의 판독을 기다려 주세요.")
-    for path in written:
-        print(relative_or_absolute(path))
-    record_asked(profile)
-    remember_blind(root)
-    return 0
+    if record:  # 물음 기록(GT 쪽)과 눈가림 기록은 CLI가 남긴다 — 정책 화면에서 고친 뒤 다시 그릴 때(서버)는 쓰지 않는다
+        record_asked(profile)
+        remember_blind(root)
+    return list(written)
 
 
 def cmd_pages(args: argparse.Namespace) -> int:
     """정책·골든셋 두 장만 쓴다 — 배치(작업 목록·판독)가 없어도 된다. 과제를 새로 붙였을 때 메뉴에 곧바로 오르게."""
+    profile = find_policy_profile(args.task)
+    if isinstance(profile.get("policyTask"), dict):
+        load_policy_task(profile)
+    if not isinstance(profile.get("gtTask"), dict):
+        from gt_decisions import _write_atomic
+        from gt_review_render import render_policy_only_html
+
+        path = output_root(profile) / "policy-review" / "policy.html"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_atomic(path, render_policy_only_html(profile))
+        print(relative_or_absolute(path))
+        return 0
+    for path in write_pages(profile):
+        print(relative_or_absolute(path))
+    return 0
+
+
+def write_pages(profile: dict[str, Any]) -> list[Path]:
+    """정책·골든셋 두 장. CLI `pages`와 정책 화면의 편집(`gt_policy_edit.refresh_pages`)이 같이 쓴다."""
     from gt_decisions import _write_atomic
     from gt_review_render import render_golden_html, render_policy_html
 
-    profile = find_profile(args.task)
     root = review_root(profile)
     root.mkdir(parents=True, exist_ok=True)
+    written = []
     for name, build in (("policy.html", render_policy_html), ("golden.html", lambda p: render_golden_html(p, root))):
         _write_atomic(root / name, build(profile))
-        print(relative_or_absolute(root / name))
-    return 0
+        written.append(root / name)
+    return written
 
 def cmd_record(args: argparse.Namespace) -> int:
     """말로 받은 판정. 사람이 본 GT 값(--expect)이 늘 있어야 한다 — 화면의 버튼과 같은 선이다."""
@@ -1017,6 +1150,8 @@ def home_rows() -> dict[str, Any]:
         rows.append({
             "task": profile["id"],
             "name": call_name(profile),
+            # 골든셋 검수를 부르는 말 — 첫 화면의 «… 반영해줘»·«… 다음 거»가 이것을 쓴다(과제 이름은 메뉴·제목용)
+            "callName": golden_call(profile),
             "steps": flow_steps(profile),
             "changeMoment": change_moment(profile),
             "subject": profile.get("subjectName"),
@@ -1035,7 +1170,15 @@ def home_rows() -> dict[str, Any]:
     other_doors = [{"profile": profile["id"], "name": profile.get("displayName"), "subject": profile.get("subjectName"),
                     "attribute": profile.get("attributeName")}
                    for profile in all_profiles() if profile.get("gt") and not profile.get("gtTask")]
-    return {"tasks": rows, "otherDoors": other_doors, "brokenProfiles": broken_profiles()}
+    policies = []
+    for profile in all_profiles():
+        if not (profile.get("policyTask") or profile.get("gtTask")):
+            continue
+        folder = "gt-review" if profile.get("gtTask") else "policy-review"
+        if (output_root(profile) / folder / "policy.html").is_file():
+            policies.append({"task": profile["id"], "name": profile.get("displayName") or profile["id"],
+                             "pages": True, "policyPage": f"/f/{profile['id']}/{folder}/policy.html"})
+    return {"tasks": rows, "policies": policies, "otherDoors": other_doors, "brokenProfiles": broken_profiles()}
 
 
 def _inside_project(path: Path) -> bool:
@@ -1121,6 +1264,7 @@ def record_asked(profile: dict[str, Any]) -> int:
                     continue
                 rows.append({"batchId": batch, "key": item["key"], "field": field_id, "question": ask["question"],
                              "here": ask.get("here") or "", "kind": "legacy" if ask.get("legacy") else "standard",
+                             **({"observe": ask["observe"], "options": ask.get("options") or []} if ask.get("observe") else {}),
                              "shownAt": datetime.now(timezone.utc).isoformat(timespec="seconds")})
         if rows:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -1156,6 +1300,7 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
         rows.append({"id": f"QA-{entry['decisionId']}", "decisionId": entry["decisionId"], "key": key, "field": field_id,
                      "fieldName": field.get("name") or field_id, "question": ask["question"], "here": ask.get("here") or "",
                      "answer": value, "answerName": _value_name(field, value),
+                     "observe": ask.get("observe") or "", "options": ask.get("options") or [],
                      "reviewer": entry.get("reviewer"), "decidedAt": entry.get("decidedAt")})
     # 증분 검수에서 답한 물음도 같은 정책 위의 사람 판단이다 — 한 목록으로(정책 페이지의 «검수 문답», 다음 판독자의 사례)
     try:
@@ -1172,7 +1317,7 @@ def answered_questions(profile: dict[str, Any], task: dict[str, Any] | None = No
 # 옮긴 규칙은 다음 판독자의 정책 파일(필수층)에 실린다. 대체된 규칙은 `## 보관`으로 옮겨 칸 절에는 적용 중인 규칙만 남는다.
 # 옮기는 일은 사람이 고른 판정(`--add`)과 사람이 확인한 문장(`--rule`)으로, `--yes`가 있을 때만 한다. 서버는 부르지 않는다.
 def _definitions_path(profile: dict[str, Any]) -> Path:
-    spec = profile.get("gtTask") or {}
+    spec = profile.get("policyTask") or profile.get("gtTask") or {}
     return resolve(profile, {"path": spec["definitions"], "root": spec.get("definitionsRoot") or "project"})
 
 
@@ -1185,11 +1330,21 @@ def qa_candidates(profile: dict[str, Any]) -> list[dict[str, Any]]:
     """규칙으로 다듬을 거리 — 답한 물음(`answered_questions`)에, 이미 규칙의 `물음:`으로 들어갔는지를 붙인다."""
     task = load_task(profile)
     policy = _policy(profile, task)
-    every = [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"]]
+    every = [*(r for rules in policy["rules"].values() for r in rules), *policy["archive"],
+             *({**r, "field": fid} for fid, table in (policy.get("observed") or {}).items() for r in table["rules"])]
     asked_in_policy = {(rule["field"], rule.get("물음")) for rule in every if rule.get("물음")}
     asked_in_policy |= {(rule["field"], decision) for rule in every for decision in re.findall(r"GTD-\d+(?:-[0-9a-f]{4})?", str(rule.get("출처") or ""))}
-    return [{**row, "inPolicy": (row["field"], row["question"]) in asked_in_policy or (row["field"], row["decisionId"]) in asked_in_policy}
-            for row in answered_questions(profile, task)]
+    observed = policy.get("observed") or {}
+    rows = []
+    for row in answered_questions(profile, task):
+        entry = {**row, "inPolicy": (row["field"], row["question"]) in asked_in_policy or (row["field"], row["decisionId"]) in asked_in_policy}
+        if row["field"] in observed:
+            # 관찰 칸의 답이 다음 판독자에게 사례로 가는가 — 못 가면(옛 답·선택지 밖의 값) 규칙이 되기 전까지 판독에 닿지 않는다.
+            entry["reachesReader"] = observed_case(row, observed[row["field"]]) is not None
+            if not entry["reachesReader"] and not entry["inPolicy"]:
+                entry["todo"] = "판독자에게 사례로 못 간 답입니다 — 안내 규칙(--rule)이나 값 규칙(--when)으로 옮겨 주세요."
+        rows.append(entry)
+    return rows
 
 
 def _value_name(field: dict[str, Any], value: Any) -> str:
@@ -1255,7 +1410,7 @@ def _categories(profile: dict[str, Any], keys: list[str]) -> dict[str, str]:
 
 def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer: str, confirm: bool,
            scope: str | None = None, replace: str | None = None, condition: str | None = None,
-           audit_file: str | None = None, accept_risk: str | None = None) -> dict[str, Any]:
+           audit_file: str | None = None, accept_risk: str | None = None, when: str | None = None) -> dict[str, Any]:
     """고른 판정을 규칙 한 건으로 정책에 옮긴다. 한 번에 규칙 하나 — 같은 칸·같은 답의 판정만 묶는다.
     답이 갈린 판정을 한 규칙으로 묶지 않는다(정책이 스스로 모순된다)."""
     reviewer, rule = (reviewer or "").strip(), (rule or "").strip()
@@ -1272,8 +1427,13 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
     answers = {str(row["answer"]) for row in picked}
     if len(answers) > 1:
         raise DecisionRejected(f"고른 판정의 답이 갈렸습니다: {', '.join(sorted(answers))} — 한 답끼리만 골라 주세요.")
-    if not rule:
+    if not rule and not (when or "").strip():
         asked = " / ".join(dict.fromkeys(row["question"] for row in picked))
+        table = _policy(profile, task)["observed"].get(picked[0]["field"])
+        if table:
+            raise DecisionRejected(f"이 칸은 관찰 칸입니다 — 답을 둘 중 하나로 옮깁니다. «이 관찰 조합이면 이 값»이면 --when으로 식을"
+                                   f"(쓸 수 있는 항목: {', '.join(table['observe'])}), «이런 경우를 그 관찰의 예/아니오로 본다»면 --rule로 "
+                                   f"값 없는 안내 문장을 주세요. 물음: {asked} → 답: {picked[0]['answerName']}")
         raise DecisionRejected(f"정책에 넣을 규칙 문장을 --rule로 주세요. 물음: {asked} → 답: {picked[0]['answerName']}. "
                                "이 상품을 떠나서도 통하는 한 문장으로, 사람이 확인한 문장이어야 합니다.")
     from gt_policy import question_problems
@@ -1285,6 +1445,42 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
     keys = list(dict.fromkeys(row["key"] for row in picked))
     notes = [] if standard else ["고른 사례의 물음이 모두 표준이 아닙니다 — 규칙의 «물음:»에 옛 물음이 그대로 들어갑니다. "
                                  "먼저 qa --rewrite로 다듬으면 다듬은 물음이 들어갑니다."]
+    policy_now = _policy(profile, task)
+    table = policy_now["observed"].get(field_id)
+    if table and not (when or "").strip():
+        # 관찰 칸의 안내 규칙 — «이런 경우를 그 관찰의 예/아니오로 본다». 값을 말하지 않으므로 판독자에게 그대로 실린다(값 코드가 있으면
+        # 로더가 멈추고 되돌린다). 값을 내지 않아 다른 규칙과 부딪히지 않는다 — 문지기 쌍이 생기지 않는다.
+        path = _definitions_path(profile)
+        rule_id = next_rule_id(policy_now, field_id)
+        today = datetime.now(timezone.utc).date().isoformat()
+        lines = [f"- `{rule_id}` {rule}", f"  - 물음: {first['question']}",
+                 f"  - 출처: 검수 문답 · {today} · {reviewer} · {', '.join(row['decisionId'] for row in picked)}",
+                 f"  - 근거: {', '.join(keys)}"]
+        original = path.read_text(encoding="utf-8")
+        version = re.search(r"^version:\s*(\d+)\s*$", original, re.M)
+        new_version = int(version.group(1)) + 1 if version else None
+        history = (f"- {today} · " + (f"v{new_version} · " if new_version else "") + f"{first['fieldName']} 안내 규칙 {rule_id} 추가"
+                   f"({reviewer}) — 근거: {', '.join(keys)}")
+        plan = {"definitions": relative_or_absolute(path), "rule": lines, "history": history, "notes": notes, "applied": False,
+                "audit": {"pairs": []}}
+        if not confirm:
+            return plan
+        _commit_policy(profile, path, original, _append_to_block(original, field_id, "### 규칙", lines), history, new_version, today)
+        plan["applied"] = True
+        return plan
+    if table:
+        # 관찰 칸 — «이 관찰 조합이면 이 값»은 값 규칙 한 줄이 된다. 규칙 문장 대신 식을 받는다.
+        field = field_map(task)[field_id]
+        today = datetime.now(timezone.utc).date().isoformat()
+        original = _definitions_path(profile).read_text(encoding="utf-8")
+        version = re.search(r"^version:\s*(\d+)\s*$", original, re.M)
+        new_version = int(version.group(1)) + 1 if version else None
+        stamp = f"- {today} · " + (f"v{new_version} · " if new_version else "")
+        plan = {"definitions": relative_or_absolute(_definitions_path(profile)), "notes": notes, "applied": False}
+        return _derive_change(profile, task, policy_now, field, table, "add", None, when, str(first["answer"]), reviewer, None,
+                              confirm, _definitions_path(profile), original, stamp, new_version, today, plan,
+                              lambda code: code, extra=[f"  - 물음: {first['question']}", f"  - 근거: {', '.join(keys)}"],
+                              history_note=f"검수 문답 · {today} · {reviewer} · {', '.join(row['decisionId'] for row in picked)}")
     condition = _condition_for(rule, condition, first["answer"])
     categories = _check_scope(profile, task, scope)
     if scope:
@@ -1333,20 +1529,48 @@ def qa_add(profile: dict[str, Any], decision_ids: list[str], rule: str, reviewer
     return plan
 
 
+def require_legacy_policy_editor(path: Path) -> None:
+    """이전 편집 경로가 표준 문서를 다른 형식으로 바꾸지 못하게 한다."""
+    from policy_document import load_document
+
+    if load_document(path) is not None:
+        raise DecisionRejected(
+            "표준 정책 문서는 목적·허용값·규칙 형식으로 편집합니다. "
+            "이전 관찰·계산표 편집 명령은 적용할 수 없습니다. definitions.md를 편집해 주세요."
+        )
+
+
 def _commit_policy(profile: dict[str, Any], path: Path, original: str, text: str, history: str,
                    new_version: int | None, today: str) -> None:
     """고친 정책을 쓴다 — 변경 이력 한 줄, 머리의 version·updatedAt. 쓴 뒤 정책 전체를 다시 읽어 로더가 멈추는 모양이면 되돌린다.
     규칙을 넣는 문(qa·rule)은 모두 여기를 지난다 — 문이 둘이면 이력이 한쪽에만 남는다."""
+    require_legacy_policy_editor(path)
     text = _append_to_block(text, "변경 이력", None, [history])
     if new_version:
         text = re.sub(r"^version:\s*\d+\s*$", f"version: {new_version}", text, count=1, flags=re.M)
     text = re.sub(r"^updatedAt:.*$", f"updatedAt: {today}", text, count=1, flags=re.M)
-    path.write_text(text, encoding="utf-8")
+    # 줄 끝 모양을 지킨다 — CRLF 문서를 LF로 다시 쓰면 한 줄 고친 것이 문서 전체의 변경으로 보인다.
+    newline = "\r\n" if b"\r\n" in path.read_bytes() else "\n"
+
+    def write(content: str) -> None:
+        # 옆 파일에 다 쓴 뒤 바꿔 끼운다 — 쓰는 도중에 멈춰도 정책 문서가 반쯤 잘린 채 남지 않는다.
+        spare = path.with_name(f".{path.name}.writing")
+        spare.write_text(content, encoding="utf-8", newline=newline)
+        os.replace(spare, path)
+
+    write(text)
     try:
         load_task(profile)
     except TaskError:
-        path.write_text(original, encoding="utf-8")
+        write(original)
         raise
+    # 들어간 뒤에만 고치기 전 정책을 남긴다 — «정책 되돌려줘»(`policy undo`)가 이것으로 돌아간다. 거절된 시도는 남기지 않는다
+    # (남기면 되돌림이 «지금»으로 돌아가 아무것도 안 한다). 쓴 글의 지문도 곁에 둔다 — 그사이 손으로 고친 것을 되돌림이 지우지 않게.
+    history_dir = output_root(profile) / "policy-history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
+    (history_dir / f"{name}.md").write_text(original, encoding="utf-8", newline=newline)
+    (history_dir / f"{name}.after").write_text(hashlib.sha256(path.read_bytes()).hexdigest(), encoding="utf-8")
 
 
 # 규칙을 사람이 직접 쓴다 — 문답에서 오지 않은 규칙(더하기), 있는 규칙 고치기, 빼기. 고치기와 빼기도 줄을 지우지 않는다:
@@ -1358,7 +1582,8 @@ RULE_ACTIONS = ("add", "edit", "retire")
 def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: str, confirm: bool,
                 text: str | None = None, value: str | None = None, scope: str | None = None,
                 rule_id: str | None = None, reason: str | None = None, condition: str | None = None,
-                audit_file: str | None = None, accept_risk: str | None = None) -> dict[str, Any]:
+                audit_file: str | None = None, accept_risk: str | None = None, when: str | None = None,
+                before: str | None = None) -> dict[str, Any]:
     reviewer = (reviewer or "").strip()
     if action not in RULE_ACTIONS:
         raise DecisionRejected(f"규칙 작업은 {' · '.join(RULE_ACTIONS)} 가운데 하나입니다.")
@@ -1376,6 +1601,7 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
         field_id = by_name[field_id]
     field = fields[field_id]
     path = _definitions_path(profile)
+    require_legacy_policy_editor(path)
     policy = _policy(profile, task)
     active = {rule["id"]: rule for rule in policy["rules"].get(field_id, [])}
     today = datetime.now(timezone.utc).date().isoformat()
@@ -1397,6 +1623,16 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
 
     body = original
     plan: dict[str, Any] = {"definitions": relative_or_absolute(path), "action": action, "field": field_id, "applied": False}
+    table = policy["observed"].get(field_id)
+    derive_ids = {rule["id"]: rule for rule in (table or {}).get("rules", [])}
+    if when is not None and not table:
+        raise DecisionRejected(f"{name}은 관찰 칸이 아닙니다 — --when(값 규칙의 식)은 `### 관찰`·`### 값 규칙`이 있는 칸에서만 씁니다.")
+    if table and value and when is None and action == "add":
+        raise DecisionRejected(f"{name}은 관찰 칸이라 값은 값 규칙이 정합니다 — --when으로 «어떤 관찰 조합이면»을 식으로 주세요"
+                               f"(쓸 수 있는 항목: {', '.join(table['observe'])}). 값 없이 관찰의 뜻을 다듬는 안내라면 --value를 빼세요.")
+    if table and (when is not None or (action in ("edit", "retire") and rule_id in derive_ids)):
+        return _derive_change(profile, task, policy, field, table, action, rule_id, when, value, reviewer, reason, confirm,
+                              path, original, stamp, new_version, today, plan, check_value, before=before)
     if action == "add":
         if not (text or "").strip():
             raise DecisionRejected("넣을 규칙 문장을 --text로 주세요. 이 상품을 떠나서도 통하는 한 문장이어야 합니다.")
@@ -1418,8 +1654,9 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
         history = stamp + f"{name} {new_id} 추가 — 직접 작성({reviewer})"
     else:
         if not rule_id or rule_id not in active:
+            every = [*active, *derive_ids]
             raise DecisionRejected(f"{name}의 적용 중인 규칙에 «{rule_id}»가 없습니다 — "
-                                   + (f"지금 규칙: {', '.join(active)}" if active else "지금 규칙이 없습니다") + ".")
+                                   + (f"지금 규칙: {', '.join(every)}" if every else "지금 규칙이 없습니다") + ".")
         old = active[rule_id]
         body, taken = _remove_rule(body, field_id, rule_id)
         taken[0] = taken[0].replace(f"- `{rule_id}` ", f"- `{field_id}/{rule_id}` ", 1)
@@ -1439,7 +1676,8 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
                 lines.append(f"  - 조건: {cond}")
             if old.get("물음"):
                 lines.append(f"  - 물음: {old['물음']}")  # 이 규칙을 낳은 물음은 고쳐도 같다 — 사례와 규칙을 잇는 줄이다
-            lines.append(f"  - 출처: 직접 작성 · {today} · {reviewer} · {rule_id} 고침")
+            # 처음 출처(검수 문답의 판정 ID)를 잇는다 — 끊기면 그 사례들이 «규칙이 되지 않은 사례»로 돌아간다.
+            lines.append(f"  - 출처: 직접 작성 · {today} · {reviewer} · {rule_id} 고침" + (f" (처음: {old['출처']})" if old.get("출처") else ""))
             if new_scope:
                 lines.append(f"  - 범위: {new_scope}")
             if old.get("근거"):
@@ -1467,6 +1705,279 @@ def rule_change(profile: dict[str, Any], action: str, field_id: str, reviewer: s
     _commit_policy(profile, path, original, body, history, new_version, today)
     plan["applied"] = True
     return plan
+
+
+def _derive_change(profile: dict[str, Any], task: dict[str, Any], policy: dict[str, Any], field: dict[str, Any],
+                   table: dict[str, Any], action: str, rule_id: str | None, when: str | None, value: str | None,
+                   reviewer: str, reason: str | None, confirm: bool, path: Path, original: str, stamp: str,
+                   new_version: int | None, today: str, plan: dict[str, Any], check_value: Any,
+                   extra: list[str] | None = None, history_note: str | None = None, before: str | None = None) -> dict[str, Any]:
+    """값 규칙 표의 줄을 더하고(맨 위 — 새 경계가 먼저 걸린다), 고치고(같은 자리), 뺀다(보관). 넣은 뒤 다른 줄이 가려지면
+    넣지 않는다 — 가려진 줄은 중복이거나 충돌이다. 이 검사는 모든 관찰 조합을 대입하는 코드라 판정 에이전트가 필요 없다."""
+    from gt_derive import DeriveError, covered_same, names, parse, prefixes, reachable_values, shadowed
+
+    field_id, name = field["id"], field.get("name") or field["id"]
+    obs_names = {item["id"]: item["name"] for item in table.get("items") or []}
+    rules = [dict(rule) for rule in table["rules"]]
+    # 이유는 보관·변경 이력에 한 줄로 남는다 — 줄바꿈·백틱이 들어가면 정책 문서에 줄이 새로 생긴다.
+    reason = re.sub(r"\s+", " ", str(reason or "")).replace("`", "'").strip()[:200]
+    old = next((rule for rule in rules if rule["id"] == rule_id), None)
+    if action in ("edit", "retire") and old is None:
+        raise DecisionRejected(f"{name}의 값 규칙에 {rule_id}이 없습니다 — 지금 줄: {', '.join(r['id'] for r in rules) or '없음'}")
+    if action == "retire":
+        if not reason:
+            raise DecisionRejected("빼는 이유를 적어 주세요 — 보관에 남아 다음 사람이 읽습니다.")
+        if len(rules) == 1:
+            raise DecisionRejected(f"{name}의 마지막 값 규칙이라 뺄 수 없습니다 — 빼면 모든 사진이 «그 밖» 값이 됩니다. "
+                                   "관찰 칸을 그만두려면 Claude에게 부탁해 주세요.")
+        rules = [rule for rule in rules if rule["id"] != rule_id]
+        new_rule = None
+        # 이 줄만 쓰던 관찰은 이 칸에서 함께 뺀다 — 쓰이지 않는 관찰은 판독자만 헷갈리게 해서 로더가 받지 않는다.
+        used = set().union(*(names(rule["ast"]) for rule in rules)) if rules else set()
+        used |= {item for item in table["observe"] for rule in rules for prefix in prefixes(rule["ast"]) if item.startswith(prefix)}
+        idle = [item for item in table["observe"] if item not in used]
+    else:
+        expr = (when or "").strip() or (old["expr"] if action == "edit" else "")
+        code = check_value(value) if value else (old["value"] if action == "edit" else None)
+        if not expr or not code:
+            raise DecisionRejected("값 규칙에는 조건(관찰 조합)과 값이 모두 필요합니다.")
+        try:
+            ast = parse(expr)
+        except DeriveError as error:
+            raise DecisionRejected(f"식을 읽지 못했습니다: {error}") from error
+        unknown = sorted(names(ast) - set(table["observe"]))
+        if unknown:
+            raise DecisionRejected(f"식에 {name}의 관찰에 없는 항목이 있습니다: {', '.join(unknown)} — 쓸 수 있는 항목: {', '.join(table['observe'])}")
+        empty = sorted(prefix for prefix in prefixes(ast) if not any(item.startswith(prefix) for item in table["observe"]))
+        if empty:
+            raise DecisionRejected(f"COUNT가 셀 관찰이 없습니다: {', '.join(p + '*' for p in empty)} — 쓸 수 있는 항목: {', '.join(table['observe'])}")
+        new_id = next_rule_id(policy, field_id, "V")
+        new_rule = {"id": new_id, "expr": expr, "ast": ast, "value": code}
+        if action == "edit":
+            if (expr, code) == (old["expr"], old["value"]):
+                raise DecisionRejected(f"{rule_id}에서 바뀌는 것이 없습니다 — 조건이나 값을 바꿔 주세요.")
+            rules = [new_rule if rule["id"] == rule_id else rule for rule in rules]
+        else:
+            # 넣을 자리 — 기본은 맨 위(검수에서 나온 예외가 일반 줄보다 먼저). `before`가 V ID면 그 줄 앞, «end»면 «그 밖» 바로 앞.
+            ids = [rule["id"] for rule in rules]
+            if before and before != "end" and before not in ids:
+                raise DecisionRejected(f"«{before}» 앞에 넣으려 했지만 그런 값 규칙이 없습니다 — {', '.join(ids)} 가운데 하나나 «end».")
+            at = len(rules) if before == "end" else ids.index(before) if before else 0
+            rules = [*rules[:at], new_rule, *rules[at:]]
+    trial = {"observe": table["observe"], "rules": rules, "else": table["else"]}
+    hidden = shadowed(trial)
+    if hidden and new_rule and hidden == [new_rule["id"]]:
+        same = covered_same(trial, new_rule["id"])
+        if same:
+            raise DecisionRejected(f"넣지 않았습니다 — 이 조합은 이미 {', '.join(same)}이(가) 같은 값({_value_name(field, new_rule['value'])})으로 정합니다. 넣을 필요가 없습니다.")
+    if hidden:
+        raise DecisionRejected(shadow_sentence(trial, hidden, new_rule["id"] if new_rule else None, obs_names, field))
+    body = original
+    lines = []
+    if new_rule:
+        carried = []
+        if action == "edit" and not extra:
+            carried = [f"  - {key}: {old[key]}" for key in ("물음", "근거") if old.get(key)]
+        source = history_note or f"직접 작성 · {today} · {reviewer}"
+        if action == "edit":
+            source += f" · {rule_id} 고침" + (f" (처음: {old['출처']})" if old.get("출처") else "")
+        lines = [f"- `{new_rule['id']}` `{new_rule['expr']}` → `{new_rule['value']}`", *(extra or carried), f"  - 출처: {source}"]
+    if action == "retire" and idle:
+        body = _remove_observations(body, field_id, idle)
+        plan.setdefault("warnings", []).append(
+            f"이 줄만 쓰던 관찰 {', '.join('«' + obs_names.get(i, i) + '»' for i in idle)}도 이 칸에서 함께 빠집니다 — AI가 더는 이 항목에 답하지 않습니다.")
+        plan["observationsRemoved"] = idle
+    if action in ("edit", "retire"):
+        body, taken = _remove_rule(body, field_id, rule_id)
+        taken[0] = taken[0].replace(f"- `{rule_id}` ", f"- `{field_id}/{rule_id}` ", 1)
+        archive = taken + [f"  - 대체: " + (f"{new_rule['id']} · {today} · {reviewer}" if new_rule else f"없음(폐지) · {today} · {reviewer} · {reason.strip()}")]
+        if action == "edit":
+            body = _insert_derive(body, field_id, lines, before=_next_derive_id(table, rule_id))
+        body = _append_to_block(body, "보관", None, archive)
+        plan["archive"] = archive
+    else:
+        at = [rule["id"] for rule in rules].index(new_rule["id"])
+        body = _insert_derive(body, field_id, lines, before=rules[at + 1]["id"] if at + 1 < len(rules) else None)
+    from gt_derive import table_changes
+
+    plan["changes"] = table_changes(table, trial)
+    plan.setdefault("warnings", []).extend(change_warnings(
+        plan["changes"], action == "add", {rule["id"]: _rule_words(rule, obs_names, field) for rule in table["rules"]}))
+    # 표가 영영 내지 못하게 되는 값 — 빼기·고치기로 한 값의 마지막 줄이 사라지면 AI는 그 값을 더는 내지 않는다(사람은 고를 수 있다).
+    lost = sorted(reachable_values(table) - reachable_values(trial))
+    if lost:
+        plan.setdefault("warnings", []).append(
+            f"이 변경 뒤에는 {', '.join('«' + _value_name(field, code) + '»' for code in lost)}을(를) 내는 줄이 없습니다 — AI가 이 값을 더는 내지 않습니다.")
+    plan.update(rule=lines, ruleId=new_rule["id"] if new_rule else None, replaces=rule_id if action == "edit" else None,
+                retired=rule_id if action == "retire" else None, table=[f"{r['id']} {r['expr']} → {r['value']}" for r in rules]
+                + [f"그 밖 → {table['else']}"])
+    verb = {"add": "추가", "edit": f"추가, {rule_id} 대체", "retire": "폐지"}[action]
+    if action == "retire" and idle:
+        verb += f"(관찰 {', '.join(obs_names.get(i, i) for i in idle)}도 뺌)"
+    history = stamp + f"{name} 값 규칙 {new_rule['id'] if new_rule else rule_id} {verb} — {reviewer}" + (f" · {reason.strip()}" if action == "retire" else "")
+    plan["history"] = history
+    if not confirm:
+        # 미리 보기도 넣을 때와 같은 검사를 다 지난다 — «미리 보기는 됐는데 넣기가 막힘»이 없게(쓰이지 않게 되는 관찰 같은).
+        validate_policy_text(profile, path, _append_to_block(body, "변경 이력", None, [history]))
+        return plan
+    _commit_policy(profile, path, original, body, history, new_version, today)
+    plan["applied"] = True
+    return plan
+
+
+def undo_policy(profile: dict[str, Any], reviewer: str, confirm: bool) -> dict[str, Any]:
+    """«정책 마지막 변경 되돌려줘» — 마지막으로 고치기 전의 정책으로 돌아간다. 되돌림도 변경이다: 변경 이력에 한 줄이 남고
+    version이 오르며, 되돌리기 전 정책도 남아 다시 되돌릴 수 있다. 되돌릴 정책이 로더를 못 지나면 쓰지 않는다."""
+    from gt_decisions import locked
+
+    reviewer = re.sub(r"\s+", " ", reviewer or "").strip()
+    if not reviewer:
+        raise DecisionRejected("누가 되돌리는지 이름을 적어 주세요(--reviewer).")
+    path = _definitions_path(profile)
+    from contextlib import nullcontext
+
+    # 읽고·대조하고·되돌리기를 한 잠금 안에서 — 그사이 들어온 변경을 모르고 덮지 않게.
+    with locked(profile) if confirm else nullcontext():
+        saved = sorted((output_root(profile) / "policy-history").glob("*.md"))
+        if not saved:
+            raise DecisionRejected("되돌릴 정책 변경이 없습니다 — 이 컴퓨터에서 고친 기록(runs/<과제>/policy-history)이 없습니다.")
+        current = path.read_text(encoding="utf-8")
+        marker = saved[-1].with_suffix(".after")
+        if marker.is_file() and marker.read_text(encoding="utf-8").strip() != hashlib.sha256(path.read_bytes()).hexdigest():
+            raise DecisionRejected("마지막으로 고친 뒤 정책 문서가 도구 밖에서 바뀌었습니다 — 되돌리면 그 수정이 사라지므로 되돌리지 않습니다. "
+                                   "무엇을 되돌릴지 Claude에게 말해 주세요.")
+        last = [line for line in (_section_body(current, "변경 이력") or "").split("\n") if line.startswith("- ")]
+        plan = {"restore": relative_or_absolute(saved[-1]), "undoing": last[-1][2:] if last else None, "applied": False}
+        if not confirm:
+            return plan
+        today = datetime.now(timezone.utc).date().isoformat()
+        version = re.search(r"^version:\s*(\d+)\s*$", current, re.M)
+        new_version = int(version.group(1)) + 1 if version else None
+        target = saved[-1].read_text(encoding="utf-8")
+        history = f"- {today} · " + (f"v{new_version} · " if new_version else "") + f"되돌림 — «{plan['undoing'] or '마지막 변경'}»을 취소({reviewer})"
+        _commit_policy(profile, path, current, target, history, new_version, today)
+        # 한 번 더 되돌리면 그 앞 변경으로 간다 — 방금 돌아간 자리와, _commit_policy가 새로 남긴 «되돌리기 직전» 사본을 지운다.
+        for extra in sorted((output_root(profile) / "policy-history").glob("*.md")):
+            if extra not in saved[:-1]:
+                extra.unlink()
+                extra.with_suffix(".after").unlink(missing_ok=True)
+        # 남은 마지막 자리의 «쓴 뒤» 지문을 지금 정책으로 — 되돌림도 도구가 쓴 것이라 다음 되돌림이 손 수정으로 오해하지 않게.
+        remaining = sorted((output_root(profile) / "policy-history").glob("*.md"))
+        if remaining:
+            remaining[-1].with_suffix(".after").write_text(hashlib.sha256(path.read_bytes()).hexdigest(), encoding="utf-8")
+    plan["applied"] = True
+    return plan
+
+
+def _section_body(text: str, name: str) -> str | None:
+    span = _section_span(text, name)
+    return text[span[0]:span[1]] if span else None
+
+
+def validate_policy_text(profile: dict[str, Any], path: Path, text: str) -> None:
+    """고친 정책 글을 쓰지 않고 로더에 통과시킨다 — 임시 파일을 가리키는 프로필 사본으로 읽는다. 걸리면 로더의 문장 그대로 멈춘다."""
+    import copy
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as folder:
+        trial = Path(folder) / path.name
+        trial.write_text(text, encoding="utf-8")
+        shadow = copy.deepcopy(profile)
+        shadow["gtTask"]["definitions"] = str(trial)
+        shadow["gtTask"]["definitionsRoot"] = "project"
+        try:
+            load_task(shadow)
+        except TaskError as error:
+            raise DecisionRejected(f"이대로는 정책이 될 수 없습니다 — {str(error).split(': ', 1)[-1]}") from error
+
+
+def _rule_words(rule: dict[str, Any], obs_names: dict[str, str], field: dict[str, Any]) -> str:
+    from gt_derive import describe
+
+    return f"{rule['id']}({describe(rule['ast'], obs_names)} → {_value_name(field, rule['value'])})"
+
+
+def shadow_sentence(trial: dict[str, Any], hidden: list[str], new_id: str | None, obs_names: dict[str, str], field: dict[str, Any]) -> str:
+    """가려진 줄을 사람 말로 한 문장 — 새 줄이 앞줄에 가렸는지, 새 줄이 기존 줄을 덮었는지. 관찰 조합 전체를 늘어놓지 않는다."""
+    from gt_derive import derive, evaluate
+
+    rules = {rule["id"]: rule for rule in trial["rules"]}
+    if new_id in hidden:
+        # 새 줄이 참인 조합에서 먼저 걸리는 앞줄들
+        import itertools
+
+        firsts: list[str] = []
+        observe = list(trial["observe"])
+        for bits in itertools.product((False, True), repeat=len(observe)):
+            answers = dict(zip(observe, bits))
+            if evaluate(rules[new_id]["ast"], answers):
+                first = derive(trial, answers)[1]
+                if first and first != new_id and first not in firsts:
+                    firsts.append(first)
+        covering = ", ".join(_rule_words(rules[i], obs_names, field) for i in firsts[:3])
+        same = [i for i in firsts if rules[i]["value"] == rules[new_id]["value"]]
+        if same:
+            # 앞줄 가운데 이미 같은 값을 내는 줄이 있다 — 위로 올리면 다른 앞줄을 덮을 뿐이다.
+            return (f"넣지 않았습니다 — 새 줄이 걸리는 경우는 앞줄 {covering}이(가) 먼저 정합니다. "
+                    f"{', '.join(same)}이(가) 이미 같은 경우를 같은 값({_value_name(field, rules[new_id]['value'])})으로 정하므로 "
+                    "넣을 필요가 없을 수 있습니다. 다른 경우를 정하려면 조건을 바꿔 주세요.")
+        return (f"넣지 않았습니다 — 새 줄은 앞줄 {covering}에 가려 어떤 사진에서도 쓰이지 않습니다. "
+                "더 위에 넣거나 조건을 바꿔 주세요.")
+    lost = ", ".join(_rule_words(rules[i], obs_names, field) for i in hidden[:3])
+    return (f"넣지 않았습니다 — 이 변경으로 {lost}이(가) 완전히 덮여 어떤 사진에서도 쓰이지 않게 됩니다. "
+            "더 아래에 넣거나 조건을 좁혀 주세요.")
+
+
+def change_warnings(changes: dict[str, Any], adding: bool, words: dict[str, str] | None = None) -> list[str]:
+    """바뀌는 조합에 대한 경고 — 앞줄의 판단을 덮는 줄, 표의 큰 부분을 바꾸는 변경. `words`는 줄 ID → 사람 말(표 순서)."""
+    out = []
+    if adding and changes.get("overrides"):
+        order = list(words or {})
+        ids = sorted(changes["overrides"], key=lambda i: order.index(i) if i in order else len(order))
+        named = [(words or {}).get(i, i) for i in ids]
+        shown = ", ".join(named[:3]) + (f" 외 {len(named) - 3}줄" if len(named) > 3 else "")
+        out.append(f"이 줄은 {shown}보다 먼저 적용되어, 그 줄들이 정하던 조합의 값을 바꿉니다 — "
+                   "예외로 앞세우려는 것이 아니면 넣을 자리를 더 아래로 옮겨 주세요.")
+    total, changed = changes.get("total") or 0, changes.get("changed") or 0
+    if total and changed >= 2 and changed * 3 >= total:  # 표의 3분의 1 넘게 — 작은 표의 한 조합은 큰 변경이 아니다
+        out.append(f"큰 변경입니다 — 관찰 조합의 {round(changed * 100 / total)}%의 값이 바뀝니다. 아래 예시를 확인한 뒤 넣어 주세요.")
+    return out
+
+
+def _remove_observations(text: str, field_id: str, ids: list[str]) -> str:
+    """칸 절의 `### 관찰`에서 항목(이어짐 줄 포함)을 뺀다."""
+    span = _section_span(text, field_id)
+    rows, out, skipping = text[span[0]:span[1]].split("\n"), [], False
+    for row in rows:
+        if any(row.startswith(f"- `{item}` ") for item in ids):
+            skipping = True
+            continue
+        if skipping and row.startswith((" ", "\t")) and row.strip():
+            continue
+        skipping = False
+        out.append(row)
+    return text[:span[0]] + "\n".join(out) + text[span[1]:]
+
+
+def _next_derive_id(table: dict[str, Any], rule_id: str | None) -> str | None:
+    ids = [rule["id"] for rule in table["rules"]]
+    if rule_id not in ids:
+        return None
+    at = ids.index(rule_id)
+    return ids[at + 1] if at + 1 < len(ids) else None
+
+
+def _insert_derive(text: str, field_id: str, lines: list[str], before: str | None) -> str:
+    """값 규칙 줄을 `before` 줄 앞에 넣는다. 없으면 «그 밖» 줄 앞에."""
+    span = _section_span(text, field_id)
+    body = text[span[0]:span[1]]
+    rows = body.split("\n")
+    marker = f"- `{before}` " if before else "- 그 밖 → "
+    for n, row in enumerate(rows):
+        if row.startswith(marker):
+            rows[n:n] = lines
+            return text[:span[0]] + "\n".join(rows) + text[span[1]:]
+    raise DecisionRejected(f"`## {field_id}`의 `### 값 규칙`에서 넣을 자리를 찾지 못했습니다.")
 
 
 def _condition_for(text: str, given: str | None, value: Any) -> str | None:
@@ -1530,21 +2041,88 @@ def cmd_rule(args: argparse.Namespace) -> int:
         return 0
     if not args.field:
         raise DecisionRejected("어느 칸의 규칙인지 --field로 주세요(칸 ID나 이름).")
-    print(json.dumps(rule_change(profile, args.action, args.field, args.reviewer or "", args.yes, text=args.text,
-                                 value=args.value, scope=args.scope, rule_id=args.id, reason=args.reason,
-                                 condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk),
-                     ensure_ascii=False, indent=2))
+    # 정책 화면의 편집(`gt_policy_edit.edit_policy`)과 같은 선 — 넣을 때는 과제 잠금을 쥐고, 넣은 뒤 화면을 다시 그린다.
+    from contextlib import nullcontext
+
+    from gt_decisions import locked
+    from gt_policy_edit import refresh_pages
+
+    with locked(profile) if args.yes else nullcontext():
+        plan = rule_change(profile, args.action, args.field, args.reviewer or "", args.yes, text=args.text,
+                           value=args.value, scope=args.scope, rule_id=args.id, reason=args.reason,
+                           condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk,
+                           when=args.when, before=args.before)
+    if plan.get("applied"):
+        plan["pages"] = [relative_or_absolute(path) for path in refresh_pages(profile)]
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_policy_edit(args: argparse.Namespace) -> int:
+    """허용값(`value`)·관찰 항목(`observe`)을 고친다 — 정책 화면의 편집 칸과 같은 함수(`gt_policy_edit.edit_policy`)다."""
+    from gt_policy_edit import edit_policy, refresh_pages
+
+    profile = find_profile(args.task)
+    op = f"{args.kind}-{args.action}"
+    params = {key: getattr(args, key, None) for key in ("code", "name", "desc", "id", "when", "value", "before")}
+    plan = edit_policy(profile, op, args.field, args.reviewer or "", args.yes, **{k: v for k, v in params.items() if v is not None})
+    if plan.get("applied"):
+        plan["pages"] = [relative_or_absolute(path) for path in refresh_pages(profile)]
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
     return 0
 
 
 def cmd_policy(args: argparse.Namespace) -> int:
-    """정책의 건강(check), 정리 워크플로우의 입력(review), 그 결과를 제안 목록으로(finish). 셋 다 정책을 고치지 않는다."""
+    """정책 검사·정리와 대상 필드의 추론 프롬프트 렌더링."""
     from gt_policy import category_map, health, lint_cases, review_input, scope_problems
     from gt_task import rule_scope
 
-    profile = find_profile(args.task)
-    task = load_task(profile)
+    profile = find_policy_profile(args.task)
+    policy_task = profile.get("policyTask") or profile.get("gtTask") or {}
+    task = load_task(profile) if isinstance(profile.get("gtTask"), dict) else None
+    policy_summary = load_policy_task(profile) if isinstance(profile.get("policyTask"), dict) else None
+    if task is None and policy_summary is None:
+        raise TaskError("정책 과제에는 policyTask-v1 계약이 필요합니다")
+    if args.action == "prompt":
+        from policy_prompt import render_inference_rules
+
+        field = getattr(args, "field", None)
+        if not field:
+            fields = [row["id"] for row in policy_task.get("fields", [])]
+            if len(fields) != 1:
+                raise TaskError("여러 필드 과제는 `--field <필드ID>`를 지정해 주세요")
+            field = fields[0]
+        print(render_inference_rules(_definitions_path(profile), field), end="")
+        return 0
+    if args.action == "sync-prompt":
+        from policy_prompt import sync_declared_prompt
+
+        result = sync_declared_prompt(profile, _definitions_path(profile), apply=args.yes)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    if args.action == "check" and task is None:
+        print(json.dumps({"task": profile["id"], "ok": True, **policy_summary}, ensure_ascii=False, indent=2))
+        return 0
+    if args.action == "page" and task is None:
+        from gt_decisions import _write_atomic
+        from gt_review_render import render_policy_only_html
+
+        path = output_root(profile) / "policy-review" / "policy.html"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_atomic(path, render_policy_only_html(profile))
+        print(relative_or_absolute(path))
+        return 0
+    if task is None:
+        raise TaskError("정책 전용 과제는 check·page·prompt·sync-prompt 작업을 지원합니다")
     policy = _policy(profile, task)
+    if args.action == "undo":
+        plan = undo_policy(profile, args.reviewer or "", args.yes)
+        if plan.get("applied"):
+            from gt_policy_edit import refresh_pages
+
+            plan["pages"] = [relative_or_absolute(path) for path in refresh_pages(profile)]
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        return 0
     if args.action == "check":
         categories = category_map(profile, task)
         odd = [{"field": rule["field"], "rule": rule["id"], "scope": bad}
@@ -1552,6 +2130,17 @@ def cmd_policy(args: argparse.Namespace) -> int:
                for bad in scope_problems(rule_scope(rule), categories)]
         out = {**health(profile, task, policy), "scopeUnknown": odd, "categoriesKnown": categories is not None,
                "casesNotStandardList": lint_cases(profile)}
+        if policy_summary is not None:
+            # The GT policy checker still counts its precedent/value-table rules, while policyTask
+            # counts natural-language inference rules. Expose both under explicit names so a
+            # `rulesByField: 0` legacy count cannot be mistaken for an empty prompt policy.
+            out["ruleCounts"] = {
+                "gtTaskPolicyRulesByField": out["rulesByField"],
+                "naturalLanguageDecisionRulesByField": {
+                    row["field"]: row["decisionRules"] for row in policy_summary["fields"]
+                },
+            }
+            out["policyTask"] = policy_summary
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
     root = output_root(profile) / "policy-review"
@@ -1582,7 +2171,7 @@ def cmd_qa(args: argparse.Namespace) -> int:
                          ensure_ascii=False, indent=2))
     elif args.add:
         print(json.dumps(qa_add(profile, args.add, args.rule or "", args.reviewer or "", args.yes, args.scope, args.replace,
-                                condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk),
+                                condition=args.condition, audit_file=args.audit, accept_risk=args.accept_risk, when=args.when),
                          ensure_ascii=False, indent=2))
     else:
         print(json.dumps({"task": profile["id"], "answered": qa_candidates(profile)}, ensure_ascii=False, indent=2))
@@ -1718,6 +2307,7 @@ def main() -> int:
     qa.add_argument("--scope", help="이 규칙이 걸리는 상품 카테고리 이름(쉼표로 여럿). 없으면 모든 상품")
     qa.add_argument("--replace", help="이 규칙이 대체하는 같은 칸의 규칙 ID(R0 같은) — 보관으로 옮긴다")
     qa.add_argument("--condition", help="규칙의 조건(«~이면» 부분). 없으면 문장에서 잘라 초안을 낸다")
+    qa.add_argument("--when", help="관찰 칸이면 값 규칙 식(예: «MARK_A & !MARK_B»). 답한 값이 그 줄의 값이 된다")
     qa.add_argument("--audit", help="중복·충돌 판정 파일. 없으면 미리 보기가 알려 준 자리에서 찾는다")
     qa.add_argument("--accept-risk", help="중복·충돌 판정을 무릅쓰고 넣는 이유 — 변경 이력에 남는다")
     qa.add_argument("--lint", action="store_true", help="표준이 아닌 물음(물음 둘·사진 번호·물음 아님)을 가진 사례 목록")
@@ -1726,10 +2316,13 @@ def main() -> int:
     qa.add_argument("--here", help="다듬은 «이 사진에서» 한 문장(없으면 그대로)")
     qa.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇을 넣을지만 말한다")
     qa.set_defaults(run=cmd_qa)
-    pol = sub.add_parser("policy", help="정책의 건강을 보고(check), 정리 워크플로우를 준비하고(review), 그 결과를 제안으로 만든다(finish)")
-    pol.add_argument("action", choices=("check", "review", "finish"))
+    pol = sub.add_parser("policy", help="정책 검수, 자연어 프롬프트 출력·동기화")
+    pol.add_argument("action", choices=("check", "review", "finish", "undo", "prompt", "sync-prompt", "page"))
     pol.add_argument("--task", required=True)
+    pol.add_argument("--field", help="prompt — 판정 규칙을 렌더링할 필드 ID")
     pol.add_argument("--from", dest="source", help="finish — 워크플로우 출력 파일")
+    pol.add_argument("--reviewer", help="undo — 되돌리는 사람")
+    pol.add_argument("--yes", action="store_true", help="undo: 되돌리기 확인 · sync-prompt: 선언된 운영 프롬프트에 생성 결과 쓰기")
     pol.set_defaults(run=cmd_policy)
     rule = sub.add_parser("rule", help="정책의 규칙을 보고, 사람이 직접 더하거나(add) 고치거나(edit) 뺀다(retire)")
     rule.add_argument("action", nargs="?", choices=RULE_ACTIONS, help="없으면 지금 규칙 목록만 본다")
@@ -1741,11 +2334,26 @@ def main() -> int:
     rule.add_argument("--scope", help="걸리는 상품 카테고리 이름(쉼표로 여럿). edit에서 «»(빈 문자열)이면 모든 상품")
     rule.add_argument("--reason", help="retire의 이유 — 보관에 남는다")
     rule.add_argument("--condition", help="조건(«~이면» 부분). 없으면 문장에서 잘라 초안을 낸다")
+    rule.add_argument("--when", help="관찰 칸의 값 규칙 식(예: «MARK_A & !MARK_B»). --value와 함께. 표 맨 위에 들어간다")
+    rule.add_argument("--before", help="관찰 칸의 값 규칙을 넣을 자리 — 이 V 줄 앞(«end»면 «그 밖» 바로 앞). 없으면 표 맨 위")
     rule.add_argument("--audit", help="중복·충돌 판정 파일. 없으면 미리 보기가 알려 준 자리에서 찾는다")
     rule.add_argument("--accept-risk", help="중복·충돌 판정을 무릅쓰고 넣는 이유 — 변경 이력에 남는다")
     rule.add_argument("--reviewer", help="고치는 사람")
     rule.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")
     rule.set_defaults(run=cmd_rule)
+    for kind, actions, extra in (("value", ("add", "edit", "remove"), ("code", "name", "desc")),
+                                 ("observe", ("add", "edit"), ("id", "name", "desc", "when", "value", "before"))):
+        edit = sub.add_parser(kind, help=("허용값을 더하거나(add) 이름·설명을 고치거나(edit) 뺀다(remove)" if kind == "value" else
+                                          "관찰 칸의 관찰 항목을 더하거나(add — 그 항목을 쓰는 값 규칙 한 줄과 함께) 뜻을 고친다(edit)")
+                              + " — 정책 화면의 편집 칸과 같은 함수")
+        edit.add_argument("action", choices=actions)
+        edit.add_argument("--task", required=True)
+        edit.add_argument("--field", required=True, help="칸 ID나 칸 이름")
+        for name in extra:
+            edit.add_argument(f"--{name}")
+        edit.add_argument("--reviewer", help="고치는 사람")
+        edit.add_argument("--yes", action="store_true", help="사람이 확인했다. 없으면 무엇이 바뀌는지만 말한다")
+        edit.set_defaults(run=cmd_policy_edit, kind=kind)
     back = sub.add_parser("restore", help="«되돌려줘» — 마지막 반영 전의 원본 GT로 되돌린다(--yes가 있을 때만)")
     back.add_argument("--task", required=True)
     back.add_argument("--yes", action="store_true")

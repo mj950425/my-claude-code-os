@@ -1,12 +1,65 @@
 {
   "schemaVersion": "catalog-data-profile-v1",
   "id": "clothing-thumbnail-observation",
-  "displayName": "의류 썸네일 관찰 골든셋",
+  "displayName": "의류 썸네일 관찰",
   "attributeName": "썸네일 관찰 필드(사람·구도·얼굴·방향·노출)",
   "subjectName": "의류 썸네일",
   "outputRoot": ".claude/os/runs/clothing-thumbnail-observation",
   "source": {
     "repository": "../core-catalog-platfom"
+  },
+  "policyTask": {
+    "schemaVersion": "policy-task-v1",
+    "definitions": ".claude/os/attributes/clothing-thumbnail-observation/definitions.md",
+    "documentFormat": "policy-document-v2",
+    "fields": [
+      {
+        "id": "personPresence",
+        "name": "사람이 있는가",
+        "valueCodes": {
+          "사람 있음": "PRESENT",
+          "사람 없음": "ABSENT"
+        }
+      },
+      {
+        "id": "shotType",
+        "name": "몸이 어디까지 보이나",
+        "valueCodes": {
+          "전신": "MODEL_FULL_BODY",
+          "상반신": "MODEL_UPPER_BODY",
+          "하반신": "MODEL_LOWER_BODY",
+          "부분 컷": "MODEL_CLOSEUP",
+          "사람 없음": "NO_MODEL"
+        }
+      },
+      {
+        "id": "faceVisibility",
+        "name": "얼굴이 보이나",
+        "valueCodes": {
+          "얼굴 보임": "VISIBLE",
+          "얼굴 잘림·가림": "HIDDEN",
+          "사람 없음": "NO_MODEL"
+        }
+      },
+      {
+        "id": "productView",
+        "name": "상품이 어느 쪽을 보이나",
+        "valueCodes": {
+          "앞": "FRONT",
+          "옆": "SIDE",
+          "뒤": "BACK",
+          "알 수 없음": "UNKNOWN"
+        }
+      },
+      {
+        "id": "productVisibility",
+        "name": "상품이 통째로 보이나",
+        "valueCodes": {
+          "통째로 보임": "WHOLE",
+          "잘림·가림": "CROPPED_OR_OCCLUDED"
+        }
+      }
+    ]
   },
   "gtTask": {
     "schemaVersion": "gt-task-v1",

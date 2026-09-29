@@ -36,8 +36,9 @@ python3 .claude/os/engine/scripts/incr_review.py tasks
 
 ```bash
 python3 .claude/os/engine/scripts/incr_collect.py sql --task <과제>                              # 조회문 → mysql-query ... query --json "<조회문>" > <scratchpad>/rows.json
-python3 .claude/os/engine/scripts/incr_collect.py detail-sql --task <과제> --rows <scratchpad>/rows.json --limit <N>   # 상세가 필요한 과제만 → details.json
-python3 .claude/os/engine/scripts/incr_collect.py build --task <과제> --rows <scratchpad>/rows.json [--details <scratchpad>/details.json] --name <이름> --limit <N> --push
+python3 .claude/os/engine/scripts/incr_collect.py detail-sql --task <과제> --rows <scratchpad>/rows.json --limit <N>   # 상세가 필요한 과제만 → details.json (고를 수의 3배를 읽는다 — 30초를 넘으면 플랫폼마다 따로)
+python3 .claude/os/engine/scripts/incr_collect.py detail-mongo --task <과제> --rows <scratchpad>/rows.json --limit <N>   # ledgerFallbackPlatforms가 있는 과제만 → mongo-query aggregate seller_product_images → mongo.json
+python3 .claude/os/engine/scripts/incr_collect.py build --task <과제> --rows <scratchpad>/rows.json [--details <scratchpad>/details.json] [--mongo-images <scratchpad>/mongo.json] --name <이름> --limit <N> --push
 ```
 
 사진을 받느라 몇 분 걸린다 — 시작할 때 «사진을 받는 중입니다(몇 분)»라고 한 번 말한다.

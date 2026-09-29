@@ -1,0 +1,20 @@
+{
+  "dimension": "runtime",
+  "scores": {
+    "accessories-category-gender": 93,
+    "bag-category-gender": 94,
+    "clothing-category-gender": 91,
+    "clothing-thumbnail-observation": 94,
+    "clothing-thumbnail-model-gender": 92
+  },
+  "blockingIssues": [],
+  "evidence": [
+    "gt_review.py tasks reports four GT tasks and brokenProfiles=[]; policy-only clothing-thumbnail-model-gender is intentionally not a GT task.",
+    "GT next-candidate runs gt_next.py prepare -> gt-review.js read -> optional gt-review.js defend -> finish/render; it does not call policy_multi_agent_eval.py.",
+    "policy_batch_review.py calls policy_multi_agent_eval.py, which validates role output schemas and references and retries only EXTRACT_ERROR; this is a separate fixed-manifest evaluation path.",
+    "clothing-category-gender has an explicit local source-index adapter, but source image evidence is unavailable and the task correctly remains prepared=false.",
+    "Focused regression tests passed: 10 passed, 239 deselected. Independently executed `rtk /tmp/policy-claude-sdk-venv/bin/python -m unittest discover -s .claude/os/attributes/clothing-category-gender/tests`: Ran 6 tests, OK.",
+    "Adapter uses exact platform-qualified productKey matching, fails when no evidence can be indexed, preserves GT bytes, resolves relative image paths beside the source index, records partial missing refs, and rejects empty/duplicate GT keys before writing an index.",
+    "No production call, database access, human decision write, or real Claude SDK inference was performed. Unit tests are not evidence of actual model compliance."
+  ]
+}

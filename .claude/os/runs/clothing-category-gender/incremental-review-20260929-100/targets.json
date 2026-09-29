@@ -1,0 +1,4018 @@
+{
+  "frozenAt": {
+    "$date": "2026-09-29T02:47:20.391Z"
+  },
+  "database": "products-recommend",
+  "filter": {
+    "type": "GENDER",
+    "inference_origin": "INCREMENTAL",
+    "category_depth1": "의류",
+    "status": "EVENT_PUBLISHED",
+    "dt": null
+  },
+  "sort": {
+    "ut": -1,
+    "seller_product_id": -1
+  },
+  "documents": [
+    {
+      "_id": {
+        "$oid": "6aaa368429cc13333bfa2c19"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11290651,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7303574",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790606128489,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "inference_requested_at": {
+        "$date": "2026-09-16T06:26:12.976Z"
+      },
+      "rt": {
+        "$date": "2026-09-16T06:26:12.976Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T14:35:28.576Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "BRAND_GENDER_OVERRIDE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T14:35:28.576Z"
+      },
+      "auto_retry_count": 0,
+      "model": null,
+      "not_target_at": null,
+      "opened_at": {
+        "$date": "2026-09-28T14:35:28.489Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a98d8a4921be6fcd6f2e6e6"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10940286,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7130448",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790606128161,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-03T02:17:08.884Z"
+      },
+      "rt": {
+        "$date": "2026-09-03T02:17:08.884Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T14:35:28.282Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "BRAND_GENDER_OVERRIDE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T14:35:28.282Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T14:35:28.161Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba2311befdbb68e895f1e2"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11446710,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7391357",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585360640,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:49:20.640Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:19:29.047Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:49:53.358Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:49:53.358Z"
+      },
+      "auto_retry_count": 0,
+      "model": null,
+      "not_target_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f2a"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376795,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840138",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040710,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.710Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.710Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.898Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.898Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f2b"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10387991,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849439",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040738,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.738Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.738Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.727Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.727Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f43"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10379586,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6842167",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041474,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.474Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.474Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.660Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.660Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f16"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10367985,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6833605",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040062,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.062Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.062Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.556Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.556Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f19"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10366574,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6832396",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040151,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.151Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.151Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.520Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.520Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f37"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376978,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840301",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041074,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.074Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.074Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.486Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.486Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f32"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9672577,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6521899",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040935,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.935Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.935Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.450Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.450Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f17"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376776,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840120",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040092,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.092Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.092Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.415Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.415Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f57"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10368975,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834381",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042047,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.047Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.047Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.380Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.380Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f1e"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10367569,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6833220",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040296,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.296Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.296Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.312Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.312Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f35"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10379565,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6842148",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041018,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.018Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.018Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.277Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.277Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f1f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10378561,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6841403",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040325,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.325Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.325Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.243Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.243Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f55"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10387960,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849408",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041991,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.991Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.991Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.208Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.208Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28cf8f88b8d124990f10"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9569557,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6457213",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585039804,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:43:59.804Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:43:59.804Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.176Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.176Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28cf8f88b8d124990f0f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9569556,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6457212",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585039773,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:43:59.773Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:43:59.773Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.129Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.129Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f38"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376752,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840098",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041101,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.101Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.101Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.060Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.060Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f20"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10366949,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6832672",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040371,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.371Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.371Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.028Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.028Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f46dd786fb707e3507b1b"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10581795,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6950021",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042131,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-07T23:21:01.110Z"
+      },
+      "rt": {
+        "$date": "2026-09-07T23:21:01.110Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:02.005Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:02.005Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.131Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6a9e83ef786fb707e350551a"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10993730,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7168877",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042356,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-10T10:24:14.023Z"
+      },
+      "rt": {
+        "$date": "2026-09-07T09:29:19.579Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.967Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.967Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.356Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f44"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10366546,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6832369",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041502,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.502Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.502Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.963Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.963Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b70125"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389711,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850656",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041698,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.698Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.698Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.936Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.936Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f23"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9567744,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6455782",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040458,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.458Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.458Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.928Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.928Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f7cedf8dbb2495d5c0abc"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11168670,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7272781",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042243,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T05:42:33.092Z"
+      },
+      "rt": {
+        "$date": "2026-09-08T03:11:41.920Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.903Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.903Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.243Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6ab32193c9e6f3f61676c431"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9394742,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6373042",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041233,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.233Z"
+      },
+      "rt": {
+        "$date": "2026-09-23T00:47:15.667Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.893Z"
+      },
+      "dt": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "claimed_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.893Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "not_target_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b70126"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020155,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187035",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041735,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.735Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.735Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.870Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.870Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b70128"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10542251,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6925068",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041822,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.822Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.822Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.837Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.837Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f25"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10365939,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6831949",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040532,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.532Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.532Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.825Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.825Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa12523d3d2404794b4f504"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10491842,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6886100",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042230,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T09:21:39.892Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T09:21:39.892Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.803Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.803Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.230Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f21"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9567738,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6455780",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040401,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.401Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.401Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.792Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.792Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70139"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020148,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187029",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042398,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.398Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.398Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.771Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.771Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70137"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020146,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187025",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042318,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.318Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.318Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.739Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.739Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70138"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389250,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850395",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042382,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.382Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.382Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.693Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.693Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f27"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10368931,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834345",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040588,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.588Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.588Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.658Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.658Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70136"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020143,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187021",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042301,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.301Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.301Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.657Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.657Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa195444beba4a97a803711"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10218130,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6774916",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040665,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T17:20:04.828Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T17:20:04.828Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.626Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.626Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.665Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aaca05085e64eff8272f290"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11407215,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7363489",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042189,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.189Z"
+      },
+      "rt": {
+        "$date": "2026-09-18T02:22:08.151Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.625Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "NAME",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.625Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f3f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10368328,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6833860",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041359,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.359Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.359Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.594Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.594Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70134"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020135,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187015",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042147,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.147Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.147Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.559Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.559Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa195344beba4a97a8036e1"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10218128,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6774914",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040644,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T17:19:48.708Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T17:19:48.708Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.556Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.556Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.644Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aaca04f85e64eff8272f28f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11407210,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7363485",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042178,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.178Z"
+      },
+      "rt": {
+        "$date": "2026-09-18T02:22:07.767Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.528Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "NAME",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.528Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f2c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10367527,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6833185",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040765,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.765Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.765Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.521Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.521Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70131"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389801,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850714",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042039,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.039Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.039Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.495Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.495Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28cf8f88b8d124990f0b"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10378324,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6841297",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585039650,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:43:59.650Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:43:59.650Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.485Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.485Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70133"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020134,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187011",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042099,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.099Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.099Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.461Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.461Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f59"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10369123,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834498",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042102,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.102Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.102Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.452Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.452Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a98b665786fb707e34e178f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10851463,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7070712",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041954,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-02T23:51:01.462Z"
+      },
+      "rt": {
+        "$date": "2026-09-02T23:51:01.462Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.426Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.426Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.954Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6a9fed50c49b361c1bfa880d"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11168870,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7272939",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041924,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T05:42:22.720Z"
+      },
+      "rt": {
+        "$date": "2026-09-08T11:11:12.164Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.393Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.393Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.924Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f4f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9719120,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6552921",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041826,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.826Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.826Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.384Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "NONE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.384Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa0e060bef565fac8a1a93a"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9447714,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6403584",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041530,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T17:37:33.782Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T04:28:16.954Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.349Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.349Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.530Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b70127"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10388673,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849913",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041789,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.789Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.789Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.327Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.327Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f2d"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10366515,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6832343",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040794,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.794Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.794Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.315Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.315Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012e"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11020129,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7187009",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041971,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.971Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.971Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.294Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.294Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f5f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9446714,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6402980",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042267,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.267Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.267Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.282Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.282Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa1251ced35761acb8186de"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10491937,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6886181",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042334,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T09:21:32.672Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T09:21:32.672Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.260Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.260Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.334Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f26"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584713,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464408",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040560,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.560Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.560Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.250Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.250Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f7d0ff8dbb2495d5c0ae6"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11168749,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7272845",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042463,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T05:41:43.849Z"
+      },
+      "rt": {
+        "$date": "2026-09-08T03:12:15.175Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.227Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.227Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.463Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f54"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10369109,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834492",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041964,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.964Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.964Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.215Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.215Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012d"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389224,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850371",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041937,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.937Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.937Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.194Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.194Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f52"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9446710,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6402976",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041909,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.909Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.909Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.180Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.180Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ab33384c1748a8be9b6af1c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10457762,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6877199",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042057,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.057Z"
+      },
+      "rt": {
+        "$date": "2026-09-23T02:03:48.934Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.161Z"
+      },
+      "dt": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "claimed_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.161Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "not_target_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f15"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376708,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840075",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040032,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.032Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.032Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.147Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.147Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9e8402921be6fcd6f4da7e"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10992225,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7167738",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042441,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-07T09:29:38.317Z"
+      },
+      "rt": {
+        "$date": "2026-09-07T09:29:38.317Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.127Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.127Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.441Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f48"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10378509,
+      "review_bucket": 5,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6841392",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041633,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.633Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.633Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.114Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.114Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aaca0203d9eaa1e187611b8"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11407182,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7363468",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041841,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.841Z"
+      },
+      "rt": {
+        "$date": "2026-09-18T02:21:20.452Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.094Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "NAME",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.094Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28cf8f88b8d124990f12"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10025708,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6743839",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585039863,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:43:59.863Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:43:59.863Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.079Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.079Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aaca04c2f2f98f85edab81d"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11407180,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7363465",
+      "category_depth1": "의류",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041756,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.756Z"
+      },
+      "rt": {
+        "$date": "2026-09-18T02:22:04.415Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.060Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "decision_path": "NAME",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.060Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f61"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9614303,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6484164",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042321,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.321Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.321Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.045Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.045Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f58"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9836703,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6632683",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042075,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.075Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.075Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:01.012Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:01.012Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9fed4c0cf39a22364f1456"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11168840,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7272917",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042269,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T05:41:57.287Z"
+      },
+      "rt": {
+        "$date": "2026-09-08T11:11:08.597Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.996Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.996Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.269Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f46"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10369100,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834487",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041578,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.578Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.578Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.978Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.978Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ab37b98bcf884a4a6284f7c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10489780,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6884533",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042164,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.164Z"
+      },
+      "rt": {
+        "$date": "2026-09-23T07:11:20.306Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.956Z"
+      },
+      "dt": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "claimed_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.956Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "not_target_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012a"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389315,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850453",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041871,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.871Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.871Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.924Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.924Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f50"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10387899,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849355",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041854,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.854Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.854Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.913Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.913Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b7013a"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389755,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850686",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042416,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.416Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.416Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.890Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.890Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f60"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10368899,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834324",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042294,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.294Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.294Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.881Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.881Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f7d0cf8dbb2495d5c0ae5"
+      },
+      "type": "GENDER",
+      "seller_product_id": 11168711,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7272808",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042431,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T05:41:47.137Z"
+      },
+      "rt": {
+        "$date": "2026-09-08T03:12:12.350Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.857Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.857Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.431Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f1b"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584896,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464577",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040208,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.208Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.208Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.847Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.847Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012f"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10388631,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849875",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041989,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.989Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.989Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.825Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.825Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f45"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584694,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464389",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041550,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.550Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.550Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.814Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.814Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d24741b5b288b70132"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10771330,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7030356",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042071,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.071Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.071Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.792Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.792Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f51"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9614294,
+      "review_bucket": 6,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6484155",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041881,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.881Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.881Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.781Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.781Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f24"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584491,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464243",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040504,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.504Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.504Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.747Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.747Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10389851,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6850741",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041907,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.907Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.907Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.729Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.729Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f5d"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10376687,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840060",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042212,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.212Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.212Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.713Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.713Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9a2aaaf8dbb2495d5aaf4c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10994200,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7169256",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042473,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-16T06:36:39.709Z"
+      },
+      "rt": {
+        "$date": "2026-09-04T02:19:22.563Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.698Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "decision_path": "NAME",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.698Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": true,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "updated_at": {
+        "$date": "2026-09-14T01:45:20.765Z"
+      },
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.473Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28cf8f88b8d124990f0c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584888,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464569",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585039681,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:43:59.681Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:43:59.681Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.680Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.680Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f46d9786fb707e3507b10"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10581819,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6950036",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042371,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-07T23:20:57.955Z"
+      },
+      "rt": {
+        "$date": "2026-09-07T23:20:57.955Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.661Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.661Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.371Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f14"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10377687,
+      "review_bucket": 7,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840849",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040001,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.001Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.001Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.648Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.648Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9a2b0ef8dbb2495d5aafb3"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10994202,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7169258",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042506,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-16T06:36:39.717Z"
+      },
+      "rt": {
+        "$date": "2026-09-04T02:21:02.900Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.629Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "decision_path": "NAME",
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.629Z"
+      },
+      "failed_at": null,
+      "gender_inference_reason": null,
+      "model": null,
+      "opened_by_operator": true,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "updated_at": {
+        "$date": "2026-09-14T01:45:20.765Z"
+      },
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.506Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d28f88b8d124990f5c"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10377484,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6840672",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042185,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.185Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:02.185Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.616Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.616Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aa0e29e08c4affbcdb60afa"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10882985,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "7091502",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042200,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-09T04:37:50.726Z"
+      },
+      "rt": {
+        "$date": "2026-09-09T04:37:50.726Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.596Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.596Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.200Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f53"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10367484,
+      "review_bucket": 4,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6833150",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041936,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.936Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.936Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.583Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.583Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a9f46d9921be6fcd6f50030"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10581816,
+      "review_bucket": 0,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6950034",
+      "detail_image_urls": [],
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585042346,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "inference_requested_at": {
+        "$date": "2026-09-07T23:20:57.533Z"
+      },
+      "rt": {
+        "$date": "2026-09-07T23:20:57.533Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.562Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "not_target_at": null,
+      "auto_retry_at": null,
+      "auto_retry_count": 0,
+      "category_depth1": "의류",
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.562Z"
+      },
+      "fail_reason": null,
+      "failed_at": null,
+      "model": null,
+      "opened_at": {
+        "$date": "2026-09-28T08:44:02.346Z"
+      },
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2"
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f31"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584667,
+      "review_bucket": 3,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464364",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040908,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.908Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.908Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.551Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.551Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d08f88b8d124990f30"
+      },
+      "type": "GENDER",
+      "seller_product_id": 9584666,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6464363",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040880,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.880Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.880Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.517Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "THUMBNAIL",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.517Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d14741b5b288b7012b"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10388722,
+      "review_bucket": 2,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6849953",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585041890,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:01.890Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:01.890Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.497Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.497Z"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aba28d18f88b8d124990f34"
+      },
+      "type": "GENDER",
+      "seller_product_id": 10369065,
+      "review_bucket": 1,
+      "platform_code": "MUSINSA",
+      "platform_product_id": "6834465",
+      "category_depth1": "의류",
+      "status": "EVENT_PUBLISHED",
+      "version": 1790585040990,
+      "inference_origin": "INCREMENTAL",
+      "run_id": null,
+      "opened_by": "OPERATOR",
+      "opened_via": "ADMIN_REINFER",
+      "system_version": "v2",
+      "opened_at": {
+        "$date": "2026-09-28T08:44:00.990Z"
+      },
+      "rt": {
+        "$date": "2026-09-28T08:44:00.990Z"
+      },
+      "ut": {
+        "$date": "2026-09-28T08:46:00.484Z"
+      },
+      "dt": null,
+      "claimed_at": null,
+      "auto_retry_at": null,
+      "decision_path": "DETAIL_IMAGE",
+      "detail_retry_exhausted": false,
+      "fail_reason": null,
+      "failed_at": null,
+      "event_publish_failed_at": null,
+      "event_published_at": {
+        "$date": "2026-09-28T08:46:00.484Z"
+      }
+    }
+  ]
+}

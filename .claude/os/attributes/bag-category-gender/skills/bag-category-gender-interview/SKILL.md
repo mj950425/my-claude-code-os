@@ -38,9 +38,9 @@ python3 .claude/os/interview/scripts/scan_ambiguity.py \
 | 답의 성격 | 넣는 곳 |
 |---|---|
 | 사용처·실패 장면·판정 기준·목표 품질 | `attributes/bag-category-gender/goal.md`의 앞 세 섹션 |
-| 규칙의 출처와 확신도 | `attributes/bag-category-gender/policy/policy.md`의 `## 출처와 확신도` |
+| 규칙의 출처와 확신도 | `attributes/bag-category-gender/definitions.md`의 각 규칙 설명 |
 | 성별 축이 적용되는 대상의 경계 | `attributes/bag-category-gender/goal.md`의 경계 표 |
-| 근거·값·판정 불가 규칙 | `attributes/bag-category-gender/policy/policy.md` |
+| 근거·값·판정 불가 규칙 | `attributes/bag-category-gender/definitions.md` |
 | 열린 경계 하나의 확정 | `policy/precedents/BG-*.md`의 `status: DECIDED` + `decision`·`decidedBy`·`decidedAt` |
 
 세션이 끝나면 `render_interview_adr.py`로 `attributes/bag-category-gender/adr/`에 ADR을 남긴다.
